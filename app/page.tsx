@@ -9,17 +9,113 @@ import {
 } from 'lucide-react';
 import { NovelProject, Chapter, Character, WorldRule } from '@/lib/db';
 
-const GENRES = [
-  { name: '仙侠修真', desc: '炼气筑基，逆天改命，追寻大道长生', icon: '✨' },
-  { name: '科幻未来', desc: '星际纪元，赛博朋克，探索宇宙终极奥秘', icon: '🚀' },
-  { name: '悬疑惊悚', desc: '迷雾重重，探寻人性，解开不可名状之谜', icon: '🔍' },
-  { name: '都市异能', desc: '红尘百态，觉醒超凡，都市极道掌控', icon: '🌆' },
-  { name: '玄幻奇幻', desc: '魔法高武，诸天万界，波澜壮阔的异界史诗', icon: '🔮' },
-  { name: '历史架空', desc: '重回古代，权谋争霸，兴亡交替的兴衰画卷', icon: '🏛️' },
-  { name: '游戏竞技', desc: '电竞巅峰，全息网游，键盘与虚拟的极致对抗', icon: '🎮' },
-  { name: '二次元幻想', desc: '异世界转生，吐槽搞笑，轻松温馨的日常冒险', icon: '🌸' },
-  { name: '现代言情', desc: '豪门博弈，顶流恋爱，红尘都市的情感纠葛', icon: '💖' },
-  { name: '古代言情', desc: '后宫夺嫡，权谋算计，凄美旷世的爱情传奇', icon: '👑' }
+const GENRE_CATEGORIES = [
+  {
+    id: 'xuanhuan',
+    title: '玄幻奇幻',
+    icon: '🔮',
+    genres: [
+      { name: '东方玄幻', desc: '热血升级，武道通神，气吞星河', icon: '🎋' },
+      { name: '异世大陆', desc: '领主建设，斗气争雄，宏大冒险', icon: '🌌' },
+      { name: '王朝争霸', desc: '诸侯割据，运筹帷幄，争霸诸天', icon: '👑' },
+      { name: '史诗奇幻', desc: '西方剑与魔法，巨龙怒吼与骑士信仰', icon: '⚔️' },
+      { name: '高武世界', desc: '地球异变，全民武道，抵御异兽入侵', icon: '🪐' }
+    ]
+  },
+  {
+    id: 'xianxia',
+    title: '仙侠武侠',
+    icon: '✨',
+    genres: [
+      { name: '古典仙侠', desc: '修真文明，逆天改命，古典神话探秘', icon: '☯️' },
+      { name: '幻想修仙', desc: '脑洞修真，金手指加持，不一样的飞升', icon: '💫' },
+      { name: '现代修真', desc: '都市修仙，钢筋水泥中的红尘磨炼', icon: '🏢' },
+      { name: '传统武侠', desc: '快意恩仇，儿女情长，仗剑走天涯', icon: '🗡️' },
+      { name: '武侠幻想', desc: '高武江湖，飞花摘叶，大内密探', icon: '🦅' }
+    ]
+  },
+  {
+    id: 'dushi',
+    title: '都市青春',
+    icon: '🌆',
+    genres: [
+      { name: '都市生活', desc: '市井百态，日常烟火，神豪崛起', icon: '💰' },
+      { name: '异术超能', desc: '都市透视，掌控雷电，黑夜行者', icon: '⚡' },
+      { name: '商战职场', desc: '商海浮沉，行业领袖，金融风暴', icon: '📈' },
+      { name: '娱乐明星', desc: '导演编剧，巨星闪耀，打造文娱帝国', icon: '🎭' },
+      { name: '青春校园', desc: '白衣飘飘的年代，青涩恋爱与成长奋斗', icon: '🎒' }
+    ]
+  },
+  {
+    id: 'lishi',
+    title: '历史军事',
+    icon: '🏛️',
+    genres: [
+      { name: '架空历史', desc: '穿越古今，改良工业，推演历史走向', icon: '📜' },
+      { name: '秦汉三国', desc: '群雄逐鹿，逐鹿中原，铁血权谋', icon: '🛡️' },
+      { name: '两宋元明', desc: '山河破碎，文人骨气，保家卫国', icon: '🏮' },
+      { name: '特种兵王', desc: '最强利刃，铁血军魂，保家卫国', icon: '🎖️' },
+      { name: '战争幻想', desc: '虚构现代战争，海陆空全面争霸', icon: '⚓' }
+    ]
+  },
+  {
+    id: 'kehuan',
+    title: '科幻末世',
+    icon: '🚀',
+    genres: [
+      { name: '未来世界', desc: '赛博朋克，AI危机，意识上传', icon: '🤖' },
+      { name: '星际文明', desc: '星门穿梭，战舰对决，星海拓荒', icon: '🛸' },
+      { name: '时空穿梭', desc: '时空穿梭，倒买倒卖，修复时间线', icon: '🌀' },
+      { name: '末世危机', desc: '废土拾荒，丧尸爆发，人类最后防线', icon: '☣️' },
+      { name: '古武机甲', desc: '血肉与钢铁的融合，操控机甲横扫深空', icon: '🦾' }
+    ]
+  },
+  {
+    id: 'xuanyi',
+    title: '悬疑惊悚',
+    icon: '🔍',
+    genres: [
+      { name: '诡秘神秘', desc: '克苏鲁神话，深渊污染，精神崩溃边缘', icon: '🐙' },
+      { name: '规则怪谈', desc: '致命法则，异常管理局，遵守规则求生', icon: '👁️' },
+      { name: '探险寻宝', desc: '摸金校尉，古墓影院，失落遗迹', icon: '🧭' },
+      { name: '侦探推理', desc: '侧写追凶，密室杀人，纯粹逻辑博弈', icon: '🕵️' },
+      { name: '灵异民俗', desc: '中式恐怖，纸人抬轿，民俗禁忌', icon: '🕯️' }
+    ]
+  },
+  {
+    id: 'youxi',
+    title: '游戏体育',
+    icon: '🎮',
+    genres: [
+      { name: '虚拟网游', desc: '第二世界，全息争霸，公会战记', icon: '🛡️' },
+      { name: '电子竞技', desc: '英雄联盟，绝地求生，捧起冠军奖杯', icon: '🏆' },
+      { name: '游戏异界', desc: 'NPC觉醒，穿越成反派BOSS，改写剧本', icon: '👾' },
+      { name: '体育竞技', desc: '篮球之神，绿茵传奇，突破人体极限', icon: '⚽' }
+    ]
+  },
+  {
+    id: 'qingxiaoshuo',
+    title: '轻小说',
+    icon: '🍃',
+    genres: [
+      { name: '原生幻想', desc: '异世界开小店，勇者与魔王的日常吐槽', icon: '🏡' },
+      { name: '衍生同人', desc: '二次元动漫世界同人，弥补前作遗憾', icon: '📖' },
+      { name: '搞笑吐槽', desc: '沙雕流，反套路，让人捧腹大笑', icon: '🤪' },
+      { name: '恋爱日常', desc: '单女主，纯爱战神，温馨发糖日常', icon: '🍯' }
+    ]
+  },
+  {
+    id: 'nvpin',
+    title: '女生言情',
+    icon: '💖',
+    genres: [
+      { name: '豪门总裁', desc: '闪婚契约，带球跑，追妻火葬场', icon: '💎' },
+      { name: '宫廷侯爵', desc: '嫡女重生，斗姨娘，辅佐君王登基', icon: '👑' },
+      { name: '种田经商', desc: '农家小媳妇，发家致富，细水长流', icon: '🌾' },
+      { name: '幻情仙侠', desc: '三生三世，仙魔虐恋，大女主涅槃', icon: '🌸' },
+      { name: '浪漫青春', desc: '校园初恋，青梅竹马，从校服到婚纱', icon: '🎒' }
+    ]
+  }
 ];
 
 const TONES = [
@@ -63,9 +159,18 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [showNewProjModal, setShowNewProjModal] = useState(false);
   const [isWizardMode, setIsWizardMode] = useState(false);
+  const [selectedGenreCategory, setSelectedGenreCategory] = useState('xuanhuan');
+  const [customGenreInput, setCustomGenreInput] = useState('');
+  const [customToneInput, setCustomToneInput] = useState('');
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [showNewChapModal, setShowNewChapModal] = useState(false);
+  const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [editProjTitle, setEditProjTitle] = useState('');
+  const [editProjStyle, setEditProjStyle] = useState('');
+  const [editProjWorld, setEditProjWorld] = useState('');
+  const [editProjDesc, setEditProjDesc] = useState('');
+  const [isEditProjectAiLoading, setIsEditProjectAiLoading] = useState(false);
   
   // 表单状态
   const [newProjTitle, setNewProjTitle] = useState('');
@@ -335,7 +440,89 @@ export default function Home() {
     setSelectedTags([]);
     setWizardResult(null);
     setWizardLoading(false);
+    setCustomGenreInput('');
+    setCustomToneInput('');
     setIsWizardMode(true);
+  };
+
+  const handleSkipWizard = async () => {
+    setIsAiLoading(true);
+    try {
+      const newProj = await store.createProject(
+        "未命名故事",
+        "点击左侧‘设定库’或‘项目设置’补充简介与背景设定...",
+        "传统正剧",
+        "待补充世界观"
+      );
+      
+      // 默认空目录
+      await store.createChapter(newProj.id, '第一章：启程');
+      await store.createChapter(newProj.id, '第二章：变局');
+      await store.createChapter(newProj.id, '第三章：抉择');
+
+      setIsWizardMode(false);
+      store.setCurrentProject(newProj);
+      alert("已跳过向导！已为您创建一个初始项目《未命名故事》，并在左侧生成了前三章的初始目录，您可以在左侧设定库中慢慢补充各种故事背景设定。");
+    } catch (err) {
+      alert("直接建书失败");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleOpenEditProject = () => {
+    if (store.currentProject) {
+      setEditProjTitle(store.currentProject.title);
+      setEditProjStyle(store.currentProject.styleSetting || '');
+      setEditProjWorld(store.currentProject.worldSetting || '');
+      setEditProjDesc(store.currentProject.description || '');
+      setShowEditProjectModal(true);
+    }
+  };
+
+  const handleSaveProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!store.currentProject) return;
+    try {
+      await store.updateProject(store.currentProject.id, {
+        title: editProjTitle,
+        styleSetting: editProjStyle,
+        worldSetting: editProjWorld,
+        description: editProjDesc,
+      });
+      setShowEditProjectModal(false);
+    } catch (err) {
+      alert("保存项目设定失败");
+    }
+  };
+
+  const handleEditProjectAiPlan = async () => {
+    setIsEditProjectAiLoading(true);
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'autoPlan',
+          genre: editProjTitle ? '基于' + editProjTitle : '玄幻奇幻',
+          tone: editProjStyle || '传统正剧',
+          tags: []
+        })
+      });
+      if (!res.ok) throw new Error('AI推演失败');
+      const data = await res.json();
+      if (data) {
+        setEditProjDesc(data.description || '');
+        setEditProjWorld(data.worldSetting || '');
+        if (data.styleSetting && !editProjStyle) {
+          setEditProjStyle(data.styleSetting);
+        }
+      }
+    } catch (err) {
+      alert("AI 推演失败，请检查网络或稍后再试");
+    } finally {
+      setIsEditProjectAiLoading(false);
+    }
   };
 
   const handleToggleTag = (tag: string) => {
@@ -961,9 +1148,27 @@ export default function Home() {
             </p>
           </div>
           {!wizardLoading && (
-            <button className="btn btn-secondary" onClick={() => setIsWizardMode(false)} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <ChevronLeft size={16} /> 返回项目大厅
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={handleSkipWizard} 
+                disabled={isAiLoading}
+                style={{ 
+                  display: 'flex', 
+                  gap: '6px', 
+                  alignItems: 'center', 
+                  borderColor: 'rgba(16, 185, 129, 0.4)', 
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  color: '#34d399'
+                }}
+              >
+                ⚡ 直接开书 (跳过向导)
+              </button>
+              <button className="btn btn-secondary" onClick={() => setIsWizardMode(false)} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <ChevronLeft size={16} /> 返回项目大厅
+              </button>
+            </div>
           )}
         </div>
 
@@ -1016,16 +1221,47 @@ export default function Home() {
                   {/* 第 1 步：题材选择 */}
                   {wizardStep === 1 && (
                     <div>
-                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>请选择您小说的核心题材（十门主流品类）</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        {GENRES.map(genre => {
+                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>请选择您小说的核心题材（九门主流大类，共计43个细分品类）</h3>
+                      
+                      {/* 横向滚动大类 Tab */}
+                      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
+                        {GENRE_CATEGORIES.map(category => {
+                          const isCatSelected = selectedGenreCategory === category.id;
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              className={`btn ${isCatSelected ? 'btn-primary' : 'btn-secondary'}`}
+                              onClick={() => setSelectedGenreCategory(category.id)}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                borderRadius: '20px',
+                                border: isCatSelected ? 'none' : '1px solid var(--border-light)',
+                                background: isCatSelected ? 'var(--accent)' : 'var(--bg-input)',
+                                color: isCatSelected ? '#fff' : 'var(--text-muted)',
+                                boxShadow: isCatSelected ? '0 0 10px rgba(99, 102, 241, 0.3)' : 'none'
+                              }}
+                            >
+                              <span style={{ marginRight: '4px' }}>{category.icon}</span>
+                              {category.title}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 细分卡片网格 */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', maxHeight: '320px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {GENRE_CATEGORIES.find(c => c.id === selectedGenreCategory)?.genres.map(genre => {
                           const isSelected = selectedGenre === genre.name;
                           return (
                             <div 
                               key={genre.name}
-                              onClick={() => setSelectedGenre(genre.name)}
+                              onClick={() => {
+                                setSelectedGenre(genre.name);
+                              }}
                               style={{
-                                padding: '14px 16px',
+                                padding: '12px 14px',
                                 borderRadius: '10px',
                                 background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-input)',
                                 border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
@@ -1033,18 +1269,59 @@ export default function Home() {
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'flex-start',
-                                gap: '12px',
-                                boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.15)' : 'none'
+                                gap: '10px',
+                                boxShadow: isSelected ? '0 0 12px rgba(99, 102, 241, 0.15)' : 'none'
                               }}
                             >
-                              <span style={{ fontSize: '24px' }}>{genre.icon}</span>
+                              <span style={{ fontSize: '20px' }}>{genre.icon}</span>
                               <div>
-                                <div style={{ fontWeight: '600', fontSize: '14px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '4px' }}>{genre.name}</div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{genre.desc}</div>
+                                <div style={{ fontWeight: '600', fontSize: '13px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '2px' }}>{genre.name}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{genre.desc}</div>
                               </div>
                             </div>
                           );
                         })}
+                      </div>
+                      
+                      {/* 自定义题材选择 */}
+                      <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✍️ 独创自定义题材（例如：赛博仙侠、中式蒸汽朋克）</div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            placeholder="输入您的独创题材..." 
+                            value={customGenreInput} 
+                            onChange={e => setCustomGenreInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const trimmed = customGenreInput.trim();
+                                if (trimmed) {
+                                  setSelectedGenre(trimmed);
+                                }
+                              }
+                            }}
+                            style={{ flexGrow: 1 }}
+                          />
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              const trimmed = customGenreInput.trim();
+                              if (trimmed) {
+                                setSelectedGenre(trimmed);
+                              }
+                            }}
+                          >
+                            确定题材
+                          </button>
+                        </div>
+                        {selectedGenre && !GENRE_CATEGORIES.some(c => c.genres.some(g => g.name === selectedGenre)) && (
+                          <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: '500' }}>
+                            当前已选中自定义题材：【{selectedGenre}】
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1081,6 +1358,47 @@ export default function Home() {
                             </div>
                           );
                         })}
+                      </div>
+                      
+                      {/* 自定义文风选择 */}
+                      <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✍️ 自定义独特文风（例如：暗黑克苏鲁、赛博怪诞）</div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            placeholder="输入您的自定义文风偏好..." 
+                            value={customToneInput} 
+                            onChange={e => setCustomToneInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const trimmed = customToneInput.trim();
+                                if (trimmed) {
+                                  setSelectedTone(trimmed);
+                                }
+                              }
+                            }}
+                            style={{ flexGrow: 1 }}
+                          />
+                          <button 
+                            type="button" 
+                            className="btn btn-secondary"
+                            onClick={() => {
+                              const trimmed = customToneInput.trim();
+                              if (trimmed) {
+                                setSelectedTone(trimmed);
+                              }
+                            }}
+                          >
+                            确定文风
+                          </button>
+                        </div>
+                        {selectedTone && !TONES.some(t => t.name === selectedTone) && (
+                          <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: '500' }}>
+                            当前已选中自定义文风：【{selectedTone}】
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1924,7 +2242,12 @@ export default function Home() {
                 </div>
 
                 <div className="sidebar-section" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                  <div className="sidebar-header">小说核心世界观</div>
+                  <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>小说核心世界观</span>
+                    <button className="btn-icon" onClick={handleOpenEditProject} title="修改小说设定" style={{ padding: '2px' }}>
+                      <Settings size={14} />
+                    </button>
+                  </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     <div style={{ marginBottom: '8px' }}>
                       <strong style={{ color: 'var(--text-main)' }}>文风设定：</strong>
@@ -1940,6 +2263,25 @@ export default function Home() {
             ) : (
               /* 设定库子项 */
               <div style={{ flexGrow: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ 
+                    width: '100%', 
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--bg-input)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    color: 'var(--text-muted)',
+                    marginBottom: '-8px'
+                  }}
+                  onClick={handleOpenEditProject}
+                >
+                  <Settings size={14} />
+                  <span>⚙️ 修改故事核心背景设定</span>
+                </button>
+
                 <button 
                   className="btn btn-primary" 
                   style={{ 
@@ -2011,7 +2353,23 @@ export default function Home() {
           </div>
 
           {/* 中间：主章节编辑器 */}
-          <div className="workspace-main">
+          <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+            {/* 新书完善设定 Banner */}
+            {store.currentProject && store.currentProject.title === '未命名故事' && (
+              <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '24px' }}>💡</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>新书已直接建立！</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>当前使用默认模板。您可以前往左侧“设定库”慢慢添加人物与世界观，或点击右侧按钮完善核心世界观、题材与文风。</div>
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={handleOpenEditProject} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none' }}>
+                  <Settings size={13} />
+                  完善新书设定
+                </button>
+              </div>
+            )}
             {/* AI 自动写小说引擎控制台 (仅在自动写小说模式下显示) */}
             {autoWriteMode && (
               <div className="glass-card" style={{ margin: '15px 30px 0', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
@@ -2416,6 +2774,63 @@ export default function Home() {
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setShowNewRuleModal(false)}>取消</button>
               <button type="submit" className="btn btn-primary">添加设定</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 修改项目设定 Modal */}
+      {showEditProjectModal && (
+        <div className="modal-overlay">
+          <form className="modal-content glass-card" onSubmit={handleSaveProject} style={{ maxWidth: '600px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>
+              <div className="modal-title" style={{ margin: 0 }}>⚙️ 完善新书设定</div>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={handleEditProjectAiPlan} 
+                disabled={isEditProjectAiLoading}
+                style={{ fontSize: '11px', padding: '6px 12px', background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none', boxShadow: 'none' }}
+              >
+                {isEditProjectAiLoading ? (
+                  <>
+                    <Loader2 size={11} className="animate-spin" style={{ marginRight: '4px' }} />
+                    <span>AI 推演中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={11} style={{ marginRight: '4px' }} />
+                    <span>⚡ 一键 AI 智能推演</span>
+                  </>
+                )}
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>小说书名</label>
+                <input required type="text" className="input" placeholder="输入您小说的名字..." value={editProjTitle} onChange={e => setEditProjTitle(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>文风设定（可自定义输入，如：暗黑克苏鲁、轻快吐槽）</label>
+                <input type="text" className="input" placeholder="输入文风偏好（如：传统仙侠正剧，快节奏爽文）..." value={editProjStyle} onChange={e => setEditProjStyle(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>故事简介</label>
+                <textarea className="textarea" placeholder="填写一句话简介或故事看点，有助于 AI 写作时紧扣主题..." value={editProjDesc} onChange={e => setEditProjDesc(e.target.value)} style={{ minHeight: '80px' }} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>核心世界观/背景描述</label>
+                <textarea className="textarea" placeholder="在此补充世界的物理规则、力量体系等级、地理背景等（如：凡人修真，境界分为练气、筑基、金丹等）..." value={editProjWorld} onChange={e => setEditProjWorld(e.target.value)} style={{ minHeight: '120px' }} />
+              </div>
+            </div>
+            
+            <div className="modal-actions" style={{ marginTop: '20px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowEditProjectModal(false)} disabled={isEditProjectAiLoading}>取消</button>
+              <button type="submit" className="btn btn-primary" disabled={isEditProjectAiLoading}>保存设定</button>
             </div>
           </form>
         </div>

@@ -19,6 +19,7 @@ interface NovelStore {
   fetchProjects: () => Promise<void>;
   createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string) => Promise<NovelProject>;
   deleteProject: (id: string) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>) => Promise<NovelProject>;
   setCurrentProject: (project: NovelProject | null) => void;
 
   fetchChapters: (projectId: string) => Promise<void>;
@@ -116,6 +117,28 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         }));
       } catch (err: any) {
         set({ error: err.message, isLoading: false });
+      }
+    },
+
+    updateProject: async (id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>) => {
+      set({ isLoading: true, error: null });
+      try {
+        const res = await fetch(`/api/projects/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error('更新项目失败');
+        const updated = await res.json();
+        set(state => ({
+          projects: state.projects.map(p => p.id === id ? updated : p),
+          currentProject: state.currentProject?.id === id ? updated : state.currentProject,
+          isLoading: false
+        }));
+        return updated;
+      } catch (err: any) {
+        set({ error: err.message, isLoading: false });
+        throw err;
       }
     },
 
