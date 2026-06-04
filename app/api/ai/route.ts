@@ -19,6 +19,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ reply });
       }
 
+      case 'autoWrite': {
+        const { chapterTitle } = body;
+        if (!projectId || !chapterTitle) {
+          return NextResponse.json({ error: '缺少 projectId 或 chapterTitle' }, { status: 400 });
+        }
+        const text = await ai.autoWriteChapter(projectId, chapterTitle, apiKey, modelName, instruction);
+        return NextResponse.json({ text });
+      }
+
       case 'continue': {
         if (!projectId || currentText === undefined) {
           return NextResponse.json({ error: '缺少 projectId 或 currentText' }, { status: 400 });

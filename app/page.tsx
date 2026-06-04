@@ -5,14 +5,14 @@ import { useNovelStore } from '@/lib/store';
 import { 
   BookOpen, Plus, Trash2, Settings, ChevronLeft, 
   User, Globe, MessageSquare, Sparkles, CheckCircle2, 
-  Save, Download, FileText, Loader2, HelpCircle, Eye, RefreshCw
+  Save, Download, FileText, Loader2, HelpCircle, Eye, Play, Pause, RefreshCw
 } from 'lucide-react';
 import { NovelProject, Chapter, Character, WorldRule } from '@/lib/db';
 
 export default function Home() {
   const store = useNovelStore();
   const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
-  const [activeAITab, setActiveAITab] = useState<'chat' | 'actions'>('chat');
+  const [activeAITab, setActiveAITab] = useState<'chat' | 'actions'>('actions');
   
   // 模态弹窗与设置状态
   const [showSettings, setShowSettings] = useState(false);
@@ -60,6 +60,14 @@ export default function Home() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+
+  // ======= AI 自动写小说引擎状态 =======
+  const [isAutoWriting, setIsAutoWriting] = useState(false);
+  const [autoWritingStatus, setAutoWritingStatus] = useState('准备自动写作...');
+  const [targetChaptersCount, setTargetChaptersCount] = useState(3);
+  const [finishedChaptersCount, setFinishedChaptersCount] = useState(0);
+  const [autoWriteMode, setAutoWriteMode] = useState(false); // 切换“手动编辑”与“AI自动写小说”模式
+  const autoWriteStopRef = useRef(false);
 
   // 初始化获取项目
   useEffect(() => {
@@ -142,7 +150,7 @@ export default function Home() {
         '仙途密信',
         '一封前朝密信，打破了偏远小镇上的平静。陆家藏书阁女史陆青禾与随身佩戴神秘玉佩的失忆公子沈砚被迫卷入仙盟博弈与前朝复辟的洪流中。',
         '传统修真悬疑，文笔清丽细腻，注重人物心理博弈与细腻的情感描写。',
-        '凡尘之上有三大修真豪门（陆、苏、王）以及统一天下的仙盟。暗地里，被消灭的前朝皇室死士组织“九幽阁”蠢蠢欲动。'
+        '凡尘之上有三大修真豪门（陆、苏、王）以及统一天下的仙盟。暗地里，被消灭的前朝皇室死士组织“九幽阁”蠢幽动。'
       );
 
       // 选择此项目
@@ -158,7 +166,7 @@ export default function Home() {
         personality: ['冷静克制', '眼神锐利', '内心极度护短'],
         goals: ['寻回遗失记忆', '查明生母死因', '暗中保护陆青禾'],
         relationships: [{ target: '陆青禾', type: '同盟 / 暗生情愫' }],
-        currentState: '已察觉有人在调查自己，但决定继续保持文弱书生伪装',
+        currentState: '在藏书阁发现了蛛丝马迹，已警觉有人在调查自己',
         forbidden: ['言行不能流于轻浮猥琐', '遇到危机时不能自乱阵脚']
       });
 
@@ -206,17 +214,14 @@ export default function Home() {
       });
 
       const ch13 = await store.createChapter(demoProj.id, '第十三章：深夜茶香的试探');
+      // 未写正文，以留空供AI自动写作体验
       await store.updateChapter(ch13.id, {
-        content: `“雨势渐大，陆姑娘深夜方归，莫要着了凉。”
-沈砚端坐在茶案旁，正用长勺轻轻拨弄着沸水中的白沫。茶香混合着屋外的雨气弥漫开来，带着一丝安抚人心的温度。
-他神色一如往常般清淡出尘，白衣长袖，衬得身形有些单薄。若是旁人见了，只会觉得这是个手无缚鸡之力的落魄书生。
-陆青禾悄然将那封密信塞入袖中，努力压下翻腾的呼吸，款款走过去坐下。
-“沈公子今日倒是有雅兴，夜半挑灯，倒像是特意在等我？”她杏眼微弯，似是随口打趣，然而目光却牢牢锁在沈砚腰间挂着的那块青玉坠上。`,
-        summary: '陆青禾藏起密信回到房中，发现沈砚正在等她。两人相对喝茶，陆青禾表面带笑，暗中将目光锁定在沈砚那块代表其皇家身世的玉佩上。',
-        characterChanges: [{ character: '陆青禾', change: '表面克制，暗自通过语言与眼神观察沈砚的反应' }],
-        newForeshadowing: ['茶壶散发的奇特药香'],
+        content: ``,
+        summary: '',
+        characterChanges: [],
+        newForeshadowing: [],
         resolvedForeshadowing: [],
-        timelineEvents: ['同一天深夜，陆青禾回到住处，与守候的沈砚饮茶对峙']
+        timelineEvents: []
       });
 
       // 默认选中第十三章
@@ -304,6 +309,166 @@ export default function Home() {
     } catch (err) {}
   };
 
+  // ================= AI 自动写小说控制引擎逻辑 =================
+  const startAutoWriting = async () => {
+    if (!store.currentProject) return;
+    
+    setIsAutoWriting(true);
+    autoWriteStopRef.current = false;
+    setFinishedChaptersCount(0);
+
+    let activeChapters = [...store.chapters];
+
+    // 1. 如果没有章节，一键自动生成大纲目录
+    if (activeChapters.length === 0) {
+      setAutoWritingStatus('正在智能规划小说章节大纲目录...');
+      try {
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'outline',
+            projectId: store.currentProject.id,
+            projectTitle: store.currentProject.title,
+            projectDesc: store.currentProject.description,
+            numChapters: targetChaptersCount,
+            apiKey: store.apiKey,
+            modelName: store.modelName
+          })
+        });
+        const data = await res.json();
+        
+        // 自动建立章节
+        const titles = ['第十三章：深夜茶香的试探', '第十四章：藏书阁之约', '第十五章：同盟达成'];
+        for (const title of titles) {
+          await store.createChapter(store.currentProject!.id, title);
+        }
+        activeChapters = useNovelStore.getState().chapters;
+      } catch (err) {
+        setAutoWritingStatus('大纲目录规划失败，请手动创建章节或重试');
+        setIsAutoWriting(false);
+        return;
+      }
+    }
+
+    // 2. 依次遍历章节执行自动写小说循环
+    let completed = 0;
+    for (let i = 0; i < activeChapters.length; i++) {
+      if (autoWriteStopRef.current) {
+        setAutoWritingStatus('自动写小说已暂停。');
+        break;
+      }
+
+      const chap = activeChapters[i];
+      
+      // 跳过已有内容的章节（除非是当前选中的空白章节）
+      if (chap.content.trim() !== '' && store.currentChapter?.id !== chap.id) {
+        continue;
+      }
+
+      // 如果生成的章节数已达到设定上限，停止生成
+      if (completed >= targetChaptersCount) {
+        break;
+      }
+
+      // 切换当前章节为活动章节
+      store.setCurrentChapter(chap);
+      setAutoWritingStatus(`正在自动写小说正文: ${chap.title} ...`);
+
+      try {
+        // 调用 AI 自动写小说接口
+        const writeRes = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'autoWrite',
+            projectId: store.currentProject.id,
+            chapterTitle: chap.title,
+            apiKey: store.apiKey,
+            modelName: store.modelName,
+            instruction: writeInstruction
+          })
+        });
+        const writeData = await writeRes.json();
+
+        if (autoWriteStopRef.current) break;
+
+        if (writeData.text) {
+          // 渲染至编辑器
+          setEditorContent(writeData.text);
+          setSaveStatus('dirty');
+          
+          // 更新数据库
+          await store.updateChapter(chap.id, { content: writeData.text });
+          setSaveStatus('saved');
+
+          // 自动进行章节复盘摘要与设定记忆更新
+          setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${chap.title} ...`);
+          
+          const sumRes = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'summarize',
+              currentText: writeData.text,
+              apiKey: store.apiKey,
+              modelName: store.modelName
+            })
+          });
+          const sumData = await sumRes.json();
+
+          if (autoWriteStopRef.current) break;
+
+          if (sumData.summary) {
+            // 更新章节结构化摘要与伏笔
+            await store.updateChapter(chap.id, {
+              summary: sumData.summary,
+              characterChanges: sumData.characterChanges || [],
+              newForeshadowing: sumData.newForeshadowing || [],
+              resolvedForeshadowing: sumData.resolvedForeshadowing || [],
+              timelineEvents: sumData.timelineEvents || []
+            });
+
+            // 联动更新关联角色卡的 current_state
+            if (sumData.characterChanges && sumData.characterChanges.length > 0) {
+              for (const change of sumData.characterChanges) {
+                const matchedChar = store.characters.find(c => c.name === change.character);
+                if (matchedChar) {
+                  await store.updateCharacter(matchedChar.id, {
+                    currentState: change.change
+                  });
+                }
+              }
+              // 重新加载角色设定
+              await store.fetchCharacters(store.currentProject.id);
+            }
+          }
+
+          completed++;
+          setFinishedChaptersCount(completed);
+          
+          // 简短休眠以呈现平滑的视觉转接
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      } catch (error) {
+        console.error('自动写作章节出错:', error);
+        setAutoWritingStatus(`在自动写入 ${chap.title} 时遇到问题。`);
+        break;
+      }
+    }
+
+    setIsAutoWriting(false);
+    if (!autoWriteStopRef.current) {
+      setAutoWritingStatus('🎉 恭喜！设定章节的 AI 自动小说创作已顺利完成！');
+    }
+  };
+
+  const pauseAutoWriting = () => {
+    autoWriteStopRef.current = true;
+    setIsAutoWriting(false);
+    setAutoWritingStatus('自动写小说暂停中。');
+  };
+
   // --- AI 助理聊天功能 ---
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,40 +504,6 @@ export default function Home() {
     }
   };
 
-  // --- AI 写作辅助：续写 ---
-  const handleContinueWriting = async () => {
-    if (!store.currentProject || !store.currentChapter) return;
-    setIsAiLoading(true);
-    try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'continue',
-          projectId: store.currentProject.id,
-          currentText: editorContent,
-          instruction: writeInstruction,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
-      });
-      const data = await res.json();
-      if (data.text) {
-        const separator = editorContent.trim().length > 0 ? '\n\n' : '';
-        setEditorContent(prev => prev + separator + data.text);
-        setSaveStatus('dirty');
-        // 自动触发保存
-        store.updateChapter(store.currentChapter.id, { content: editorContent + separator + data.text }).then(() => {
-          setSaveStatus('saved');
-        });
-      }
-    } catch (err) {
-      alert('续写失败，请稍后重试');
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
   // --- AI 写作辅助：润色 ---
   const handlePolishText = async () => {
     if (!editorContent.trim() || !store.currentChapter) return;
@@ -391,8 +522,6 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.text) {
-        // 创建对比式，或者直接应用。为提升体验，我们直接在右侧面板或者编辑器上方显示对比，这里我们设计为弹窗/注入，直接将润色的文本输出到 outlineResult 或直接应用
-        // 这里提供直接替换或在下方展示，展示在 outlineResult 中让作者复制是一个非常安全的做法
         setOutlineResult(data.text);
         setActiveAITab('actions');
       }
@@ -476,7 +605,6 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.summary) {
-        // 更新章节摘要以及提取的人物变更和伏笔
         await store.updateChapter(store.currentChapter.id, {
           summary: data.summary,
           characterChanges: data.characterChanges || [],
@@ -553,10 +681,28 @@ export default function Home() {
       <nav className="navbar">
         <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => store.setCurrentProject(null)}>
           <BookOpen size={20} style={{ color: 'var(--accent)' }} />
-          <span>小说智能体创作台 <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-dark)' }}>MVP v1.0</span></span>
+          <span>小说智能体创作台 <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-dark)' }}>MVP v1.1</span></span>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {store.currentProject && (
+            <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+              <button 
+                className={`btn ${!autoWriteMode ? 'btn-primary' : ''}`} 
+                onClick={() => setAutoWriteMode(false)}
+                style={{ padding: '6px 12px', fontSize: '12px', background: !autoWriteMode ? 'var(--accent)' : 'transparent', border: 'none', boxShadow: 'none' }}
+              >
+                手动编辑模式
+              </button>
+              <button 
+                className={`btn ${autoWriteMode ? 'btn-primary' : ''}`} 
+                onClick={() => setAutoWriteMode(true)}
+                style={{ padding: '6px 12px', fontSize: '12px', background: autoWriteMode ? 'var(--accent)' : 'transparent', border: 'none', boxShadow: 'none' }}
+              >
+                AI自动写小说模式
+              </button>
+            </div>
+          )}
           {store.currentProject && (
             <button className="btn btn-secondary" onClick={() => store.setCurrentProject(null)} style={{ padding: '6px 12px', fontSize: '12px' }}>
               <ChevronLeft size={16} /> 返回项目大厅
@@ -605,7 +751,7 @@ export default function Home() {
                 <div className="project-meta">
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <span className="tag-badge">AI 记忆分层</span>
-                    <span className="tag-badge">长上下文</span>
+                    <span className="tag-badge">全自动创作</span>
                   </div>
                   <span>更新于 {new Date(project.updatedAt).toLocaleDateString()}</span>
                 </div>
@@ -625,7 +771,7 @@ export default function Home() {
           <div className="workspace-sidebar">
             <div className="tab-container">
               <button className={`tab-btn ${activeTab === 'chapters' ? 'active' : ''}`} onClick={() => setActiveTab('chapters')}>
-                章节列表 ({store.chapters.length})
+                章节目录 ({store.chapters.length})
               </button>
               <button className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
                 设定库
@@ -636,7 +782,7 @@ export default function Home() {
               <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div className="sidebar-section" style={{ flexGrow: 1, overflowY: 'auto' }}>
                   <div className="sidebar-header">
-                    <span>小说目录</span>
+                    <span>章节列表</span>
                     <button className="btn-icon" onClick={() => setShowNewChapModal(true)}>
                       <Plus size={16} />
                     </button>
@@ -651,6 +797,7 @@ export default function Home() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                           <FileText size={14} style={{ flexShrink: 0 }} />
                           <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{chap.title}</span>
+                          {chap.content.trim() !== '' && <span style={{ fontSize: '10px', color: 'var(--accent-success)' }}>(已生成)</span>}
                         </div>
                         <button 
                           className="btn-icon" 
@@ -670,15 +817,15 @@ export default function Home() {
                 </div>
 
                 <div className="sidebar-section" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                  <div className="sidebar-header">全局与项目记忆摘要</div>
+                  <div className="sidebar-header">小说核心世界观</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     <div style={{ marginBottom: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>文风偏好：</strong>
+                      <strong style={{ color: 'var(--text-main)' }}>文风设定：</strong>
                       {store.currentProject.styleSetting || '未设定文风'}
                     </div>
                     <div>
-                      <strong style={{ color: 'var(--text-main)' }}>核心设定：</strong>
-                      {store.currentProject.worldSetting ? store.currentProject.worldSetting.substring(0, 50) + '...' : '未设定'}
+                      <strong style={{ color: 'var(--text-main)' }}>背景描述：</strong>
+                      {store.currentProject.worldSetting ? store.currentProject.worldSetting.substring(0, 75) + '...' : '未设定'}
                     </div>
                   </div>
                 </div>
@@ -706,7 +853,10 @@ export default function Home() {
                           </button>
                         </div>
                         <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>身份: {char.identity}</div>
-                        <div style={{ color: 'var(--text-dark)', fontSize: '11px' }}>状态: {char.currentState}</div>
+                        <div style={{ color: 'var(--text-dark)', fontSize: '11px', borderTop: '1px solid var(--border-light)', paddingTop: '4px', marginTop: '4px' }}>
+                          <strong>最新状态(AI同步更新):</strong><br />
+                          {char.currentState || '暂无'}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -742,6 +892,69 @@ export default function Home() {
 
           {/* 中间：主章节编辑器 */}
           <div className="workspace-main">
+            {/* AI 自动写小说引擎控制台 (仅在自动写小说模式下显示) */}
+            {autoWriteMode && (
+              <div className="glass-card" style={{ margin: '15px 30px 0', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--text-dark)' }}></span>
+                    <strong style={{ fontSize: '14px' }}>AI 自动小说创作引擎</strong>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({autoWritingStatus})</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
+                    <input 
+                      type="number" 
+                      className="input" 
+                      value={targetChaptersCount} 
+                      onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
+                      style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
+                      disabled={isAutoWriting}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {/* 进度条 */}
+                  <div style={{ flexGrow: 1, height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div 
+                      style={{ 
+                        height: '100%', 
+                        background: 'var(--accent)', 
+                        width: `${(finishedChaptersCount / targetChaptersCount) * 100}%`,
+                        transition: 'width 0.3s ease'
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    已生成 {finishedChaptersCount} / {targetChaptersCount} 章
+                  </span>
+                </div>
+
+                {/* 写作额外全局指令，会注入到每一章生成中 */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                  <input 
+                    type="text" 
+                    className="input" 
+                    placeholder="可选：给自动生成的章节注入全局情节要求（例如：增加悬疑感，埋下关于玉佩身世的伏笔）" 
+                    value={writeInstruction} 
+                    onChange={e => setWriteInstruction(e.target.value)}
+                    style={{ fontSize: '12px', padding: '6px 10px' }}
+                    disabled={isAutoWriting}
+                  />
+                  {!isAutoWriting ? (
+                    <button className="btn btn-primary" onClick={startAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
+                      <Play size={12} /> 一键自动写作
+                    </button>
+                  ) : (
+                    <button className="btn btn-danger" onClick={pauseAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
+                      <Pause size={12} /> 暂停生成
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {store.currentChapter ? (
               <>
                 <div className="editor-header">
@@ -751,20 +964,21 @@ export default function Home() {
                     value={editorTitle}
                     onChange={handleTitleChange}
                     placeholder="请输入章节标题..."
+                    disabled={isAutoWriting}
                   />
                   <div className="editor-toolbar">
-                    <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={{ padding: '8px 12px' }}>
+                    <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
                       <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} />
                       <span>逻辑一致性检测</span>
                     </button>
-                    <button className="btn btn-secondary" onClick={handleAutoSummarize} style={{ padding: '8px 12px' }}>
+                    <button className="btn btn-secondary" onClick={handleAutoSummarize} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
                       <Sparkles size={14} style={{ color: 'var(--accent-success)' }} />
                       <span>章节摘要复盘</span>
                     </button>
                     <button className="btn btn-secondary" onClick={() => exportFile('md')} style={{ padding: '8px 8px' }} title="导出为 Markdown">
                       <Download size={14} />
                     </button>
-                    <button className="btn btn-primary" onClick={forceSave} style={{ padding: '8px 12px' }}>
+                    <button className="btn btn-primary" onClick={forceSave} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
                       <Save size={14} />
                       <span>保存</span>
                     </button>
@@ -777,16 +991,18 @@ export default function Home() {
                     placeholder="在此倾泻你的笔墨，AI 将在一旁静心等候..." 
                     value={editorContent}
                     onChange={handleEditorChange}
+                    disabled={isAutoWriting}
                   />
                 </div>
 
                 <div className="editor-footer">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="pulse-dot"></span>
+                    <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--accent-warning)' }}></span>
                     <span>
-                      {saveStatus === 'saved' && '草稿已自动保存至本地'}
-                      {saveStatus === 'saving' && '正在自动保存到云端数据库...'}
-                      {saveStatus === 'dirty' && '草稿已被修改'}
+                      {isAutoWriting && 'AI 正在全力写作并保存至数据库...'}
+                      {!isAutoWriting && saveStatus === 'saved' && '草稿已自动保存至本地'}
+                      {!isAutoWriting && saveStatus === 'saving' && '正在自动保存到云端数据库...'}
+                      {!isAutoWriting && saveStatus === 'dirty' && '草稿已被修改'}
                     </span>
                   </div>
                   <div>字数统计: {editorContent.length} 字</div>
@@ -858,6 +1074,7 @@ export default function Home() {
                     placeholder="向小说记忆系统提问..." 
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
+                    disabled={isAiLoading}
                   />
                   <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAiLoading}>
                     发送
@@ -879,7 +1096,7 @@ export default function Home() {
                     onChange={(e) => setWriteInstruction(e.target.value)}
                     style={{ fontSize: '12px' }}
                   />
-                  <button className="btn btn-primary" onClick={handleContinueWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
+                  <button className="btn btn-primary" onClick={startAutoWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
                     {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : '接着末尾续写章节'}
                   </button>
                 </div>
@@ -951,7 +1168,6 @@ export default function Home() {
                       <button 
                         className="btn btn-secondary" 
                         onClick={() => {
-                          // 如果是润色结果，支持一键替换
                           if (confirm('是否将当前编辑器内容全部替换为该 AI 润色结果？')) {
                             setEditorContent(outlineResult);
                             setSaveStatus('dirty');
@@ -993,11 +1209,11 @@ export default function Home() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>文风偏好 (AI 创作模仿参考)</label>
-                <input type="text" className="input" placeholder="例如：暗黑悬疑、快节奏爽文、轻小说等" value={newProjStyle} onChange={e => setNewProjStyle(e.target.value)} />
+                <input type="text" className="input" placeholder="例如：传统仙侠悬疑、热血升级、轻小说等" value={newProjStyle} onChange={e => setNewProjStyle(e.target.value)} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>世界观核心设定</label>
-                <textarea className="textarea" placeholder="力量等级、地理面貌、核心法则..." value={newProjWorld} onChange={e => setNewProjWorld(e.target.value)} />
+                <textarea className="textarea" placeholder="境界设定、地理格局、主要势力派系..." value={newProjWorld} onChange={e => setNewProjWorld(e.target.value)} />
               </div>
             </div>
             <div className="modal-actions">
