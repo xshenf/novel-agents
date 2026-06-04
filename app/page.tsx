@@ -10,25 +10,48 @@ import {
 import { NovelProject, Chapter, Character, WorldRule } from '@/lib/db';
 
 const GENRES = [
-  { name: '仙侠修真', desc: '练气筑基，逆天改命，追寻长生大道', icon: '✨' },
-  { name: '科幻未来', desc: '星际纪元，赛博朋克，探索宇宙终极', icon: '🚀' },
-  { name: '悬疑惊悚', desc: '迷雾重重，探寻人性，解开不可名状', icon: '🔍' },
+  { name: '仙侠修真', desc: '炼气筑基，逆天改命，追寻大道长生', icon: '✨' },
+  { name: '科幻未来', desc: '星际纪元，赛博朋克，探索宇宙终极奥秘', icon: '🚀' },
+  { name: '悬疑惊悚', desc: '迷雾重重，探寻人性，解开不可名状之谜', icon: '🔍' },
   { name: '都市异能', desc: '红尘百态，觉醒超凡，都市极道掌控', icon: '🌆' },
-  { name: '玄幻奇幻', desc: '魔法高武，诸天万界，波澜壮阔史诗', icon: '🔮' }
+  { name: '玄幻奇幻', desc: '魔法高武，诸天万界，波澜壮阔的异界史诗', icon: '🔮' },
+  { name: '历史架空', desc: '重回古代，权谋争霸，兴亡交替的兴衰画卷', icon: '🏛️' },
+  { name: '游戏竞技', desc: '电竞巅峰，全息网游，键盘与虚拟的极致对抗', icon: '🎮' },
+  { name: '二次元幻想', desc: '异世界转生，吐槽搞笑，轻松温馨的日常冒险', icon: '🌸' },
+  { name: '现代言情', desc: '豪门博弈，顶流恋爱，红尘都市的情感纠葛', icon: '💖' },
+  { name: '古代言情', desc: '后宫夺嫡，权谋算计，凄美旷世的爱情传奇', icon: '👑' }
 ];
 
 const TONES = [
-  { name: '传统正剧', desc: '文笔严谨，逻辑扎实，侧重群像深度', icon: '📜' },
-  { name: '热血爽文', desc: '节奏明快，装逼打脸，高潮迭起不拖泥带水', icon: '⚡' },
+  { name: '传统正剧', desc: '文笔严谨，逻辑扎实，侧重群像与世界深度', icon: '📜' },
+  { name: '热血爽文', desc: '节奏明快，升级换装，高潮迭起绝不拖泥带水', icon: '⚡' },
   { name: '悬疑解谜', desc: '草蛇灰线，脑洞大开，环环相扣的智商博弈', icon: '🧩' },
-  { name: '轻小说', desc: '吐槽搞笑，轻松日常，奇幻冒险与温馨日常', icon: '🌸' },
-  { name: '细腻情感', desc: '感情真挚，刻画入微，情感张力与灵魂共鸣', icon: '💖' }
+  { name: '轻小说', desc: '吐槽搞笑，轻松日常，奇幻冒险与温馨互动', icon: '🍃' },
+  { name: '细腻情感', desc: '感情真挚，刻画入微，情感张力与灵魂共鸣', icon: '💕' },
+  { name: '幽默爆笑', desc: '沙雕玩梗，吐槽拉满，让人捧腹的轻松爽文', icon: '🤪' },
+  { name: '暗黑克苏鲁', desc: '气氛压抑，不可名状，理智丧失的终极求生', icon: '🐙' },
+  { name: '史诗歌剧', desc: '宏大叙事，悲壮赞歌，多视角多文明的碰撞', icon: '🎵' },
+  { name: '唯美古风', desc: '用词考究，意境悠远，诗情画意的水墨风流', icon: '🎋' },
+  { name: '无限流恐怖', desc: '规则生存，悬念丛生，穿梭于诸天恐怖任务', icon: '👁️' }
 ];
 
-const PRESET_TAGS = [
-  '凡人流', '系统金手指', '幕后黑手', '无敌流', '退婚逆袭', 
-  '单女主', '无女主', '智商在线', '轻松搞笑', '暗黑诡异', 
-  '架空历史', '境界升级'
+const PRESET_TAG_GROUPS = [
+  {
+    title: '🛠️ 金手指与系统',
+    tags: ['系统金手指', '重生穿越', '签到流', '随身老爷爷', '满级悟性', '家族模拟器', '万界信箱']
+  },
+  {
+    title: '👥 主角人设',
+    tags: ['凡人流', '无敌流', '幕后黑手', '马甲文', '废柴崛起', '多重人格', '天煞孤星']
+  },
+  {
+    title: '🎯 故事看点与主线',
+    tags: ['退婚逆袭', '境界升级', '收徒建宗', '斩妖除魔', '星际争霸', '恋爱救赎', '智商在线']
+  },
+  {
+    title: '🗺️ 世界背景',
+    tags: ['架空历史', '灵气复苏', '末世生存', '规则怪谈', '赛博朋克', '克苏鲁神话', '魔法学院']
+  }
 ];
 
 export default function Home() {
@@ -39,6 +62,7 @@ export default function Home() {
   // 模态弹窗与设置状态
   const [showSettings, setShowSettings] = useState(false);
   const [showNewProjModal, setShowNewProjModal] = useState(false);
+  const [isWizardMode, setIsWizardMode] = useState(false);
   const [showNewCharModal, setShowNewCharModal] = useState(false);
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [showNewChapModal, setShowNewChapModal] = useState(false);
@@ -311,7 +335,7 @@ export default function Home() {
     setSelectedTags([]);
     setWizardResult(null);
     setWizardLoading(false);
-    setShowNewProjModal(true);
+    setIsWizardMode(true);
   };
 
   const handleToggleTag = (tag: string) => {
@@ -366,12 +390,42 @@ export default function Home() {
         wizardResult.worldSetting
       );
 
-      // 默认直接由 AI 预规划章节（前3章未写状态）
-      await store.createChapter(newProj.id, '第一章：深夜古卷的惊变');
-      await store.createChapter(newProj.id, '第二章：试探与杀机');
-      await store.createChapter(newProj.id, '第三章：因果暗局');
+      // 根据题材自动设置不同的前三章标题（更完整、贴切！）
+      let ch1 = '第一章：深夜古卷的惊变';
+      let ch2 = '第二章：试探与杀机';
+      let ch3 = '第三章：因果暗局';
+      
+      if (selectedGenre === '悬疑惊悚') {
+        ch1 = '第一章：雨夜里的失魂人';
+        ch2 = '第二章：死档阁的红漆印';
+        ch3 = '第三章：步步追命的规则';
+      } else if (selectedGenre === '科幻未来') {
+        ch1 = '第一章：深空舱室的冷苏醒';
+        ch2 = '第二章：指令异常与逃逸';
+        ch3 = '第三章：宇宙边缘的未知警告';
+      } else if (selectedGenre === '现代言情' || selectedGenre === '古代言情') {
+        ch1 = '第一章：死局重生的契机';
+        ch2 = '第二章：豪门门阀的刁难';
+        ch3 = '第三章：针锋相对的交手';
+      } else if (selectedGenre === '历史架空') {
+        ch1 = '第一章：没落世子的破局策';
+        ch2 = '第二章：朝堂对赌与杀机';
+        ch3 = '第三章：收服旧部定乾坤';
+      } else if (selectedGenre === '游戏竞技') {
+        ch1 = '第一章：老将退役后的登录';
+        ch2 = '第二章：神魔首测的越级杀';
+        ch3 = '第三章：全服震动的首通记录';
+      } else if (selectedGenre === '二次元幻想') {
+        ch1 = '第一章：转生成为吐槽店长';
+        ch2 = '第二章：美少女眷族的上门拜访';
+        ch3 = '第三章：日常小店的鸡飞狗跳';
+      }
 
-      setShowNewProjModal(false);
+      await store.createChapter(newProj.id, ch1);
+      await store.createChapter(newProj.id, ch2);
+      await store.createChapter(newProj.id, ch3);
+
+      setIsWizardMode(false);
       store.setCurrentProject(newProj);
       alert(`《${wizardResult.title}》项目建档成功！已自动初始化前三章大纲目录，您可以直接开启“AI自动写小说模式”进行智能连载！`);
     } catch (err) {
@@ -889,6 +943,485 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  // 渲染大面积双栏开书向导
+  const renderWizardPanel = () => {
+    const stepTitles = ['题材分类', '文风调性', '故事看点', '新书企划'];
+    
+    return (
+      <div style={{ maxWidth: '1200px', margin: '40px auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 'calc(100vh - 140px)' }}>
+        
+        {/* 顶部标题栏 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
+          <div>
+            <h1 style={{ fontSize: '26px', fontWeight: '700', marginBottom: '6px', background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {wizardLoading ? '✨ AI 智能新书推演中...' : `✨ 智能新书向导: ${stepTitles[wizardStep - 1]}`}
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+              {wizardLoading ? '融合题材世界观与文风法则，推演主线与大纲...' : '通过多维度可视化推演，免去构思烦恼，一键生成您的专属小说企划。'}
+            </p>
+          </div>
+          {!wizardLoading && (
+            <button className="btn btn-secondary" onClick={() => setIsWizardMode(false)} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <ChevronLeft size={16} /> 返回项目大厅
+            </button>
+          )}
+        </div>
+
+        {/* 双栏布局 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: '30px', alignItems: 'stretch' }}>
+          
+          {/* 左栏：配置区 */}
+          <div className="glass-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '520px' }}>
+            
+            {/* 步骤指示器 */}
+            {!wizardLoading && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', padding: '0 10px' }}>
+                <div style={{ position: 'absolute', top: '50%', left: '24px', right: '24px', height: '2px', background: 'var(--border-light)', zIndex: 1, transform: 'translateY(-50%)' }}></div>
+                <div style={{ position: 'absolute', top: '50%', left: '24px', width: `${((wizardStep - 1) / 3) * 91}%`, height: '2px', background: 'var(--accent)', zIndex: 1, transform: 'translateY(-50%)', transition: 'width 0.3s' }}></div>
+                {[1, 2, 3, 4].map(step => (
+                  <div key={step} style={{ 
+                    width: '36px', 
+                    height: '36px', 
+                    borderRadius: '50%', 
+                    background: wizardStep >= step ? 'var(--accent)' : 'var(--bg-input)', 
+                    border: `2px solid ${wizardStep >= step ? 'var(--accent)' : 'var(--border-light)'}`,
+                    color: wizardStep >= step ? '#fff' : 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    zIndex: 2,
+                    transition: 'all 0.3s',
+                    boxShadow: wizardStep === step ? '0 0 15px rgba(99, 102, 241, 0.4)' : 'none'
+                  }}>
+                    {step}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 核心选项区 */}
+            {wizardLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', gap: '20px', flexGrow: 1 }}>
+                <Loader2 className="animate-spin" style={{ width: '48px', height: '48px', color: 'var(--accent)' }} />
+                <div style={{ fontSize: '18px', color: 'var(--text-main)', fontWeight: '600', letterSpacing: '0.05em' }}>{loadingTip}</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>
+                  AI 正在融合题材、文风与核心看点，演算世界的物理法则、灵气浓度以及前三章命途走向...
+                </div>
+              </div>
+            ) : (
+              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  {/* 第 1 步：题材选择 */}
+                  {wizardStep === 1 && (
+                    <div>
+                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>请选择您小说的核心题材（十门主流品类）</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        {GENRES.map(genre => {
+                          const isSelected = selectedGenre === genre.name;
+                          return (
+                            <div 
+                              key={genre.name}
+                              onClick={() => setSelectedGenre(genre.name)}
+                              style={{
+                                padding: '14px 16px',
+                                borderRadius: '10px',
+                                background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-input)',
+                                border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '12px',
+                                boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.15)' : 'none'
+                              }}
+                            >
+                              <span style={{ fontSize: '24px' }}>{genre.icon}</span>
+                              <div>
+                                <div style={{ fontWeight: '600', fontSize: '14px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '4px' }}>{genre.name}</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{genre.desc}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 第 2 步：文风选择 */}
+                  {wizardStep === 2 && (
+                    <div>
+                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>请确定小说的整体文风与行文节奏</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        {TONES.map(tone => {
+                          const isSelected = selectedTone === tone.name;
+                          return (
+                            <div 
+                              key={tone.name}
+                              onClick={() => setSelectedTone(tone.name)}
+                              style={{
+                                padding: '14px 16px',
+                                borderRadius: '10px',
+                                background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-input)',
+                                border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '12px',
+                                boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.15)' : 'none'
+                              }}
+                            >
+                              <span style={{ fontSize: '24px' }}>{tone.icon}</span>
+                              <div>
+                                <div style={{ fontWeight: '600', fontSize: '14px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '4px' }}>{tone.name}</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{tone.desc}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 第 3 步：故事看点 */}
+                  {wizardStep === 3 && (
+                    <div>
+                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>请选择故事核心看点（可跨维度多选）</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        {PRESET_TAG_GROUPS.map(group => (
+                          <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{group.title}</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              {group.tags.map(tag => {
+                                const isSelected = selectedTags.includes(tag);
+                                return (
+                                  <div 
+                                    key={tag}
+                                    onClick={() => handleToggleTag(tag)}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: '16px',
+                                      background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-input)',
+                                      border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
+                                      color: isSelected ? '#fff' : 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: isSelected ? '600' : '400',
+                                      transition: 'all 0.15s'
+                                    }}
+                                  >
+                                    {tag}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* 自定义看点 */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', marginTop: '6px' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✨ 独创脑洞自定义标签</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
+                            {selectedTags.filter(tag => !PRESET_TAG_GROUPS.some(g => g.tags.includes(tag))).map(tag => (
+                              <div 
+                                key={tag}
+                                onClick={() => handleToggleTag(tag)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '16px',
+                                  background: 'rgba(99, 102, 241, 0.15)',
+                                  border: '1px solid var(--accent)',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                {tag}
+                                <span style={{ fontSize: '10px', opacity: 0.7 }}>✕</span>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input 
+                              type="text" 
+                              className="input" 
+                              placeholder="输入您的独创灵感标签，按回车添加..." 
+                              value={customTagInput} 
+                              onChange={e => setCustomTagInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const trimmed = customTagInput.trim();
+                                  if (trimmed && !selectedTags.includes(trimmed)) {
+                                    setSelectedTags(prev => [...prev, trimmed]);
+                                    setCustomTagInput('');
+                                  }
+                                }
+                              }}
+                              style={{ flexGrow: 1 }}
+                            />
+                            <button 
+                              type="button" 
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                const trimmed = customTagInput.trim();
+                                if (trimmed && !selectedTags.includes(trimmed)) {
+                                  setSelectedTags(prev => [...prev, trimmed]);
+                                  setCustomTagInput('');
+                                }
+                              }}
+                            >
+                              添加
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 第 4 步：最终预览编辑 */}
+                  {wizardStep === 4 && wizardResult && (
+                    <div>
+                      <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>AI 推演企划书（您可以在框内直接进行微调与二次润色）</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '420px', overflowY: 'auto', paddingRight: '6px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✨ 独创书名</label>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            value={wizardResult.title} 
+                            onChange={e => setWizardResult(prev => prev ? { ...prev, title: e.target.value } : null)} 
+                            style={{ fontSize: '16px', fontWeight: '600', color: '#fff' }}
+                            required
+                          />
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>📖 故事简介</label>
+                          <textarea 
+                            className="textarea" 
+                            value={wizardResult.description} 
+                            onChange={e => setWizardResult(prev => prev ? { ...prev, description: e.target.value } : null)} 
+                            style={{ minHeight: '80px', lineHeight: '1.6' }}
+                            required
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🎭 创作风格</label>
+                          <input 
+                            type="text" 
+                            className="input" 
+                            value={wizardResult.styleSetting} 
+                            onChange={e => setWizardResult(prev => prev ? { ...prev, styleSetting: e.target.value } : null)} 
+                            required
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🌐 世界观设定与境界划分</label>
+                          <textarea 
+                            className="textarea" 
+                            value={wizardResult.worldSetting} 
+                            onChange={e => setWizardResult(prev => prev ? { ...prev, worldSetting: e.target.value } : null)} 
+                            style={{ minHeight: '110px', lineHeight: '1.6' }}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 底部导航 */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
+                  {wizardStep === 1 && (
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={() => setIsWizardMode(false)}>取消</button>
+                      <button type="button" className="btn className='btn btn-primary'" onClick={() => setWizardStep(2)}>
+                        下一步：确定文风
+                      </button>
+                    </>
+                  )}
+                  {wizardStep === 2 && (
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(1)}>上一步</button>
+                      <button type="button" className="btn className='btn btn-primary'" onClick={() => setWizardStep(3)}>
+                        下一步：故事看点
+                      </button>
+                    </>
+                  )}
+                  {wizardStep === 3 && (
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(2)}>上一步</button>
+                      <button type="button" className="btn className='btn btn-primary'" onClick={handleWizardGenerate}>
+                        一键推演新书企划
+                      </button>
+                    </>
+                  )}
+                  {wizardStep === 4 && (
+                    <>
+                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(3)}>上一步</button>
+                      <button type="button" className="btn btn-secondary" onClick={handleWizardGenerate} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <RefreshCw style={{ width: '14px', height: '14px' }} />
+                        重新推演
+                      </button>
+                      <button type="button" className="btn className='btn btn-primary'" onClick={handleWizardCreateProject} disabled={isAiLoading}>
+                        {isAiLoading ? '创建中...' : '确认创建并连载'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 右栏：实时企划封面看板 (实时灵感公式) */}
+          <div className="glass-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: '520px', background: 'rgba(17, 19, 34, 0.4)', justifyContent: 'space-between' }}>
+            
+            {/* 3D 拟真书脊卡片 */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+              <div style={{ 
+                width: '180px', 
+                height: '250px', 
+                borderRadius: '8px 16px 16px 8px', 
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)',
+                boxShadow: '0 15px 35px rgba(0,0,0,0.5), inset -3px 0 10px rgba(0,0,0,0.4), 0 0 30px var(--accent-glow)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '24px 16px',
+                overflow: 'hidden'
+              }}>
+                {/* 装饰条纹 */}
+                <div style={{ position: 'absolute', left: '0', top: '0', bottom: '0', width: '8px', background: 'rgba(255,255,255,0.03)', borderRight: '1px solid rgba(255,255,255,0.05)' }}></div>
+                
+                {/* 顶部小标 */}
+                <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: '600', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Sparkles size={10} />
+                  AI AUTO SYSTEM
+                </div>
+
+                {/* 书名 */}
+                <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                  <div style={{ 
+                    fontSize: wizardStep === 4 && wizardResult ? '14px' : '18px', 
+                    fontWeight: '700', 
+                    color: '#fff', 
+                    lineHeight: '1.4', 
+                    maxHeight: '80px', 
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical'
+                  }}>
+                    {wizardStep === 4 && wizardResult ? wizardResult.title : '✨ 灵感之卷 ✨'}
+                  </div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-dark)', marginTop: '8px' }}>
+                    {wizardStep === 4 && wizardResult ? '新书大纲已锁定' : '等待 AI 推演灵感...'}
+                  </div>
+                </div>
+
+                {/* 底部题材标签点亮 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                  <div style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid var(--accent)', color: '#a5b4fc', fontWeight: '500' }}>
+                    {selectedGenre}
+                  </div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
+                    {selectedTone}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 灵感公式摘要或前三章预告 */}
+            {wizardStep === 4 && wizardResult ? (
+              <div style={{ background: 'var(--bg-input)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BookOpen size={14} />
+                  前三章连载预告目录已锁定：
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: 'var(--text-main)' }}>
+                  {/* 根据题材匹配的初始目录 */}
+                  {selectedGenre === '悬疑惊悚' ? (
+                    <>
+                      <div>• 第一章：雨夜里的失魂人 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：死档阁的红漆印 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：步步追命的规则 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : selectedGenre === '科幻未来' ? (
+                    <>
+                      <div>• 第一章：深空舱室的冷苏醒 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：指令异常与逃逸 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：宇宙边缘的未知警告 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : (selectedGenre === '现代言情' || selectedGenre === '古代言情') ? (
+                    <>
+                      <div>• 第一章：死局重生的契机 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：豪门门阀的刁难 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：针锋相对的交手 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : selectedGenre === '历史架空' ? (
+                    <>
+                      <div>• 第一章：没落世子的破局策 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：朝堂对赌与杀机 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：收服旧部定乾坤 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : selectedGenre === '游戏竞技' ? (
+                    <>
+                      <div>• 第一章：老将退役后的登录 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：神魔首测的越级杀 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：全服震动的首通记录 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : selectedGenre === '二次元幻想' ? (
+                    <>
+                      <div>• 第一章：转生成为吐槽店长 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：美少女眷族的上门拜访 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：日常小店的鸡飞狗跳 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div>• 第一章：深夜古卷的惊变 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第二章：试探与杀机 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                      <div>• 第三章：因果暗局 <span style={{ color: 'var(--text-dark)' }}>(空细纲)</span></div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.05)', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '6px' }}>当前灵感构想公式</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.6' }}>
+                  这将会是一部以<span style={{ color: 'var(--accent)', fontWeight: '600', margin: '0 2px' }}>{selectedGenre}</span>为画布的<span style={{ color: '#fff', fontWeight: '600', margin: '0 2px' }}>{selectedTone}</span>故事。
+                  {selectedTags.length > 0 && (
+                    <>
+                      它深度融入了包括
+                      <span style={{ color: 'var(--accent-success)', fontWeight: '600', margin: '0 2px' }}>
+                        {selectedTags.slice(0, 4).join('、')}
+                      </span>等吸睛神级看点。
+                    </>
+                  )}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dark)', marginTop: '12px' }}>
+                  请点击「一键推演新书企划」，看 AI 如何将这一行公式编织成气吞长虹的惊世之卷！
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // 渲染设置面板 (弹出式 Modal)
   const renderSettingsModal = () => {
     if (!showSettings) return null;
@@ -1287,53 +1820,57 @@ export default function Home() {
 
       {/* 1. Dashboard 视图 */}
       {!store.currentProject ? (
-        <div className="dashboard-container">
-          <div className="dashboard-header">
-            <div>
-              <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>我的创作空间</h1>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>选择一部小说开始写作，或者创造一个新的故事灵感项目。</p>
-            </div>
-            <button className="btn btn-primary" onClick={handleOpenWizard}>
-              <Plus size={18} />
-              <span>新建小说项目</span>
-            </button>
-          </div>
-
-          <div className="project-grid">
-            {store.projects.map((project) => (
-              <div key={project.id} className="project-card glass-card" onClick={() => store.setCurrentProject(project)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div className="project-title">{project.title}</div>
-                  <button 
-                    className="btn-icon" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`确认要彻底删除小说《${project.title}》吗？这将无法恢复。`)) {
-                        store.deleteProject(project.id);
-                      }
-                    }}
-                    style={{ color: 'rgba(239, 68, 68, 0.6)' }}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-                <div className="project-desc">{project.description || '暂无作品简介...'}</div>
-                <div className="project-meta">
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <span className="tag-badge">AI 记忆分层</span>
-                    <span className="tag-badge">全自动创作</span>
-                  </div>
-                  <span>更新于 {new Date(project.updatedAt).toLocaleDateString()}</span>
-                </div>
+        isWizardMode ? (
+          renderWizardPanel()
+        ) : (
+          <div className="dashboard-container">
+            <div className="dashboard-header">
+              <div>
+                <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>我的创作空间</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>选择一部小说开始写作，或者创造一个新的故事灵感项目。</p>
               </div>
-            ))}
+              <button className="btn btn-primary" onClick={handleOpenWizard}>
+                <Plus size={18} />
+                <span>新建小说项目</span>
+              </button>
+            </div>
 
-            <div className="project-card glass-card" style={{ borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', opacity: '0.7' }} onClick={handleOpenWizard}>
-              <Plus size={32} style={{ color: 'var(--text-dark)', marginBottom: '10px' }} />
-              <div style={{ fontWeight: '500', color: 'var(--text-muted)' }}>开启你的奇幻新章</div>
+            <div className="project-grid">
+              {store.projects.map((project) => (
+                <div key={project.id} className="project-card glass-card" onClick={() => store.setCurrentProject(project)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div className="project-title">{project.title}</div>
+                    <button 
+                      className="btn-icon" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`确认要彻底删除小说《${project.title}》吗？这将无法恢复。`)) {
+                          store.deleteProject(project.id);
+                        }
+                      }}
+                      style={{ color: 'rgba(239, 68, 68, 0.6)' }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="project-desc">{project.description || '暂无作品简介...'}</div>
+                  <div className="project-meta">
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <span className="tag-badge">AI 记忆分层</span>
+                      <span className="tag-badge">全自动创作</span>
+                    </div>
+                    <span>更新于 {new Date(project.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+
+              <div className="project-card glass-card" style={{ borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', opacity: '0.7' }} onClick={handleOpenWizard}>
+                <Plus size={32} style={{ color: 'var(--text-dark)', marginBottom: '10px' }} />
+                <div style={{ fontWeight: '500', color: 'var(--text-muted)' }}>开启你的奇幻新章</div>
+              </div>
             </div>
           </div>
-        </div>
+        )
       ) : (
         /* 2. Workspace 写作工作台视图 */
         <div className="workspace-layout">
@@ -1777,308 +2314,7 @@ export default function Home() {
       {renderSettingsModal()}
       {renderInspirationsModal()}
 
-      {/* 新建项目 Modal */}
-      {showNewProjModal && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-card" style={{ maxWidth: '680px', width: '90%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <div className="modal-title">
-                {wizardLoading ? '✨ 智能推演中...' : `✨ 智能新书向导: ${['选择题材', '确定文风', '故事看点', '新书企划'][wizardStep - 1]}`}
-              </div>
-              {!wizardLoading && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  步骤 {wizardStep} / 4
-                </div>
-              )}
-            </div>
 
-            {/* 步骤进度指示器 */}
-            {!wizardLoading && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', position: 'relative', padding: '0 10px', marginTop: '10px' }}>
-                <div style={{ position: 'absolute', top: '50%', left: '20px', right: '20px', height: '2px', background: 'var(--border-light)', zIndex: 1, transform: 'translateY(-50%)' }}></div>
-                <div style={{ position: 'absolute', top: '50%', left: '20px', width: `${((wizardStep - 1) / 3) * 92}%`, height: '2px', background: 'var(--accent)', zIndex: 1, transform: 'translateY(-50%)', transition: 'width 0.3s' }}></div>
-                {[1, 2, 3, 4].map(step => (
-                  <div key={step} style={{ 
-                    width: '32px', 
-                    height: '32px', 
-                    borderRadius: '50%', 
-                    background: wizardStep >= step ? 'var(--accent)' : 'var(--bg-input)', 
-                    border: `2px solid ${wizardStep >= step ? 'var(--accent)' : 'var(--border-light)'}`,
-                    color: wizardStep >= step ? '#fff' : 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    zIndex: 2,
-                    transition: 'all 0.3s'
-                  }}>
-                    {step}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 核心内容渲染 */}
-            {wizardLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '16px' }}>
-                <Loader2 className="animate-spin" style={{ width: '42px', height: '42px', color: 'var(--accent)' }} />
-                <div style={{ fontSize: '16px', color: 'var(--text-main)', fontWeight: '600', letterSpacing: '0.05em' }}>{loadingTip}</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '380px', lineHeight: '1.6' }}>
-                  AI 正在融合您选择的题材和风格，推演世界观架构与主线因果，这大概需要几秒钟...
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* 第 1 步：题材选择 */}
-                {wizardStep === 1 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '10px' }}>
-                    {GENRES.map(genre => {
-                      const isSelected = selectedGenre === genre.name;
-                      return (
-                        <div 
-                          key={genre.name}
-                          onClick={() => setSelectedGenre(genre.name)}
-                          style={{
-                            padding: '16px',
-                            borderRadius: '10px',
-                            background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-input)',
-                            border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '12px',
-                            boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.2)' : 'none'
-                          }}
-                        >
-                          <span style={{ fontSize: '24px' }}>{genre.icon}</span>
-                          <div>
-                            <div style={{ fontWeight: '600', fontSize: '15px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '4px' }}>{genre.name}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{genre.desc}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* 第 2 步：文风选择 */}
-                {wizardStep === 2 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginTop: '10px' }}>
-                    {TONES.map(tone => {
-                      const isSelected = selectedTone === tone.name;
-                      return (
-                        <div 
-                          key={tone.name}
-                          onClick={() => setSelectedTone(tone.name)}
-                          style={{
-                            padding: '16px',
-                            borderRadius: '10px',
-                            background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-input)',
-                            border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '12px',
-                            boxShadow: isSelected ? '0 0 15px rgba(99, 102, 241, 0.2)' : 'none'
-                          }}
-                        >
-                          <span style={{ fontSize: '24px' }}>{tone.icon}</span>
-                          <div>
-                            <div style={{ fontWeight: '600', fontSize: '15px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '4px' }}>{tone.name}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{tone.desc}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* 第 3 步：看点选择 */}
-                {wizardStep === 3 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                      {PRESET_TAGS.map(tag => {
-                        const isSelected = selectedTags.includes(tag);
-                        return (
-                          <div 
-                            key={tag}
-                            onClick={() => handleToggleTag(tag)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '20px',
-                              background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-input)',
-                              border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
-                              color: isSelected ? '#fff' : 'var(--text-muted)',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              fontWeight: isSelected ? '600' : '400',
-                              transition: 'all 0.2s',
-                              boxShadow: isSelected ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none'
-                            }}
-                          >
-                            {tag}
-                          </div>
-                        );
-                      })}
-                      {/* 自定义标签 */}
-                      {selectedTags.filter(tag => !PRESET_TAGS.includes(tag)).map(tag => (
-                        <div 
-                          key={tag}
-                          onClick={() => handleToggleTag(tag)}
-                          style={{
-                            padding: '8px 16px',
-                            borderRadius: '20px',
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            border: '1px solid var(--accent)',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            boxShadow: '0 0 10px rgba(99, 102, 241, 0.15)'
-                          }}
-                        >
-                          {tag}
-                          <span style={{ fontSize: '10px', opacity: 0.7 }}>✕</span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                      <input 
-                        type="text" 
-                        className="input" 
-                        placeholder="输入其他看点标签，按回车添加..." 
-                        value={customTagInput} 
-                        onChange={e => setCustomTagInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const trimmed = customTagInput.trim();
-                            if (trimmed && !selectedTags.includes(trimmed)) {
-                              setSelectedTags(prev => [...prev, trimmed]);
-                              setCustomTagInput('');
-                            }
-                          }
-                        }}
-                        style={{ flexGrow: 1 }}
-                      />
-                      <button 
-                        type="button" 
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          const trimmed = customTagInput.trim();
-                          if (trimmed && !selectedTags.includes(trimmed)) {
-                            setSelectedTags(prev => [...prev, trimmed]);
-                            setCustomTagInput('');
-                          }
-                        }}
-                      >
-                        添加
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 第 4 步：推演预览编辑 */}
-                {wizardStep === 4 && wizardResult && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '420px', overflowY: 'auto', paddingRight: '6px', marginTop: '10px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✨ 独创书名</label>
-                      <input 
-                        type="text" 
-                        className="input" 
-                        value={wizardResult.title} 
-                        onChange={e => setWizardResult(prev => prev ? { ...prev, title: e.target.value } : null)} 
-                        style={{ fontSize: '16px', fontWeight: '600', color: '#fff' }}
-                        required
-                      />
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>📖 故事简介</label>
-                      <textarea 
-                        className="textarea" 
-                        value={wizardResult.description} 
-                        onChange={e => setWizardResult(prev => prev ? { ...prev, description: e.target.value } : null)} 
-                        style={{ minHeight: '80px', lineHeight: '1.6' }}
-                        required
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🎭 创作风格</label>
-                      <input 
-                        type="text" 
-                        className="input" 
-                        value={wizardResult.styleSetting} 
-                        onChange={e => setWizardResult(prev => prev ? { ...prev, styleSetting: e.target.value } : null)} 
-                        required
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🌐 世界观设定与境界划分</label>
-                      <textarea 
-                        className="textarea" 
-                        value={wizardResult.worldSetting} 
-                        onChange={e => setWizardResult(prev => prev ? { ...prev, worldSetting: e.target.value } : null)} 
-                        style={{ minHeight: '120px', lineHeight: '1.6' }}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* 底部导航按钮 */}
-                <div className="modal-actions" style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px', marginTop: '16px' }}>
-                  {wizardStep === 1 && (
-                    <>
-                      <button type="button" className="btn btn-secondary" onClick={() => setShowNewProjModal(false)}>取消</button>
-                      <button type="button" className="btn btn-primary" onClick={() => setWizardStep(2)}>
-                        下一步：确定文风
-                      </button>
-                    </>
-                  )}
-                  {wizardStep === 2 && (
-                    <>
-                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(1)}>上一步</button>
-                      <button type="button" className="btn btn-primary" onClick={() => setWizardStep(3)}>
-                        下一步：选择看点
-                      </button>
-                    </>
-                  )}
-                  {wizardStep === 3 && (
-                    <>
-                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(2)}>上一步</button>
-                      <button type="button" className="btn btn-primary" onClick={handleWizardGenerate}>
-                        一键推演新书企划
-                      </button>
-                    </>
-                  )}
-                  {wizardStep === 4 && (
-                    <>
-                      <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(3)}>上一步</button>
-                      <button type="button" className="btn btn-secondary" onClick={handleWizardGenerate} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <RefreshCw style={{ width: '14px', height: '14px' }} />
-                        重新推演
-                      </button>
-                      <button type="button" className="btn btn-primary" onClick={handleWizardCreateProject} disabled={isAiLoading}>
-                        {isAiLoading ? '创建中...' : '确认创建并连载'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 新建章节 Modal */}
       {showNewChapModal && (
