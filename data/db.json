@@ -8,6 +8,15 @@
       "id": "proj_1780587049820_iyv57llxo",
       "createdAt": "2026-06-04T15:30:49.820Z",
       "updatedAt": "2026-06-04T15:30:49.820Z"
+    },
+    {
+      "title": "未命名故事",
+      "description": "点击左侧‘设定库’或‘项目设置’补充简介与背景设定...",
+      "styleSetting": "传统正剧",
+      "worldSetting": "待补充世界观",
+      "id": "proj_1780589433720_jh58xvgjh",
+      "createdAt": "2026-06-04T16:10:33.720Z",
+      "updatedAt": "2026-06-04T16:10:33.720Z"
     }
   ],
   "characters": [
@@ -130,6 +139,45 @@
       "id": "chap_1780587050402_tyzzw6i1l",
       "createdAt": "2026-06-04T15:30:50.402Z",
       "updatedAt": "2026-06-04T15:31:03.543Z"
+    },
+    {
+      "projectId": "proj_1780589433720_jh58xvgjh",
+      "title": "第一章：启程",
+      "content": "",
+      "summary": "",
+      "characterChanges": [],
+      "newForeshadowing": [],
+      "resolvedForeshadowing": [],
+      "timelineEvents": [],
+      "id": "chap_1780589433769_gt94ljnp3",
+      "createdAt": "2026-06-04T16:10:33.769Z",
+      "updatedAt": "2026-06-04T16:10:33.769Z"
+    },
+    {
+      "projectId": "proj_1780589433720_jh58xvgjh",
+      "title": "第二章：变局",
+      "content": "",
+      "summary": "",
+      "characterChanges": [],
+      "newForeshadowing": [],
+      "resolvedForeshadowing": [],
+      "timelineEvents": [],
+      "id": "chap_1780589433781_xfxbtnshp",
+      "createdAt": "2026-06-04T16:10:33.781Z",
+      "updatedAt": "2026-06-04T16:10:33.781Z"
+    },
+    {
+      "projectId": "proj_1780589433720_jh58xvgjh",
+      "title": "第三章：抉择",
+      "content": "",
+      "summary": "",
+      "characterChanges": [],
+      "newForeshadowing": [],
+      "resolvedForeshadowing": [],
+      "timelineEvents": [],
+      "id": "chap_1780589433788_7z1bwaz3n",
+      "createdAt": "2026-06-04T16:10:33.788Z",
+      "updatedAt": "2026-06-04T16:10:33.788Z"
     }
   ]
 }

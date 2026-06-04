@@ -8,6 +8,12 @@ export interface NovelProject {
   description: string;
   styleSetting: string;
   worldSetting: string;
+  powerSystem?: string;
+  goldFinger?: string;
+  coreConflict?: string;
+  factionsMap?: string;
+  sellingPoints?: string;
+  outlineFull?: string;
   createdAt: string;
   updatedAt: string;
 }

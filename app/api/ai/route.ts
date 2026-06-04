@@ -85,6 +85,15 @@ export async function POST(request: Request) {
         return NextResponse.json(result);
       }
 
+      case 'generateKernel': {
+        const { genre, tone } = body;
+        if (!projectTitle || !genre || !tone) {
+          return NextResponse.json({ error: '缺少 projectTitle, genre 或 tone' }, { status: 400 });
+        }
+        const result = await ai.generateKernelSettings(projectTitle, genre, tone, apiKey, modelName);
+        return NextResponse.json(result);
+      }
+
       default:
         return NextResponse.json({ error: `未知的 action: ${action}` }, { status: 400 });
     }

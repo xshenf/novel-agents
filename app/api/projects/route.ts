@@ -24,6 +24,12 @@ export async function POST(request: Request) {
       description: description || '',
       styleSetting: styleSetting || '',
       worldSetting: worldSetting || '',
+      powerSystem: '',
+      goldFinger: '',
+      coreConflict: '',
+      factionsMap: '',
+      sellingPoints: '',
+      outlineFull: '',
     });
 
     return NextResponse.json(newProject, { status: 201 });

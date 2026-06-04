@@ -5,7 +5,8 @@ import { useNovelStore } from '@/lib/store';
 import { 
   BookOpen, Plus, Trash2, Settings, ChevronLeft, 
   User, Globe, MessageSquare, Sparkles, CheckCircle2, 
-  Save, Download, FileText, Loader2, HelpCircle, Eye, Play, Pause, RefreshCw
+  Save, Download, FileText, Loader2, HelpCircle, Eye, Play, Pause, RefreshCw,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { NovelProject, Chapter, Character, WorldRule } from '@/lib/db';
 
@@ -258,6 +259,231 @@ export default function Home() {
   } | null>(null);
   const [customTagInput, setCustomTagInput] = useState('');
   const [loadingTip, setLoadingTip] = useState('正在推演天机...');
+
+  // ======= 核心设定与故事大纲平铺工作区状态 =======
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'write' | 'outline' | 'settings'>('write');
+  const [kernelOptions, setKernelOptions] = useState<any>(null);
+  const [isKernelLoading, setIsKernelLoading] = useState(false);
+  const [expandedKernelCard, setExpandedKernelCard] = useState<string | null>('powerSystem');
+
+  // 临时设定编辑状态
+  const [tempPowerSystem, setTempPowerSystem] = useState('');
+  const [tempGoldFinger, setTempGoldFinger] = useState('');
+  const [tempCoreConflict, setTempCoreConflict] = useState('');
+  const [tempFactionsMap, setTempFactionsMap] = useState('');
+  const [tempSellingPoints, setTempSellingPoints] = useState('');
+  const [tempOutlineFull, setTempOutlineFull] = useState('');
+
+  // 切换项目时同步设定状态
+  useEffect(() => {
+    if (store.currentProject) {
+      setTempPowerSystem(store.currentProject.powerSystem || '');
+      setTempGoldFinger(store.currentProject.goldFinger || '');
+      setTempCoreConflict(store.currentProject.coreConflict || '');
+      setTempFactionsMap(store.currentProject.factionsMap || '');
+      setTempSellingPoints(store.currentProject.sellingPoints || '');
+      setTempOutlineFull(store.currentProject.outlineFull || '');
+      
+      // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演
+      setKernelOptions(null);
+    }
+  }, [store.currentProject]);
+
+  // AI 设定与大纲推演请求
+  const fetchKernelOptions = async () => {
+    if (!store.currentProject) return;
+    setIsKernelLoading(true);
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'generateKernel',
+          projectTitle: store.currentProject.title,
+          genre: store.currentProject.description || '仙侠修真',
+          tone: store.currentProject.styleSetting || '传统正剧'
+        }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      setKernelOptions(data);
+    } catch (err: any) {
+      alert('AI 设定推演失败: ' + err.message);
+    } finally {
+      setIsKernelLoading(false);
+    }
+  };
+
+  // 渲染大纲/设定卡片辅助方法
+  const renderKernelDimensionCard = (
+    key: string,
+    title: string,
+    subtitle: string,
+    value: string,
+    setValue: (val: string) => void,
+    cardType: string,
+    placeholder: string
+  ) => {
+    const isExpanded = expandedKernelCard === key;
+    
+    const handleSave = async () => {
+      if (!store.currentProject) return;
+      try {
+        await store.updateProject(store.currentProject.id, { [cardType]: value });
+        alert(`${title}已成功保存！`);
+      } catch (e) {
+        alert(`${title}保存失败`);
+      }
+    };
+
+    return (
+      <div 
+        key={key} 
+        className="glass-card" 
+        style={{ 
+          background: 'rgba(255, 255, 255, 0.02)', 
+          border: '1px solid var(--border-light)', 
+          borderRadius: '12px', 
+          marginBottom: '16px',
+          overflow: 'hidden'
+        }}
+      >
+        {/* 卡片头部 */}
+        <div 
+          onClick={() => setExpandedKernelCard(isExpanded ? null : key)}
+          style={{ 
+            padding: '16px 20px', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            cursor: 'pointer',
+            background: isExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+            transition: 'background 0.2s ease'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <strong style={{ fontSize: '15px', color: '#fff' }}>{title}</strong>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {value ? '已设定' : '待补充设定'}
+            </span>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </div>
+
+        {/* 卡片展开内容 */}
+        {isExpanded && (
+          <div 
+            style={{ 
+              padding: '20px', 
+              borderTop: '1px solid var(--border-light)', 
+              display: 'flex', 
+              gap: '24px', 
+              minHeight: '260px' 
+            }}
+          >
+            {/* 左侧：微调及保存 */}
+            <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>当前设定与微调</span>
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleSave}
+                  style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Save size={13} />
+                  <span>保存设定</span>
+                </button>
+              </div>
+              <textarea 
+                className="textarea"
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                style={{ 
+                  flexGrow: 1, 
+                  minHeight: '140px', 
+                  fontSize: '13px', 
+                  lineHeight: '1.6', 
+                  padding: '12px', 
+                  background: 'rgba(0,0,0,0.15)', 
+                  border: '1px solid var(--border-light)', 
+                  borderRadius: '8px' 
+                }}
+              />
+            </div>
+
+            {/* 右侧：AI 智能推荐方案 */}
+            <div style={{ width: '380px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>
+                ⚡ AI 推荐备选方案 (一键选用)
+              </div>
+              
+              {isKernelLoading ? (
+                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', padding: '20px' }}>
+                  <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)', marginBottom: '8px' }} />
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>正在推演设定...</span>
+                </div>
+              ) : kernelOptions?.[cardType] ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                  {kernelOptions[cardType].map((opt: any, idx: number) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        padding: '10px 12px', 
+                        background: 'rgba(255,255,255,0.01)', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>{opt.name}</span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={async () => {
+                            const val = opt.name + '：' + opt.description;
+                            setValue(val);
+                            if (store.currentProject) {
+                              try {
+                                await store.updateProject(store.currentProject.id, { [cardType]: val });
+                                alert(`已选用《${opt.name}》方案并自动保存！`);
+                              } catch (e) {}
+                            }
+                          }}
+                          style={{ fontSize: '10px', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
+                        >
+                          选用
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
+                        {opt.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-light)', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>
+                    暂无推荐，点击顶部「⚡ 重新推演设定与大纲」生成方案
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!wizardLoading) return;
@@ -2194,477 +2420,567 @@ export default function Home() {
         <div className="workspace-layout">
           {/* 左侧侧边栏：章节与设定 */}
           <div className="workspace-sidebar">
-            <div className="tab-container">
-              <button className={`tab-btn ${activeTab === 'chapters' ? 'active' : ''}`} onClick={() => setActiveTab('chapters')}>
-                章节目录 ({store.chapters.length})
-              </button>
-              <button className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-                设定库
-              </button>
-            </div>
-
-            {activeTab === 'chapters' ? (
-              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div className="sidebar-section" style={{ flexGrow: 1, overflowY: 'auto' }}>
-                  <div className="sidebar-header">
-                    <span>章节列表</span>
-                    <button className="btn-icon" onClick={() => setShowNewChapModal(true)}>
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  <div className="sidebar-list">
-                    {store.chapters.map((chap) => (
-                      <div 
-                        key={chap.id} 
-                        className={`sidebar-item ${store.currentChapter?.id === chap.id ? 'active' : ''}`}
-                        onClick={() => store.setCurrentChapter(chap)}
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div className="sidebar-section" style={{ flexGrow: 1, overflowY: 'auto' }}>
+                <div className="sidebar-header">
+                  <span>章节列表</span>
+                  <button className="btn-icon" onClick={() => setShowNewChapModal(true)}>
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="sidebar-list">
+                  {store.chapters.map((chap) => (
+                    <div 
+                      key={chap.id} 
+                      className={`sidebar-item ${store.currentChapter?.id === chap.id ? 'active' : ''}`}
+                      onClick={() => store.setCurrentChapter(chap)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        <FileText size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{chap.title}</span>
+                        {chap.content.trim() !== '' && <span style={{ fontSize: '10px', color: 'var(--accent-success)' }}>(已生成)</span>}
+                      </div>
+                      <button 
+                        className="btn-icon" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`确定要删除章节“${chap.title}”吗？`)) {
+                            store.deleteChapter(chap.id);
+                          }
+                        }}
+                        style={{ padding: '2px', opacity: 0.5 }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                          <FileText size={14} style={{ flexShrink: 0 }} />
-                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{chap.title}</span>
-                          {chap.content.trim() !== '' && <span style={{ fontSize: '10px', color: 'var(--accent-success)' }}>(已生成)</span>}
-                        </div>
-                        <button 
-                          className="btn-icon" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm(`确定要删除章节“${chap.title}”吗？`)) {
-                              store.deleteChapter(chap.id);
-                            }
-                          }}
-                          style={{ padding: '2px', opacity: 0.5 }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
+              </div>
 
-                <div className="sidebar-section" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                  <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>小说核心世界观</span>
-                    <button className="btn-icon" onClick={handleOpenEditProject} title="修改小说设定" style={{ padding: '2px' }}>
-                      <Settings size={14} />
-                    </button>
+              <div className="sidebar-section" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>小说核心世界观</span>
+                  <button className="btn-icon" onClick={handleOpenEditProject} title="修改小说设定" style={{ padding: '2px' }}>
+                    <Settings size={14} />
+                  </button>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong style={{ color: 'var(--text-main)' }}>文风设定：</strong>
+                    {store.currentProject.styleSetting || '未设定文风'}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                    <div style={{ marginBottom: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>文风设定：</strong>
-                      {store.currentProject.styleSetting || '未设定文风'}
-                    </div>
-                    <div>
-                      <strong style={{ color: 'var(--text-main)' }}>背景描述：</strong>
-                      {store.currentProject.worldSetting ? store.currentProject.worldSetting.substring(0, 75) + '...' : '未设定'}
-                    </div>
+                  <div>
+                    <strong style={{ color: 'var(--text-main)' }}>背景描述：</strong>
+                    {store.currentProject.worldSetting ? store.currentProject.worldSetting.substring(0, 75) + '...' : '未设定'}
                   </div>
                 </div>
               </div>
-            ) : (
-              /* 设定库子项 */
-              <div style={{ flexGrow: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <button 
-                  className="btn btn-secondary" 
-                  style={{ 
-                    width: '100%', 
-                    border: '1px solid var(--border-light)',
-                    background: 'var(--bg-input)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    color: 'var(--text-muted)',
-                    marginBottom: '-8px'
-                  }}
-                  onClick={handleOpenEditProject}
-                >
-                  <Settings size={14} />
-                  <span>⚙️ 修改故事核心背景设定</span>
-                </button>
-
-                <button 
-                  className="btn btn-primary" 
-                  style={{ 
-                    width: '100%', 
-                    background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)',
-                    boxShadow: '0 4px 12px var(--accent-glow)'
-                  }}
-                  onClick={handleOpenInspirations}
-                >
-                  <Sparkles size={14} />
-                  <span>智能生成设定灵感</span>
-                </button>
-
-                {/* 角色卡列表 */}
-                <div>
-                  <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span>人物角色卡 ({store.characters.length})</span>
-                    <button className="btn-icon" onClick={() => setShowNewCharModal(true)}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {store.characters.map((char) => (
-                      <div key={char.id} className="glass-card" style={{ padding: '10px', fontSize: '13px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <strong style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <User size={12} /> {char.name} ({char.role})
-                          </strong>
-                          <button className="btn-icon" onClick={() => store.deleteCharacter(char.id)} style={{ padding: '2px' }}>
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                        <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>身份: {char.identity}</div>
-                        <div style={{ color: 'var(--text-dark)', fontSize: '11px', borderTop: '1px solid var(--border-light)', paddingTop: '4px', marginTop: '4px' }}>
-                          <strong>最新状态(AI同步更新):</strong><br />
-                          {char.currentState || '暂无'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 世界观设定卡 */}
-                <div>
-                  <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span>世界观规则/势力 ({store.worldRules.length})</span>
-                    <button className="btn-icon" onClick={() => setShowNewRuleModal(true)}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {store.worldRules.map((rule) => (
-                      <div key={rule.id} className="glass-card" style={{ padding: '10px', fontSize: '13px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <strong style={{ color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Globe size={12} /> {rule.name}
-                          </strong>
-                          <button className="btn-icon" onClick={() => store.deleteWorldRule(rule.id)} style={{ padding: '2px' }}>
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{rule.description}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* 中间：主章节编辑器 */}
+          {/* 中间：主章节编辑器 / 大纲 / 设定 工作区 */}
           <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-            {/* 新书完善设定 Banner */}
-            {store.currentProject && store.currentProject.title === '未命名故事' && (
-              <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>💡</span>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>新书已直接建立！</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>当前使用默认模板。您可以前往左侧“设定库”慢慢添加人物与世界观，或点击右侧按钮完善核心世界观、题材与文风。</div>
-                  </div>
-                </div>
-                <button className="btn btn-primary" onClick={handleOpenEditProject} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none' }}>
-                  <Settings size={13} />
-                  完善新书设定
+            {/* 顶部的 3 Tab 切换导航 */}
+            <div style={{ display: 'flex', gap: '8px', padding: '16px 30px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255, 255, 255, 0.02)', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '20px', display: 'flex', gap: '4px' }}>
+                <button 
+                  className={`btn ${activeWorkspaceTab === 'write' ? 'btn-primary' : 'btn-secondary'}`} 
+                  onClick={() => setActiveWorkspaceTab('write')}
+                  style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'write' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'write' ? '#fff' : 'var(--text-muted)' }}
+                >
+                  ✍️ 连载写作
+                </button>
+                <button 
+                  className={`btn ${activeWorkspaceTab === 'outline' ? 'btn-primary' : 'btn-secondary'}`} 
+                  onClick={() => setActiveWorkspaceTab('outline')}
+                  style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
+                >
+                  📖 核心大纲
+                </button>
+                <button 
+                  className={`btn ${activeWorkspaceTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} 
+                  onClick={() => setActiveWorkspaceTab('settings')}
+                  style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'settings' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'settings' ? '#fff' : 'var(--text-muted)' }}
+                >
+                  🔮 核心设定
                 </button>
               </div>
-            )}
-            {/* AI 自动写小说引擎控制台 (仅在自动写小说模式下显示) */}
-            {autoWriteMode && (
-              <div className="glass-card" style={{ margin: '15px 30px 0', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--text-dark)' }}></span>
-                    <strong style={{ fontSize: '14px' }}>AI 自动小说创作引擎</strong>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({autoWritingStatus})</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
-                    <input 
-                      type="number" 
-                      className="input" 
-                      value={targetChaptersCount} 
-                      onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
-                      style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
-                      disabled={isAutoWriting}
-                    />
-                  </div>
-                </div>
+              
+              {activeWorkspaceTab !== 'write' && (
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={fetchKernelOptions} 
+                  disabled={isKernelLoading}
+                  style={{ marginLeft: 'auto', fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {isKernelLoading ? <Loader2 className="animate-spin" size={13} /> : <Sparkles size={13} style={{ color: 'var(--accent)' }} />}
+                  <span>⚡ 重新推演设定与大纲</span>
+                </button>
+              )}
+            </div>
 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  {/* 进度条 */}
-                  <div style={{ flexGrow: 1, height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div 
-                      style={{ 
-                        height: '100%', 
-                        background: 'var(--accent)', 
-                        width: `${(finishedChaptersCount / targetChaptersCount) * 100}%`,
-                        transition: 'width 0.3s ease'
+            {/* TAB 分支渲染 */}
+            {activeWorkspaceTab === 'write' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflowY: 'auto' }}>
+                {/* 新书完善设定 Banner */}
+                {store.currentProject && store.currentProject.title === '未命名故事' && (
+                  <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '24px' }}>💡</span>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>新书已直接建立！</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>当前使用默认模板。您可以前往左侧“设定库”慢慢添加人物与世界观，或点击右侧按钮完善核心世界观、题材与文风。</div>
+                      </div>
+                    </div>
+                    <button className="btn btn-primary" onClick={handleOpenEditProject} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none' }}>
+                      <Settings size={13} />
+                      完善新书设定
+                    </button>
+                  </div>
+                )}
+                {/* AI 自动写小说引擎控制台 (仅在自动写小说模式下显示) */}
+                {autoWriteMode && (
+                  <div className="glass-card" style={{ margin: '15px 30px 0', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--text-dark)' }}></span>
+                        <strong style={{ fontSize: '14px' }}>AI 自动小说创作引擎</strong>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({autoWritingStatus})</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
+                        <input 
+                          type="number" 
+                          className="input" 
+                          value={targetChaptersCount} 
+                          onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
+                          style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
+                          disabled={isAutoWriting}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {/* 进度条 */}
+                      <div style={{ flexGrow: 1, height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div 
+                          style={{ 
+                            height: '100%', 
+                            background: 'var(--accent)', 
+                            width: `${(finishedChaptersCount / targetChaptersCount) * 100}%`,
+                            transition: 'width 0.3s ease'
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        已生成 {finishedChaptersCount} / {targetChaptersCount} 章
+                      </span>
+                    </div>
+
+                    {/* 写作额外全局指令，会注入到每一章生成中 */}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        placeholder="可选：给自动生成的章节注入全局情节要求（例如：增加悬疑感，埋下关于玉佩身世的伏笔）" 
+                        value={writeInstruction} 
+                        onChange={e => setWriteInstruction(e.target.value)}
+                        style={{ fontSize: '12px', padding: '6px 10px' }}
+                        disabled={isAutoWriting}
+                      />
+                      {!isAutoWriting ? (
+                        <button className="btn btn-primary" onClick={startAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
+                          <Play size={12} /> 一键自动写作
+                        </button>
+                      ) : (
+                        <button className="btn btn-danger" onClick={pauseAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
+                          <Pause size={12} /> 暂停生成
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {store.currentChapter ? (
+                  <>
+                    <div className="editor-header">
+                      <input 
+                        type="text" 
+                        className="editor-title-input" 
+                        value={editorTitle}
+                        onChange={handleTitleChange}
+                        placeholder="请输入章节标题..."
+                        disabled={isAutoWriting}
+                      />
+                      <div className="editor-toolbar">
+                        <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
+                          <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} />
+                          <span>逻辑一致性检测</span>
+                        </button>
+                        <button className="btn btn-secondary" onClick={handleAutoSummarize} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
+                          <Sparkles size={14} style={{ color: 'var(--accent-success)' }} />
+                          <span>章节摘要复盘</span>
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => exportFile('md')} style={{ padding: '8px 8px' }} title="导出为 Markdown">
+                          <Download size={14} />
+                        </button>
+                        <button className="btn btn-primary" onClick={forceSave} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
+                          <Save size={14} />
+                          <span>保存</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="editor-body">
+                      <textarea 
+                        className="editor-textarea" 
+                        placeholder="在此倾泻你的笔墨，AI 将在一旁静心等候..." 
+                        value={editorContent}
+                        onChange={handleEditorChange}
+                        disabled={isAutoWriting}
+                      />
+                    </div>
+
+                    <div className="editor-footer">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--accent-warning)' }}></span>
+                        <span>
+                          {isAutoWriting && 'AI 正在全力写作并保存至数据库...'}
+                          {!isAutoWriting && saveStatus === 'saved' && '草稿已自动保存至本地'}
+                          {!isAutoWriting && saveStatus === 'saving' && '正在自动保存到云端数据库...'}
+                          {!isAutoWriting && saveStatus === 'dirty' && '草稿已被修改'}
+                        </span>
+                      </div>
+                      <div>字数统计: {editorContent.length} 字</div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-dark)', gap: '15px' }}>
+                    <BookOpen size={48} style={{ opacity: 0.3 }} />
+                    <span>请在左侧侧边栏创建或选择一个章节进行创作</span>
+                    <button className="btn btn-primary" onClick={() => setShowNewChapModal(true)}>
+                      <Plus size={16} /> 新建第一章
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : activeWorkspaceTab === 'outline' ? (
+              <div style={{ display: 'flex', flex: '1', minHeight: 0, padding: '30px', gap: '30px', overflowY: 'auto' }}>
+                {/* 左栏：当前完整故事大纲 */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>📖</span> 完整故事大纲
+                    </h3>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={async () => {
+                        if (!store.currentProject) return;
+                        try {
+                          await store.updateProject(store.currentProject.id, { outlineFull: tempOutlineFull });
+                          alert('大纲保存成功！');
+                        } catch(e) { alert('大纲保存失败'); }
                       }}
-                    />
+                      style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Save size={13} />
+                      <span>保存大纲修改</span>
+                    </button>
                   </div>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    已生成 {finishedChaptersCount} / {targetChaptersCount} 章
-                  </span>
+                  <textarea 
+                    className="textarea" 
+                    placeholder="在此起草或微调本书的起承转合、主线任务及结局走向..."
+                    value={tempOutlineFull}
+                    onChange={e => setTempOutlineFull(e.target.value)}
+                    style={{ flexGrow: 1, minHeight: '400px', fontSize: '13px', lineHeight: '1.7', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '10px' }}
+                  />
                 </div>
 
-                {/* 写作额外全局指令，会注入到每一章生成中 */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
-                  <input 
-                    type="text" 
-                    className="input" 
-                    placeholder="可选：给自动生成的章节注入全局情节要求（例如：增加悬疑感，埋下关于玉佩身世的伏笔）" 
-                    value={writeInstruction} 
-                    onChange={e => setWriteInstruction(e.target.value)}
-                    style={{ fontSize: '12px', padding: '6px 10px' }}
-                    disabled={isAutoWriting}
-                  />
-                  {!isAutoWriting ? (
-                    <button className="btn btn-primary" onClick={startAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
-                      <Play size={12} /> 一键自动写作
-                    </button>
+                {/* 右栏：AI 推演的 3 套备选方案卡片 */}
+                <div style={{ width: '420px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-muted)', margin: 0 }}>
+                    ⚡ AI 大纲备选推荐（点击一键选用）
+                  </h3>
+                  
+                  {isKernelLoading ? (
+                    <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 0', gap: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '10px' }}>
+                      <Loader2 className="animate-spin" size={24} style={{ color: 'var(--accent)' }} />
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>正在利用 AI 深度推演 3 套故事大纲...</span>
+                    </div>
+                  ) : kernelOptions?.outlineFull ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {kernelOptions.outlineFull.map((opt: any, idx: number) => (
+                        <div 
+                          key={idx} 
+                          className="glass-card animate-fade-in" 
+                          style={{ padding: '16px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.015)' }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <strong style={{ color: 'var(--accent)', fontSize: '13px' }}>{opt.name}</strong>
+                            <button 
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={async () => {
+                                const val = opt.name + '：' + opt.description;
+                                setTempOutlineFull(val);
+                                if (store.currentProject) {
+                                  try {
+                                    await store.updateProject(store.currentProject.id, { outlineFull: val });
+                                    alert(`已选用《${opt.name}》大纲并自动保存！`);
+                                  } catch(e) {}
+                                }
+                              }}
+                              style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--accent)', border: 'none' }}
+                            >
+                              选用此大纲
+                            </button>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
+                            {opt.description}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <button className="btn btn-danger" onClick={pauseAutoWriting} style={{ padding: '6px 15px', fontSize: '12px' }}>
-                      <Pause size={12} /> 暂停生成
-                    </button>
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dark)', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '12px' }}>
+                      当前尚未生成方案，请点击顶部按钮发起 AI 推演！
+                    </div>
                   )}
                 </div>
               </div>
-            )}
-
-            {store.currentChapter ? (
-              <>
-                <div className="editor-header">
-                  <input 
-                    type="text" 
-                    className="editor-title-input" 
-                    value={editorTitle}
-                    onChange={handleTitleChange}
-                    placeholder="请输入章节标题..."
-                    disabled={isAutoWriting}
-                  />
-                  <div className="editor-toolbar">
-                    <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
-                      <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} />
-                      <span>逻辑一致性检测</span>
-                    </button>
-                    <button className="btn btn-secondary" onClick={handleAutoSummarize} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
-                      <Sparkles size={14} style={{ color: 'var(--accent-success)' }} />
-                      <span>章节摘要复盘</span>
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => exportFile('md')} style={{ padding: '8px 8px' }} title="导出为 Markdown">
-                      <Download size={14} />
-                    </button>
-                    <button className="btn btn-primary" onClick={forceSave} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
-                      <Save size={14} />
-                      <span>保存</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="editor-body">
-                  <textarea 
-                    className="editor-textarea" 
-                    placeholder="在此倾泻你的笔墨，AI 将在一旁静心等候..." 
-                    value={editorContent}
-                    onChange={handleEditorChange}
-                    disabled={isAutoWriting}
-                  />
-                </div>
-
-                <div className="editor-footer">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="pulse-dot" style={{ background: isAutoWriting ? 'var(--accent-success)' : 'var(--accent-warning)' }}></span>
-                    <span>
-                      {isAutoWriting && 'AI 正在全力写作并保存至数据库...'}
-                      {!isAutoWriting && saveStatus === 'saved' && '草稿已自动保存至本地'}
-                      {!isAutoWriting && saveStatus === 'saving' && '正在自动保存到云端数据库...'}
-                      {!isAutoWriting && saveStatus === 'dirty' && '草稿已被修改'}
-                    </span>
-                  </div>
-                  <div>字数统计: {editorContent.length} 字</div>
-                </div>
-              </>
             ) : (
-              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-dark)', gap: '15px' }}>
-                <BookOpen size={48} style={{ opacity: 0.3 }} />
-                <span>请在左侧侧边栏创建或选择一个章节进行创作</span>
-                <button className="btn btn-primary" onClick={() => setShowNewChapModal(true)}>
-                  <Plus size={16} /> 新建第一章
-                </button>
+              /* settings Tab: 核心设定工作区 */
+              <div style={{ display: 'flex', flexDirection: 'column', padding: '30px', gap: '20px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>🔮 核心设定矩阵</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                    网络小说内核由 5 大设定维度共同支撑。您可以点击各展开项，微调具体内容，或一键选用 AI 为您推演的创意方案。
+                  </p>
+                </div>
+                
+                {renderKernelDimensionCard(
+                  'powerSystem', 
+                  '🔮 境界与力量体系', 
+                  '定义主角及世界的修炼境界、超自然等级与晋升逻辑', 
+                  tempPowerSystem, 
+                  setTempPowerSystem, 
+                  'powerSystem', 
+                  '例如：练气、筑基、金丹、元婴、化神...'
+                )}
+                
+                {renderKernelDimensionCard(
+                  'goldFinger', 
+                  '🎁 金手指设定', 
+                  '主角的特殊外挂、系统、随身宝物或独占机缘', 
+                  tempGoldFinger, 
+                  setTempGoldFinger, 
+                  'goldFinger', 
+                  '例如：可以复制万物的神秘古镜，或者属性加点的诸天面板...'
+                )}
+                
+                {renderKernelDimensionCard(
+                  'coreConflict', 
+                  '⚔️ 核心矛盾与冲突线', 
+                  '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机', 
+                  tempCoreConflict, 
+                  setTempCoreConflict, 
+                  'coreConflict', 
+                  '例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印...'
+                )}
+                
+                {renderKernelDimensionCard(
+                  'factionsMap', 
+                  '🗺️ 势力分布与地理', 
+                  '故事发生的世界地理架构，以及各大宗门、家族、帝国的敌友关系', 
+                  tempFactionsMap, 
+                  setTempFactionsMap, 
+                  'factionsMap', 
+                  '例如：东荒三宗、西漠佛国、北海妖域，各方势力犬牙交错...'
+                )}
+                
+                {renderKernelDimensionCard(
+                  'sellingPoints', 
+                  '🔥 爽点与核心卖点', 
+                  '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计', 
+                  tempSellingPoints, 
+                  setTempSellingPoints, 
+                  'sellingPoints', 
+                  '例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派...'
+                )}
               </div>
             )}
           </div>
 
           {/* 右侧：AI 面板 */}
-          <div className="workspace-ai-panel">
-            <div className="tab-container">
-              <button className={`tab-btn ${activeAITab === 'chat' ? 'active' : ''}`} onClick={() => setActiveAITab('chat')}>
-                <MessageSquare size={14} style={{ marginRight: '6px', display: 'inline' }} />
-                小说设定记忆问答
-              </button>
-              <button className={`tab-btn ${activeAITab === 'actions' ? 'active' : ''}`} onClick={() => setActiveAITab('actions')}>
-                <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
-                智能辅助写作
-              </button>
-            </div>
-
-            {activeAITab === 'chat' ? (
-              /* AI 记忆聊天 */
-              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div className="chat-history">
-                  {chatMessages.length === 0 ? (
-                    <div style={{ padding: '20px', color: 'var(--text-dark)', fontSize: '13px', textAlign: 'center', lineHeight: '1.6' }}>
-                      <HelpCircle size={24} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
-                      你可以向智能体询问任何关于本书的前文剧情、人物细节或世界观规则。
-                      <br /><br />
-                      <em>例：“上一章陆青禾发现了什么？”</em>
-                      <br />
-                      <em>例：“沈砚的真实身份和性格禁忌是什么？”</em>
-                    </div>
-                  ) : (
-                    chatMessages.map((msg, i) => (
-                      <div key={i} className={`chat-bubble ${msg.role}`}>
-                        {msg.content}
-                      </div>
-                    ))
-                  )}
-                  {isAiLoading && (
-                    <div className="chat-bubble model" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Loader2 className="animate-spin" size={14} />
-                      AI 正在深度思考并检索小说记忆...
-                    </div>
-                  )}
-                  <div ref={chatBottomRef} />
-                </div>
-
-                {!store.apiKey && (
-                  <div style={{ margin: '0 16px', padding: '8px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '6px', fontSize: '11px', color: 'var(--accent-warning)' }}>
-                    提示：当前为模拟对话，点击右上角「AI 模型设置」填入 API Key 即可进行真实长文本语义问答。
-                  </div>
-                )}
-
-                <form onSubmit={handleSendChatMessage} className="chat-input-area">
-                  <input 
-                    type="text" 
-                    className="input" 
-                    placeholder="向小说记忆系统提问..." 
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    disabled={isAiLoading}
-                  />
-                  <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAiLoading}>
-                    发送
-                  </button>
-                </form>
+          {activeWorkspaceTab === 'write' && (
+            <div className="workspace-ai-panel">
+              <div className="tab-container">
+                <button className={`tab-btn ${activeAITab === 'chat' ? 'active' : ''}`} onClick={() => setActiveAITab('chat')}>
+                  <MessageSquare size={14} style={{ marginRight: '6px', display: 'inline' }} />
+                  小说设定记忆问答
+                </button>
+                <button className={`tab-btn ${activeAITab === 'actions' ? 'active' : ''}`} onClick={() => setActiveAITab('actions')}>
+                  <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
+                  智能辅助写作
+                </button>
               </div>
-            ) : (
-              /* AI 写作操作辅助面板 */
-              <div className="ai-actions-panel">
-                {/* 1. AI 续写 */}
-                <div className="action-section glass-card" style={{ padding: '14px' }}>
-                  <div className="action-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={14} style={{ color: 'var(--accent)' }} /> AI 灵感续写
-                  </div>
-                  <textarea 
-                    className="textarea" 
-                    placeholder="可选：在此输入特定情节指示（例如：“描写两人微小的眼神对峙，带有暧昧气氛”）" 
-                    value={writeInstruction}
-                    onChange={(e) => setWriteInstruction(e.target.value)}
-                    style={{ fontSize: '12px' }}
-                  />
-                  <button className="btn btn-primary" onClick={startAutoWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
-                    {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : '接着末尾续写章节'}
-                  </button>
-                </div>
 
-                {/* 2. AI 润色 */}
-                <div className="action-section glass-card" style={{ padding: '14px' }}>
-                  <div className="action-title">AI 精英润色</div>
-                  <input 
-                    type="text" 
-                    className="input" 
-                    value={polishInstruction}
-                    onChange={(e) => setPolishInstruction(e.target.value)}
-                    placeholder="润色指令，如: 加强环境描写，改成古风文笔"
-                    style={{ fontSize: '12px', marginBottom: '8px' }}
-                  />
-                  <button className="btn btn-secondary" onClick={handlePolishText} disabled={isAiLoading} style={{ width: '100%' }}>
-                    润色整篇草稿
-                  </button>
-                </div>
-
-                {/* 3. 逻辑自检报告 */}
-                {checkResult && (
-                  <div className={`check-result-box ${checkResult.passed ? 'success' : 'warning'}`}>
-                    <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckCircle2 size={14} />
-                      {checkResult.passed ? '逻辑检验：符合设定要求' : '逻辑警告：发现设定冲突'}
-                    </div>
-                    {checkResult.issues.length > 0 && (
-                      <ul style={{ paddingLeft: '16px', marginBottom: '8px' }}>
-                        {checkResult.issues.map((iss, i) => <li key={i} className="check-item">{iss}</li>)}
-                      </ul>
+              {activeAITab === 'chat' ? (
+                /* AI 记忆聊天 */
+                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div className="chat-history">
+                    {chatMessages.length === 0 ? (
+                      <div style={{ padding: '20px', color: 'var(--text-dark)', fontSize: '13px', textAlign: 'center', lineHeight: '1.6' }}>
+                        <HelpCircle size={24} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                        你可以向智能体询问任何关于本书的前文剧情、人物细节或世界观规则。
+                        <br /><br />
+                        <em>例：“上一章陆青禾发现了什么？”</em>
+                        <br />
+                        <em>例：“沈砚的真实身份和性格禁忌是什么？”</em>
+                      </div>
+                    ) : (
+                      chatMessages.map((msg, i) => (
+                        <div key={i} className={`chat-bubble ${msg.role}`}>
+                          {msg.content}
+                        </div>
+                      ))
                     )}
-                    {checkResult.suggestions.length > 0 && (
-                      <div>
-                        <strong style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>修正方案</strong>
-                        <ul style={{ paddingLeft: '16px' }}>
-                          {checkResult.suggestions.map((sug, i) => <li key={i} className="check-item">{sug}</li>)}
-                        </ul>
+                    {isAiLoading && (
+                      <div className="chat-bubble model" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Loader2 className="animate-spin" size={14} />
+                        AI 正在深度思考并检索小说记忆...
                       </div>
                     )}
+                    <div ref={chatBottomRef} />
                   </div>
-                )}
 
-                {/* 4. 章节大纲生成器 */}
-                <div className="action-section glass-card" style={{ padding: '14px' }}>
-                  <div className="action-title">自动章节细纲生成</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>生成后续章数:</span>
+                  {!store.apiKey && (
+                    <div style={{ margin: '0 16px', padding: '8px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '6px', fontSize: '11px', color: 'var(--accent-warning)' }}>
+                      提示：当前为模拟对话，点击右上角「AI 模型设置」填入 API Key 即可进行真实长文本语义问答。
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSendChatMessage} className="chat-input-area">
                     <input 
-                      type="number" 
+                      type="text" 
                       className="input" 
-                      value={outlineChapters} 
-                      onChange={(e) => setOutlineChapters(Number(e.target.value))}
-                      style={{ width: '60px', padding: '6px' }}
-                      min={1} 
-                      max={5} 
+                      placeholder="向小说记忆系统提问..." 
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      disabled={isAiLoading}
                     />
-                  </div>
-                  <button className="btn btn-secondary" onClick={handleGenerateOutline} disabled={isAiLoading} style={{ width: '100%' }}>
-                    生成后续故事细纲
-                  </button>
+                    <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAiLoading}>
+                      发送
+                    </button>
+                  </form>
                 </div>
-
-                {/* 大纲/润色结果显示框 */}
-                {outlineResult && (
-                  <div className="glass-card" style={{ padding: '14px', fontSize: '13px', maxHeight: '250px', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
-                      <span style={{ fontWeight: '600' }}>AI 生成结果</span>
-                      <button 
-                        className="btn btn-secondary" 
-                        onClick={() => {
-                          if (confirm('是否将当前编辑器内容全部替换为该 AI 润色结果？')) {
-                            setEditorContent(outlineResult);
-                            setSaveStatus('dirty');
-                            if (store.currentChapter) {
-                              store.updateChapter(store.currentChapter.id, { content: outlineResult });
-                            }
-                          }
-                        }}
-                        style={{ padding: '2px 6px', fontSize: '11px' }}
-                      >
-                        应用到正文
-                      </button>
+              ) : (
+                /* AI 写作操作辅助面板 */
+                <div className="ai-actions-panel">
+                  {/* 1. AI 续写 */}
+                  <div className="action-section glass-card" style={{ padding: '14px' }}>
+                    <div className="action-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Sparkles size={14} style={{ color: 'var(--accent)' }} /> AI 灵感续写
                     </div>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: '1.6' }}>{outlineResult}</pre>
+                    <textarea 
+                      className="textarea" 
+                      placeholder="可选：在此输入特定情节指示（例如：“描写两人微小的眼神对峙，带有暧昧气氛”）" 
+                      value={writeInstruction}
+                      onChange={(e) => setWriteInstruction(e.target.value)}
+                      style={{ fontSize: '12px' }}
+                    />
+                    <button className="btn btn-primary" onClick={startAutoWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
+                      {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : '接着末尾续写章节'}
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+
+                  {/* 2. AI 润色 */}
+                  <div className="action-section glass-card" style={{ padding: '14px' }}>
+                    <div className="action-title">AI 精英润色</div>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      value={polishInstruction}
+                      onChange={(e) => setPolishInstruction(e.target.value)}
+                      placeholder="润色指令，如: 加强环境描写，改成古风文笔"
+                      style={{ fontSize: '12px', marginBottom: '8px' }}
+                    />
+                    <button className="btn btn-secondary" onClick={handlePolishText} disabled={isAiLoading} style={{ width: '100%' }}>
+                      润色整篇草稿
+                    </button>
+                  </div>
+
+                  {/* 3. 逻辑自检报告 */}
+                  {checkResult && (
+                    <div className={`check-result-box ${checkResult.passed ? 'success' : 'warning'}`}>
+                      <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={14} />
+                        {checkResult.passed ? '逻辑检验：符合设定要求' : '逻辑警告：发现设定冲突'}
+                      </div>
+                      {checkResult.issues.length > 0 && (
+                        <ul style={{ paddingLeft: '16px', marginBottom: '8px' }}>
+                          {checkResult.issues.map((iss, i) => <li key={i} className="check-item">{iss}</li>)}
+                        </ul>
+                      )}
+                      {checkResult.suggestions.length > 0 && (
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>修正方案</strong>
+                          <ul style={{ paddingLeft: '16px' }}>
+                            {checkResult.suggestions.map((sug, i) => <li key={i} className="check-item">{sug}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 4. 章节大纲生成器 */}
+                  <div className="action-section glass-card" style={{ padding: '14px' }}>
+                    <div className="action-title">自动章节细纲生成</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>生成后续章数:</span>
+                      <input 
+                        type="number" 
+                        className="input" 
+                        value={outlineChapters} 
+                        onChange={(e) => setOutlineChapters(Number(e.target.value))}
+                        style={{ width: '60px', padding: '6px' }}
+                        min={1} 
+                        max={5} 
+                      />
+                    </div>
+                    <button className="btn btn-secondary" onClick={handleGenerateOutline} disabled={isAiLoading} style={{ width: '100%' }}>
+                      生成后续故事细纲
+                    </button>
+                  </div>
+
+                  {/* 大纲/润色结果显示框 */}
+                  {outlineResult && (
+                    <div className="glass-card" style={{ padding: '14px', fontSize: '13px', maxHeight: '250px', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
+                        <span style={{ fontWeight: '600' }}>AI 生成结果</span>
+                        <button 
+                          className="btn btn-secondary" 
+                          onClick={() => {
+                            if (confirm('是否将当前编辑器内容全部替换为该 AI 润色结果？')) {
+                              setEditorContent(outlineResult);
+                              setSaveStatus('dirty');
+                              if (store.currentChapter) {
+                                store.updateChapter(store.currentChapter.id, { content: outlineResult });
+                              }
+                            }
+                          }}
+                          style={{ padding: '2px 6px', fontSize: '11px' }}
+                        >
+                          应用到正文
+                        </button>
+                      </div>
+                      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: '1.6' }}>{outlineResult}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
