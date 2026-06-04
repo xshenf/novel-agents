@@ -11,6 +11,15 @@ export async function POST(request: Request) {
     }
 
     switch (action) {
+      case 'autoPlanBook': {
+        const { genre, tone, tags } = body;
+        if (!genre || !tone) {
+          return NextResponse.json({ error: '缺少 genre 或 tone' }, { status: 400 });
+        }
+        const result = await ai.autoPlanBook(genre, tone, tags || [], apiKey, modelName);
+        return NextResponse.json(result);
+      }
+
       case 'generateInspirations': {
         if (!projectId) {
           return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
