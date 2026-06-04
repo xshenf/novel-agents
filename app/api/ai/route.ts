@@ -11,6 +11,14 @@ export async function POST(request: Request) {
     }
 
     switch (action) {
+      case 'generateInspirations': {
+        if (!projectId) {
+          return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
+        }
+        const result = await ai.generateInspirations(projectId, apiKey, modelName);
+        return NextResponse.json(result);
+      }
+
       case 'chat': {
         if (!projectId || !query) {
           return NextResponse.json({ error: '缺少 projectId 或 query' }, { status: 400 });
