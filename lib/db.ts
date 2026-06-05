@@ -14,6 +14,7 @@ export interface NovelProject {
   factionsMap?: string;
   sellingPoints?: string;
   outlineFull?: string;
+  antiAiStyleRules?: string[];
   createdAt: string;
   updatedAt: string;
 }

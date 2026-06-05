@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       factionsMap: '',
       sellingPoints: '',
       outlineFull: '',
+      antiAiStyleRules: [],
     });
 
     return NextResponse.json(newProject, { status: 201 });

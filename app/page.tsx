@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { NovelProject, Chapter, Character, WorldRule } from '@/lib/db';
+import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
 
 const GENRE_CATEGORIES = [
   {
@@ -2807,6 +2808,133 @@ export default function Home() {
                   'sellingPoints', 
                   '例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派...'
                 )}
+                
+                {/* 💡 反 AI 写作控制与文风微调卡片 */}
+                <div 
+                  className="glass-card animate-fade-in" 
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.02)', 
+                    border: '1px solid var(--border-light)', 
+                    borderRadius: '12px', 
+                    marginBottom: '16px',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div 
+                    onClick={() => setExpandedKernelCard(expandedKernelCard === 'antiAiStyleRules' ? null : 'antiAiStyleRules')}
+                    style={{ 
+                      padding: '16px 20px', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      cursor: 'pointer',
+                      background: expandedKernelCard === 'antiAiStyleRules' ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <strong style={{ fontSize: '15px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>💡</span> 反 AI 写作控制与文风特征过滤器
+                      </strong>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的“AI 鸡汤味”与“模板腔”
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {store.currentProject?.antiAiStyleRules?.length ? `已启用 ${store.currentProject.antiAiStyleRules.length} 项` : '未启用'}
+                      </span>
+                      {expandedKernelCard === 'antiAiStyleRules' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </div>
+                  </div>
+
+                  {expandedKernelCard === 'antiAiStyleRules' && (
+                    <div 
+                      style={{ 
+                        padding: '20px', 
+                        borderTop: '1px solid var(--border-light)',
+                        background: 'rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>点击以下文风特征药丸，一键启用或关闭（即时落库生效）：</span>
+                        {store.currentProject?.antiAiStyleRules && store.currentProject.antiAiStyleRules.length > 0 && (
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={async () => {
+                              if (!store.currentProject) return;
+                              if (confirm('是否清空所有已启用的反 AI 规则？')) {
+                                await store.updateProject(store.currentProject.id, { antiAiStyleRules: [] });
+                              }
+                            }}
+                            style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
+                          >
+                            重置全部
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                        {DEFAULT_ANTI_AI_RULES.map((rule) => {
+                          const isActive = store.currentProject?.antiAiStyleRules?.includes(rule.key) || false;
+                          return (
+                            <div 
+                              key={rule.key}
+                              onClick={async () => {
+                                if (!store.currentProject) return;
+                                const currentRules = store.currentProject.antiAiStyleRules || [];
+                                let nextRules: string[];
+                                if (currentRules.includes(rule.key)) {
+                                  nextRules = currentRules.filter(k => k !== rule.key);
+                                } else {
+                                  nextRules = [...currentRules, rule.key];
+                                }
+                                try {
+                                  await store.updateProject(store.currentProject.id, { antiAiStyleRules: nextRules });
+                                } catch (e) {
+                                  alert('更新反 AI 写作规则失败');
+                                }
+                              }}
+                              style={{ 
+                                padding: '12px 16px', 
+                                background: isActive ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)', 
+                                border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)', 
+                                borderRadius: '10px', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: isActive ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '13px', color: isActive ? '#fff' : 'var(--text-muted)' }}>
+                                  {rule.name}
+                                </strong>
+                                <span style={{ 
+                                  width: '14px', 
+                                  height: '14px', 
+                                  borderRadius: '50%', 
+                                  border: isActive ? 'none' : '1px solid var(--border-light)', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  background: isActive ? 'var(--accent)' : 'transparent'
+                                }}>
+                                  {isActive && <CheckCircle2 size={10} style={{ color: '#fff' }} />}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '11px', color: 'var(--text-dark)', margin: 0, lineHeight: '1.5' }}>
+                                {rule.promptInstruction}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -2889,6 +3017,43 @@ export default function Home() {
                       onChange={(e) => setWriteInstruction(e.target.value)}
                       style={{ fontSize: '12px' }}
                     />
+                    {/* 绑定的反 AI 规则提示 */}
+                    <div 
+                      style={{ 
+                        marginTop: '8px', 
+                        padding: '8px 10px', 
+                        background: 'rgba(99, 102, 241, 0.05)', 
+                        border: '1px solid rgba(99, 102, 241, 0.15)', 
+                        borderRadius: '6px', 
+                        fontSize: '11px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px'
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        ✍️ 续写已绑定: <strong>{store.currentProject?.antiAiStyleRules?.length || 0} 个</strong> 反 AI 规则
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setActiveWorkspaceTab('settings');
+                          setExpandedKernelCard('antiAiStyleRules');
+                        }}
+                        style={{ 
+                          background: 'transparent', 
+                          border: 'none', 
+                          color: 'var(--accent)', 
+                          cursor: 'pointer', 
+                          padding: 0,
+                          fontSize: '11px',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        管理
+                      </button>
+                    </div>
                     <button className="btn btn-primary" onClick={startAutoWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
                       {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : '接着末尾续写章节'}
                     </button>
