@@ -606,6 +606,26 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'model'; content: string }>>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  // ======= 多 Agent 智能体状态 =======
+  type AgentMsgType = 'user' | 'thinking' | 'tool_call' | 'tool_result' | 'final_answer' | 'delegate' | 'system' | 'error';
+  interface AgentMessage {
+    id: string;
+    type: AgentMsgType;
+    agent?: string;
+    label?: string;
+    content: string;
+    toolName?: string;
+    toolInput?: any;
+    from?: string;
+    fromLabel?: string;
+    to?: string;
+    toLabel?: string;
+    streaming?: boolean;
+  }
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  const [isAgentLoading, setIsAgentLoading] = useState(false);
+  const agentBottomRef = useRef<HTMLDivElement | null>(null);
   
   const [writeInstruction, setWriteInstruction] = useState('');
   const [polishInstruction, setPolishInstruction] = useState('提升文学美感，加强环境烘托与心理描写');
@@ -1498,6 +1518,185 @@ export default function Home() {
       setIsAiLoading(false);
     }
   };
+
+  // --- 多 Agent 智能体：发送消息 ---
+  const handleSendAgentMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !store.currentProject) return;
+
+    const userMsg = chatInput;
+    const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    setAgentMessages(prev => [...prev, {
+      id: msgId(),
+      type: 'user',
+      content: userMsg,
+    }]);
+    setChatInput('');
+    setIsAgentLoading(true);
+
+    try {
+      const response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: store.currentProject.id,
+          message: userMsg,
+          apiKey: store.apiKey,
+          modelName: store.modelName,
+          apiProvider: store.apiProvider,
+          apiBaseUrl: store.apiBaseUrl,
+          temperature: store.temperature,
+          maxTokens: store.maxTokens,
+          systemInstruction: store.systemInstruction,
+          reasoningEnabled: store.reasoningEnabled,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error('Agent 接口连接失败');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      // streaming token accumulator
+      let streamingMsgId: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const chunk of lines) {
+          const eIdx = chunk.indexOf('\n');
+          if (eIdx === -1 || !chunk.startsWith('event: ')) continue;
+          const eventType = chunk.slice(7, eIdx);
+          const dataStr = chunk.slice(eIdx + 6); // skip '\ndata: '
+          if (!eventType || !dataStr) continue;
+          let data: any = {};
+          try { data = JSON.parse(dataStr); } catch { continue; }
+
+          switch (eventType) {
+            case 'thinking':
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'thinking',
+                agent: data.agent,
+                label: data.label,
+                content: '正在思考...',
+              }]);
+              break;
+
+            case 'token':
+              // 合并流式 token 到同一个气泡
+              if (!streamingMsgId) {
+                const newId = msgId();
+                streamingMsgId = newId;
+                setAgentMessages(prev => [...prev, {
+                  id: newId,
+                  type: 'final_answer',
+                  agent: data.agent,
+                  label: data.label || data.agent,
+                  content: data.content,
+                  streaming: true,
+                }]);
+              } else {
+                const sid = streamingMsgId;
+                setAgentMessages(prev => prev.map(m =>
+                  m.id === sid ? { ...m, content: m.content + data.content } : m
+                ));
+              }
+              break;
+
+            case 'tool_call':
+              streamingMsgId = null;
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'tool_call',
+                agent: data.agent,
+                label: data.label,
+                toolName: data.toolName,
+                toolInput: data.toolInput,
+                content: `调用工具：${data.toolName}`,
+              }]);
+              break;
+
+            case 'tool_result':
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'tool_result',
+                agent: data.agent,
+                toolName: data.toolName,
+                content: data.result,
+              }]);
+              break;
+
+            case 'delegate':
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'delegate',
+                from: data.from,
+                fromLabel: data.fromLabel,
+                to: data.to,
+                toLabel: data.toLabel,
+                content: `编导将任务交给${data.toLabel}处理`,
+              }]);
+              break;
+
+            case 'final_answer':
+              streamingMsgId = null;
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'final_answer',
+                agent: data.agent,
+                label: data.label,
+                content: data.content,
+              }]);
+              // 工具操作后刷新数据
+              if (store.currentProject) {
+                store.fetchCharacters(store.currentProject.id);
+                store.fetchWorldRules(store.currentProject.id);
+                store.fetchChapters(store.currentProject.id);
+              }
+              break;
+
+            case 'done':
+              streamingMsgId = null;
+              if (store.currentProject) {
+                store.fetchCharacters(store.currentProject.id);
+                store.fetchWorldRules(store.currentProject.id);
+                store.fetchChapters(store.currentProject.id);
+              }
+              break;
+
+            case 'error':
+              streamingMsgId = null;
+              setAgentMessages(prev => [...prev, {
+                id: msgId(),
+                type: 'error',
+                content: data.message || 'Agent 执行出错',
+              }]);
+              break;
+          }
+        }
+      }
+    } catch (err: any) {
+      setAgentMessages(prev => [...prev, {
+        id: `err_${Date.now()}`,
+        type: 'error',
+        content: err.message || '连接 Agent 失败，请检查网络和 API Key',
+      }]);
+    } finally {
+      setIsAgentLoading(false);
+      // scroll to bottom
+      setTimeout(() => agentBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  };
+
 
   // --- AI 写作辅助：润色 ---
   const handlePolishText = async () => {
@@ -3715,8 +3914,8 @@ export default function Home() {
             <div className="workspace-ai-panel">
               <div className="tab-container">
                 <button className={`tab-btn ${activeAITab === 'chat' ? 'active' : ''}`} onClick={() => setActiveAITab('chat')}>
-                  <MessageSquare size={14} style={{ marginRight: '6px', display: 'inline' }} />
-                  小说设定记忆问答
+                  <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
+                  AI 创作智能体
                 </button>
                 <button className={`tab-btn ${activeAITab === 'actions' ? 'active' : ''}`} onClick={() => setActiveAITab('actions')}>
                   <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
