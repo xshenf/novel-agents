@@ -15,139 +15,139 @@ const GENRE_CATEGORIES = [
   {
     id: 'xuanhuan',
     title: '玄幻奇幻',
-    icon: '🔮',
+    icon: '',
     genres: [
-      { name: '东方玄幻', desc: '热血升级，武道通神，气吞星河', icon: '🎋' },
-      { name: '异世大陆', desc: '领主建设，斗气争雄，宏大冒险', icon: '🌌' },
-      { name: '王朝争霸', desc: '诸侯割据，运筹帷幄，争霸诸天', icon: '👑' },
-      { name: '史诗奇幻', desc: '西方剑与魔法，巨龙怒吼与骑士信仰', icon: '⚔️' },
-      { name: '高武世界', desc: '地球异变，全民武道，抵御异兽入侵', icon: '🪐' }
+      { name: '东方玄幻', desc: '热血升级，武道通神，气吞星河', icon: '' },
+      { name: '异世大陆', desc: '领主建设，斗气争雄，宏大冒险', icon: '' },
+      { name: '王朝争霸', desc: '诸侯割据，运筹帷幄，争霸诸天', icon: '' },
+      { name: '史诗奇幻', desc: '西方剑与魔法，巨龙怒吼与骑士信仰', icon: '️' },
+      { name: '高武世界', desc: '地球异变，全民武道，抵御异兽入侵', icon: '' }
     ]
   },
   {
     id: 'xianxia',
     title: '仙侠武侠',
-    icon: '✨',
+    icon: '',
     genres: [
-      { name: '古典仙侠', desc: '修真文明，逆天改命，古典神话探秘', icon: '☯️' },
-      { name: '幻想修仙', desc: '脑洞修真，金手指加持，不一样的飞升', icon: '💫' },
-      { name: '现代修真', desc: '都市修仙，钢筋水泥中的红尘磨炼', icon: '🏢' },
-      { name: '传统武侠', desc: '快意恩仇，儿女情长，仗剑走天涯', icon: '🗡️' },
-      { name: '武侠幻想', desc: '高武江湖，飞花摘叶，大内密探', icon: '🦅' }
+      { name: '古典仙侠', desc: '修真文明，逆天改命，古典神话探秘', icon: '️' },
+      { name: '幻想修仙', desc: '脑洞修真，金手指加持，不一样的飞升', icon: '' },
+      { name: '现代修真', desc: '都市修仙，钢筋水泥中的红尘磨炼', icon: '' },
+      { name: '传统武侠', desc: '快意恩仇，儿女情长，仗剑走天涯', icon: '️' },
+      { name: '武侠幻想', desc: '高武江湖，飞花摘叶，大内密探', icon: '' }
     ]
   },
   {
     id: 'dushi',
     title: '都市青春',
-    icon: '🌆',
+    icon: '',
     genres: [
-      { name: '都市生活', desc: '市井百态，日常烟火，神豪崛起', icon: '💰' },
-      { name: '异术超能', desc: '都市透视，掌控雷电，黑夜行者', icon: '⚡' },
-      { name: '商战职场', desc: '商海浮沉，行业领袖，金融风暴', icon: '📈' },
-      { name: '娱乐明星', desc: '导演编剧，巨星闪耀，打造文娱帝国', icon: '🎭' },
-      { name: '青春校园', desc: '白衣飘飘的年代，青涩恋爱与成长奋斗', icon: '🎒' }
+      { name: '都市生活', desc: '市井百态，日常烟火，神豪崛起', icon: '' },
+      { name: '异术超能', desc: '都市透视，掌控雷电，黑夜行者', icon: '' },
+      { name: '商战职场', desc: '商海浮沉，行业领袖，金融风暴', icon: '' },
+      { name: '娱乐明星', desc: '导演编剧，巨星闪耀，打造文娱帝国', icon: '' },
+      { name: '青春校园', desc: '白衣飘飘的年代，青涩恋爱与成长奋斗', icon: '' }
     ]
   },
   {
     id: 'lishi',
     title: '历史军事',
-    icon: '🏛️',
+    icon: '️',
     genres: [
-      { name: '架空历史', desc: '穿越古今，改良工业，推演历史走向', icon: '📜' },
-      { name: '秦汉三国', desc: '群雄逐鹿，逐鹿中原，铁血权谋', icon: '🛡️' },
-      { name: '两宋元明', desc: '山河破碎，文人骨气，保家卫国', icon: '🏮' },
-      { name: '特种兵王', desc: '最强利刃，铁血军魂，保家卫国', icon: '🎖️' },
-      { name: '战争幻想', desc: '虚构现代战争，海陆空全面争霸', icon: '⚓' }
+      { name: '架空历史', desc: '穿越古今，改良工业，推演历史走向', icon: '' },
+      { name: '秦汉三国', desc: '群雄逐鹿，逐鹿中原，铁血权谋', icon: '️' },
+      { name: '两宋元明', desc: '山河破碎，文人骨气，保家卫国', icon: '' },
+      { name: '特种兵王', desc: '最强利刃，铁血军魂，保家卫国', icon: '️' },
+      { name: '战争幻想', desc: '虚构现代战争，海陆空全面争霸', icon: '' }
     ]
   },
   {
     id: 'kehuan',
     title: '科幻末世',
-    icon: '🚀',
+    icon: '',
     genres: [
-      { name: '未来世界', desc: '赛博朋克，AI危机，意识上传', icon: '🤖' },
-      { name: '星际文明', desc: '星门穿梭，战舰对决，星海拓荒', icon: '🛸' },
-      { name: '时空穿梭', desc: '时空穿梭，倒买倒卖，修复时间线', icon: '🌀' },
-      { name: '末世危机', desc: '废土拾荒，丧尸爆发，人类最后防线', icon: '☣️' },
-      { name: '古武机甲', desc: '血肉与钢铁的融合，操控机甲横扫深空', icon: '🦾' }
+      { name: '未来世界', desc: '赛博朋克，AI危机，意识上传', icon: '' },
+      { name: '星际文明', desc: '星门穿梭，战舰对决，星海拓荒', icon: '' },
+      { name: '时空穿梭', desc: '时空穿梭，倒买倒卖，修复时间线', icon: '' },
+      { name: '末世危机', desc: '废土拾荒，丧尸爆发，人类最后防线', icon: '️' },
+      { name: '古武机甲', desc: '血肉与钢铁的融合，操控机甲横扫深空', icon: '' }
     ]
   },
   {
     id: 'xuanyi',
     title: '悬疑惊悚',
-    icon: '🔍',
+    icon: '',
     genres: [
-      { name: '诡秘神秘', desc: '克苏鲁神话，深渊污染，精神崩溃边缘', icon: '🐙' },
-      { name: '规则怪谈', desc: '致命法则，异常管理局，遵守规则求生', icon: '👁️' },
-      { name: '探险寻宝', desc: '摸金校尉，古墓影院，失落遗迹', icon: '🧭' },
-      { name: '侦探推理', desc: '侧写追凶，密室杀人，纯粹逻辑博弈', icon: '🕵️' },
-      { name: '灵异民俗', desc: '中式恐怖，纸人抬轿，民俗禁忌', icon: '🕯️' }
+      { name: '诡秘神秘', desc: '克苏鲁神话，深渊污染，精神崩溃边缘', icon: '' },
+      { name: '规则怪谈', desc: '致命法则，异常管理局，遵守规则求生', icon: '️' },
+      { name: '探险寻宝', desc: '摸金校尉，古墓影院，失落遗迹', icon: '' },
+      { name: '侦探推理', desc: '侧写追凶，密室杀人，纯粹逻辑博弈', icon: '️' },
+      { name: '灵异民俗', desc: '中式恐怖，纸人抬轿，民俗禁忌', icon: '️' }
     ]
   },
   {
     id: 'youxi',
     title: '游戏体育',
-    icon: '🎮',
+    icon: '',
     genres: [
-      { name: '虚拟网游', desc: '第二世界，全息争霸，公会战记', icon: '🛡️' },
-      { name: '电子竞技', desc: '英雄联盟，绝地求生，捧起冠军奖杯', icon: '🏆' },
-      { name: '游戏异界', desc: 'NPC觉醒，穿越成反派BOSS，改写剧本', icon: '👾' },
-      { name: '体育竞技', desc: '篮球之神，绿茵传奇，突破人体极限', icon: '⚽' }
+      { name: '虚拟网游', desc: '第二世界，全息争霸，公会战记', icon: '️' },
+      { name: '电子竞技', desc: '英雄联盟，绝地求生，捧起冠军奖杯', icon: '' },
+      { name: '游戏异界', desc: 'NPC觉醒，穿越成反派BOSS，改写剧本', icon: '' },
+      { name: '体育竞技', desc: '篮球之神，绿茵传奇，突破人体极限', icon: '' }
     ]
   },
   {
     id: 'qingxiaoshuo',
     title: '轻小说',
-    icon: '🍃',
+    icon: '',
     genres: [
-      { name: '原生幻想', desc: '异世界开小店，勇者与魔王的日常吐槽', icon: '🏡' },
-      { name: '衍生同人', desc: '二次元动漫世界同人，弥补前作遗憾', icon: '📖' },
-      { name: '搞笑吐槽', desc: '沙雕流，反套路，让人捧腹大笑', icon: '🤪' },
-      { name: '恋爱日常', desc: '单女主，纯爱战神，温馨发糖日常', icon: '🍯' }
+      { name: '原生幻想', desc: '异世界开小店，勇者与魔王的日常吐槽', icon: '' },
+      { name: '衍生同人', desc: '二次元动漫世界同人，弥补前作遗憾', icon: '' },
+      { name: '搞笑吐槽', desc: '沙雕流，反套路，让人捧腹大笑', icon: '' },
+      { name: '恋爱日常', desc: '单女主，纯爱战神，温馨发糖日常', icon: '' }
     ]
   },
   {
     id: 'nvpin',
     title: '女生言情',
-    icon: '💖',
+    icon: '',
     genres: [
-      { name: '豪门总裁', desc: '闪婚契约，带球跑，追妻火葬场', icon: '💎' },
-      { name: '宫廷侯爵', desc: '嫡女重生，斗姨娘，辅佐君王登基', icon: '👑' },
-      { name: '种田经商', desc: '农家小媳妇，发家致富，细水长流', icon: '🌾' },
-      { name: '幻情仙侠', desc: '三生三世，仙魔虐恋，大女主涅槃', icon: '🌸' },
-      { name: '浪漫青春', desc: '校园初恋，青梅竹马，从校服到婚纱', icon: '🎒' }
+      { name: '豪门总裁', desc: '闪婚契约，带球跑，追妻火葬场', icon: '' },
+      { name: '宫廷侯爵', desc: '嫡女重生，斗姨娘，辅佐君王登基', icon: '' },
+      { name: '种田经商', desc: '农家小媳妇，发家致富，细水长流', icon: '' },
+      { name: '幻情仙侠', desc: '三生三世，仙魔虐恋，大女主涅槃', icon: '' },
+      { name: '浪漫青春', desc: '校园初恋，青梅竹马，从校服到婚纱', icon: '' }
     ]
   }
 ];
 
 const TONES = [
-  { name: '传统正剧', desc: '文笔严谨，逻辑扎实，侧重群像与世界深度', icon: '📜' },
-  { name: '热血爽文', desc: '节奏明快，升级换装，高潮迭起绝不拖泥带水', icon: '⚡' },
-  { name: '悬疑解谜', desc: '草蛇灰线，脑洞大开，环环相扣的智商博弈', icon: '🧩' },
-  { name: '轻小说', desc: '吐槽搞笑，轻松日常，奇幻冒险与温馨互动', icon: '🍃' },
-  { name: '细腻情感', desc: '感情真挚，刻画入微，情感张力与灵魂共鸣', icon: '💕' },
-  { name: '幽默爆笑', desc: '沙雕玩梗，吐槽拉满，让人捧腹的轻松爽文', icon: '🤪' },
-  { name: '暗黑克苏鲁', desc: '气氛压抑，不可名状，理智丧失的终极求生', icon: '🐙' },
-  { name: '史诗歌剧', desc: '宏大叙事，悲壮赞歌，多视角多文明的碰撞', icon: '🎵' },
-  { name: '唯美古风', desc: '用词考究，意境悠远，诗情画意的水墨风流', icon: '🎋' },
-  { name: '无限流恐怖', desc: '规则生存，悬念丛生，穿梭于诸天恐怖任务', icon: '👁️' }
+  { name: '传统正剧', desc: '文笔严谨，逻辑扎实，侧重群像与世界深度', icon: '' },
+  { name: '热血爽文', desc: '节奏明快，升级换装，高潮迭起绝不拖泥带水', icon: '' },
+  { name: '悬疑解谜', desc: '草蛇灰线，脑洞大开，环环相扣的智商博弈', icon: '' },
+  { name: '轻小说', desc: '吐槽搞笑，轻松日常，奇幻冒险与温馨互动', icon: '' },
+  { name: '细腻情感', desc: '感情真挚，刻画入微，情感张力与灵魂共鸣', icon: '' },
+  { name: '幽默爆笑', desc: '沙雕玩梗，吐槽拉满，让人捧腹的轻松爽文', icon: '' },
+  { name: '暗黑克苏鲁', desc: '气氛压抑，不可名状，理智丧失的终极求生', icon: '' },
+  { name: '史诗歌剧', desc: '宏大叙事，悲壮赞歌，多视角多文明的碰撞', icon: '' },
+  { name: '唯美古风', desc: '用词考究，意境悠远，诗情画意的水墨风流', icon: '' },
+  { name: '无限流恐怖', desc: '规则生存，悬念丛生，穿梭于诸天恐怖任务', icon: '️' }
 ];
 
 const PRESET_TAG_GROUPS = [
   {
-    title: '🛠️ 金手指与系统',
+    title: '️ 金手指与系统',
     tags: ['系统金手指', '重生穿越', '签到流', '随身老爷爷', '满级悟性', '家族模拟器', '万界信箱']
   },
   {
-    title: '👥 主角人设',
+    title: '主角人设',
     tags: ['凡人流', '无敌流', '幕后黑手', '马甲文', '废柴崛起', '多重人格', '天煞孤星']
   },
   {
-    title: '🎯 故事看点与主线',
+    title: '故事看点与主线',
     tags: ['退婚逆袭', '境界升级', '收徒建宗', '斩妖除魔', '星际争霸', '恋爱救赎', '智商在线']
   },
   {
-    title: '🗺️ 世界背景',
+    title: '️ 世界背景',
     tags: ['架空历史', '灵气复苏', '末世生存', '规则怪谈', '赛博朋克', '克苏鲁神话', '魔法学院']
   }
 ];
@@ -424,7 +424,7 @@ export default function Home() {
             {/* 右侧：AI 智能推荐方案 */}
             <div style={{ width: '380px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
               <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>
-                ⚡ AI 推荐备选方案 (一键选用)
+                AI 推荐备选方案 (一键选用)
               </div>
               
               {isKernelLoading ? (
@@ -476,7 +476,7 @@ export default function Home() {
               ) : (
                 <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-light)', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>
-                    暂无推荐，点击顶部「⚡ 重新推演设定与大纲」生成方案
+                    暂无推荐，点击顶部「重新推演设定与大纲」生成方案
                   </span>
                 </div>
               )}
@@ -1078,7 +1078,7 @@ export default function Home() {
 
     setIsAutoWriting(false);
     if (!autoWriteStopRef.current) {
-      setAutoWritingStatus('🎉 恭喜！设定章节的 AI 自动小说创作已顺利完成！');
+      setAutoWritingStatus('恭喜！设定章节的 AI 自动小说创作已顺利完成！');
     }
   };
 
@@ -1369,7 +1369,7 @@ export default function Home() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
           <div>
             <h1 style={{ fontSize: '26px', fontWeight: '700', marginBottom: '6px', background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {wizardLoading ? '✨ AI 智能新书推演中...' : `✨ 智能新书向导: ${stepTitles[wizardStep - 1]}`}
+              {wizardLoading ? 'AI 智能新书推演中...' : `智能新书向导: ${stepTitles[wizardStep - 1]}`}
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
               {wizardLoading ? '融合题材世界观与文风法则，推演主线与大纲...' : '通过多维度可视化推演，免去构思烦恼，一键生成您的专属小说企划。'}
@@ -1391,7 +1391,7 @@ export default function Home() {
                   color: '#34d399'
                 }}
               >
-                ⚡ 直接开书 (跳过向导)
+                直接开书 (跳过向导)
               </button>
               <button className="btn btn-secondary" onClick={() => setIsWizardMode(false)} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                 <ChevronLeft size={16} /> 返回项目大厅
@@ -1513,7 +1513,7 @@ export default function Home() {
                       
                       {/* 自定义题材选择 */}
                       <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✍️ 独创自定义题材（例如：赛博仙侠、中式蒸汽朋克）</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>️ 独创自定义题材（例如：赛博仙侠、中式蒸汽朋克）</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="text" 
@@ -1590,7 +1590,7 @@ export default function Home() {
                       
                       {/* 自定义文风选择 */}
                       <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✍️ 自定义独特文风（例如：暗黑克苏鲁、赛博怪诞）</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>️ 自定义独特文风（例如：暗黑克苏鲁、赛博怪诞）</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="text" 
@@ -1668,7 +1668,7 @@ export default function Home() {
 
                         {/* 自定义看点 */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', marginTop: '6px' }}>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✨ 独创脑洞自定义标签</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>独创脑洞自定义标签</div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
                             {selectedTags.filter(tag => !PRESET_TAG_GROUPS.some(g => g.tags.includes(tag))).map(tag => (
                               <div 
@@ -1689,7 +1689,7 @@ export default function Home() {
                                 }}
                               >
                                 {tag}
-                                <span style={{ fontSize: '10px', opacity: 0.7 }}>✕</span>
+                                <span style={{ fontSize: '10px', opacity: 0.7 }}></span>
                               </div>
                             ))}
                           </div>
@@ -1738,7 +1738,7 @@ export default function Home() {
                       <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '14px', color: '#fff' }}>AI 推演企划书（您可以在框内直接进行微调与二次润色）</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '420px', overflowY: 'auto', paddingRight: '6px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>✨ 独创书名</label>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>独创书名</label>
                           <input 
                             type="text" 
                             className="input" 
@@ -1750,7 +1750,7 @@ export default function Home() {
                         </div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>📖 故事简介</label>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>故事简介</label>
                           <textarea 
                             className="textarea" 
                             value={wizardResult.description} 
@@ -1761,7 +1761,7 @@ export default function Home() {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🎭 创作风格</label>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>创作风格</label>
                           <input 
                             type="text" 
                             className="input" 
@@ -1772,7 +1772,7 @@ export default function Home() {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>🌐 世界观设定与境界划分</label>
+                          <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>世界观设定与境界划分</label>
                           <textarea 
                             className="textarea" 
                             value={wizardResult.worldSetting} 
@@ -1870,7 +1870,7 @@ export default function Home() {
                     WebkitLineClamp: 3,
                     WebkitBoxOrient: 'vertical'
                   }}>
-                    {wizardStep === 4 && wizardResult ? wizardResult.title : '✨ 灵感之卷 ✨'}
+                    {wizardStep === 4 && wizardResult ? wizardResult.title : '灵感之卷 '}
                   </div>
                   <div style={{ fontSize: '9px', color: 'var(--text-dark)', marginTop: '8px' }}>
                     {wizardStep === 4 && wizardResult ? '新书大纲已锁定' : '等待 AI 推演灵感...'}
@@ -2490,21 +2490,21 @@ export default function Home() {
                   onClick={() => setActiveWorkspaceTab('write')}
                   style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'write' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'write' ? '#fff' : 'var(--text-muted)' }}
                 >
-                  ✍️ 连载写作
+                  ️ 连载写作
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'outline' ? 'btn-primary' : 'btn-secondary'}`} 
                   onClick={() => setActiveWorkspaceTab('outline')}
                   style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
                 >
-                  📖 核心大纲
+                  核心大纲
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} 
                   onClick={() => setActiveWorkspaceTab('settings')}
                   style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'settings' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'settings' ? '#fff' : 'var(--text-muted)' }}
                 >
-                  🔮 核心设定
+                  核心设定
                 </button>
               </div>
               
@@ -2516,7 +2516,7 @@ export default function Home() {
                   style={{ marginLeft: 'auto', fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   {isKernelLoading ? <Loader2 className="animate-spin" size={13} /> : <Sparkles size={13} style={{ color: 'var(--accent)' }} />}
-                  <span>⚡ 重新推演设定与大纲</span>
+                  <span>重新推演设定与大纲</span>
                 </button>
               )}
             </div>
@@ -2528,7 +2528,7 @@ export default function Home() {
                 {store.currentProject && store.currentProject.title === '未命名故事' && (
                   <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '24px' }}>💡</span>
+                      <span style={{ fontSize: '24px' }}></span>
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>新书已直接建立！</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>当前使用默认模板。您可以前往左侧“设定库”慢慢添加人物与世界观，或点击右侧按钮完善核心世界观、题材与文风。</div>
@@ -2672,7 +2672,7 @@ export default function Home() {
                 <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>📖</span> 完整故事大纲
+                      <span></span> 完整故事大纲
                     </h3>
                     <button 
                       className="btn btn-primary"
@@ -2701,7 +2701,7 @@ export default function Home() {
                 {/* 右栏：AI 推演的 3 套备选方案卡片 */}
                 <div style={{ width: '420px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-muted)', margin: 0 }}>
-                    ⚡ AI 大纲备选推荐（点击一键选用）
+                    AI 大纲备选推荐（点击一键选用）
                   </h3>
                   
                   {isKernelLoading ? (
@@ -2754,7 +2754,7 @@ export default function Home() {
               /* settings Tab: 核心设定工作区 */
               <div style={{ display: 'flex', flexDirection: 'column', padding: '30px', gap: '20px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>🔮 核心设定矩阵</h3>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>核心设定矩阵</h3>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
                     网络小说内核由 5 大设定维度共同支撑。您可以点击各展开项，微调具体内容，或一键选用 AI 为您推演的创意方案。
                   </p>
@@ -2762,7 +2762,7 @@ export default function Home() {
                 
                 {renderKernelDimensionCard(
                   'powerSystem', 
-                  '🔮 境界与力量体系', 
+                  '境界与力量体系', 
                   '定义主角及世界的修炼境界、超自然等级与晋升逻辑', 
                   tempPowerSystem, 
                   setTempPowerSystem, 
@@ -2772,7 +2772,7 @@ export default function Home() {
                 
                 {renderKernelDimensionCard(
                   'goldFinger', 
-                  '🎁 金手指设定', 
+                  '金手指设定', 
                   '主角的特殊外挂、系统、随身宝物或独占机缘', 
                   tempGoldFinger, 
                   setTempGoldFinger, 
@@ -2782,7 +2782,7 @@ export default function Home() {
                 
                 {renderKernelDimensionCard(
                   'coreConflict', 
-                  '⚔️ 核心矛盾与冲突线', 
+                  '️ 核心矛盾与冲突线', 
                   '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机', 
                   tempCoreConflict, 
                   setTempCoreConflict, 
@@ -2792,7 +2792,7 @@ export default function Home() {
                 
                 {renderKernelDimensionCard(
                   'factionsMap', 
-                  '🗺️ 势力分布与地理', 
+                  '️ 势力分布与地理', 
                   '故事发生的世界地理架构，以及各大宗门、家族、帝国的敌友关系', 
                   tempFactionsMap, 
                   setTempFactionsMap, 
@@ -2802,7 +2802,7 @@ export default function Home() {
                 
                 {renderKernelDimensionCard(
                   'sellingPoints', 
-                  '🔥 爽点与核心卖点', 
+                  '爽点与核心卖点', 
                   '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计', 
                   tempSellingPoints, 
                   setTempSellingPoints, 
@@ -2810,7 +2810,7 @@ export default function Home() {
                   '例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派...'
                 )}
                 
-                {/* 💡 反 AI 写作控制与文风微调卡片 */}
+                {/* 反 AI 写作控制与文风微调卡片 */}
                 <div 
                   className="glass-card animate-fade-in" 
                   style={{ 
@@ -2836,7 +2836,7 @@ export default function Home() {
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <strong style={{ fontSize: '15px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>💡</span> 反 AI 写作控制与文风特征过滤器
+                        <span></span> 反 AI 写作控制与文风特征过滤器
                       </strong>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                         绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的“AI 鸡汤味”与“模板腔”
@@ -3035,7 +3035,7 @@ export default function Home() {
                       }}
                     >
                       <span style={{ color: 'var(--text-muted)' }}>
-                        ✍️ 续写已绑定: <strong>{store.currentProject?.antiAiStyleRules?.length || 0} 个</strong> 反 AI 规则
+                        ️ 续写已绑定: <strong>{store.currentProject?.antiAiStyleRules?.length || 0} 个</strong> 反 AI 规则
                       </span>
                       <button 
                         type="button" 
@@ -3267,7 +3267,7 @@ export default function Home() {
         <div className="modal-overlay">
           <form className="modal-content glass-card" onSubmit={handleSaveProject} style={{ maxWidth: '600px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>
-              <div className="modal-title" style={{ margin: 0 }}>⚙️ 完善新书设定</div>
+              <div className="modal-title" style={{ margin: 0 }}>️ 完善新书设定</div>
               <button 
                 type="button" 
                 className="btn btn-primary" 
@@ -3283,7 +3283,7 @@ export default function Home() {
                 ) : (
                   <>
                     <Sparkles size={11} style={{ marginRight: '4px' }} />
-                    <span>⚡ 一键 AI 智能推演</span>
+                    <span>一键 AI 智能推演</span>
                   </>
                 )}
               </button>

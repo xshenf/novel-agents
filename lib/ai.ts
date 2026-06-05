@@ -637,10 +637,10 @@ export const ai = {
 【小说基本世界观】: ${world}
 
 请为此小说生成以下推荐设定（要求每个类别生成 2-3 个极具张力和创意的项）：
-1. 👥 推荐角色 (characters)
-2. 🏰 推荐势力与地点 (worldRules, type 设为 'faction' 或 'location')
-3. 🗡️ 推荐法宝与道具 (worldRules, type 设为 'item')
-4. 📜 推荐世界法则与功法体系 (worldRules, type 设为 'rule')
+1. 推荐角色 (characters)
+2. 推荐势力与地点 (worldRules, type 设为 'faction' 或 'location')
+3. ️ 推荐法宝与道具 (worldRules, type 设为 'item')
+4. 推荐世界法则与功法体系 (worldRules, type 设为 'rule')
 
 必须以纯 JSON 格式输出（不要有 markdown 标记，并且确保输出的是合法的 JSON 格式，不要包含任何多余字符），结构如下：
 {
