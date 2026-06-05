@@ -350,7 +350,8 @@ export default function Home() {
           border: '1px solid var(--border-light)', 
           borderRadius: '12px', 
           marginBottom: '16px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          flexShrink: 0
         }}
       >
         {/* 卡片头部 */}
@@ -2817,7 +2818,8 @@ export default function Home() {
                     border: '1px solid var(--border-light)', 
                     borderRadius: '12px', 
                     marginBottom: '16px',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    flexShrink: 0
                   }}
                 >
                   <div 
