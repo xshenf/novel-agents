@@ -27,6 +27,29 @@ export async function POST(request: Request) {
     }
 
     switch (action) {
+      case 'fetchModels': {
+        let realApiKey = apiKey;
+        let realProvider = apiProvider || 'gemini';
+        let realBaseUrl = apiBaseUrl;
+
+        if (apiKey && apiKey.trim().startsWith('{') && apiKey.trim().endsWith('}')) {
+          try {
+            const parsed = JSON.parse(apiKey);
+            realApiKey = parsed.apiKey || realApiKey;
+            realProvider = parsed.apiProvider || realProvider;
+            realBaseUrl = parsed.apiBaseUrl || realBaseUrl;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!realApiKey) {
+          return NextResponse.json({ error: '缺少 API Key 密钥' }, { status: 400 });
+        }
+
+        const models = await ai.fetchModels(realApiKey, realProvider, realBaseUrl);
+        return NextResponse.json({ models });
+      }
       case 'autoPlanBook': {
         const { genre, tone, tags } = body;
         if (!genre || !tone) {

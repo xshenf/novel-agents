@@ -530,6 +530,37 @@ export default function Home() {
     }
   };
 
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [fetchModelsError, setFetchModelsError] = useState('');
+
+  const handleFetchModels = async () => {
+    if (!store.apiKey) {
+      alert('请先输入 API 密钥 (API Key)');
+      return;
+    }
+    setFetchingModels(true);
+    setFetchModelsError('');
+    try {
+      const res = await callAIApi({
+        action: 'fetchModels'
+      });
+      const data = await res.json();
+      if (data.models && Array.isArray(data.models)) {
+        setFetchedModels(data.models);
+        if (data.models.length > 0) {
+          store.setModelName(data.models[0]);
+        }
+      } else {
+        setFetchModelsError(data.error || '未获取到任何可用模型');
+      }
+    } catch (e: any) {
+      setFetchModelsError(e.message || '获取模型列表时发生网络错误');
+    } finally {
+      setFetchingModels(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
   const [activeAITab, setActiveAITab] = useState<'chat' | 'actions'>('actions');
   
@@ -2387,37 +2418,69 @@ export default function Home() {
               <div className="drawer-section-title">模型与微调参数</div>
 
               <div className="drawer-field">
-                <label className="drawer-label">推荐模型快捷选择</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className="drawer-label">推荐模型选择</label>
+                  <button 
+                    type="button"
+                    onClick={handleFetchModels}
+                    disabled={fetchingModels || !store.apiKey}
+                    style={{ 
+                      fontSize: '11px', 
+                      background: 'none', 
+                      border: 'none', 
+                      color: store.apiKey ? 'var(--accent)' : 'var(--text-dark)', 
+                      cursor: store.apiKey ? 'pointer' : 'default',
+                      fontWeight: 500
+                    }}
+                  >
+                    {fetchingModels ? '正在获取...' : '获取最新模型列表'}
+                  </button>
+                </div>
+                {fetchModelsError && (
+                  <div style={{ fontSize: '11px', color: 'var(--accent-danger)', marginTop: '2px' }}>
+                    {fetchModelsError}
+                  </div>
+                )}
                 <select 
                   className="input"
                   value={store.modelName}
                   onChange={(e) => store.setModelName(e.target.value)}
                   style={{ background: 'var(--bg-input)' }}
                 >
-                  {store.apiProvider === 'gemini' && (
+                  {fetchedModels.length > 0 ? (
                     <>
-                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (快速, 推荐)</option>
-                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度创意)</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (轻量)</option>
+                      {fetchedModels.map((model) => (
+                        <option key={model} value={model}>{model}</option>
+                      ))}
                     </>
-                  )}
-                  {store.apiProvider === 'openai' && (
+                  ) : (
                     <>
-                      <option value="gpt-4o-mini">gpt-4o-mini (经济快捷, 推荐)</option>
-                      <option value="gpt-4o">gpt-4o (全能旗舰)</option>
-                      <option value="o3-mini">o3-mini (高级推理)</option>
-                    </>
-                  )}
-                  {store.apiProvider === 'deepseek' && (
-                    <>
-                      <option value="deepseek-chat">deepseek-chat (V3 API, 极高性价比)</option>
-                      <option value="deepseek-reasoner">deepseek-reasoner (R1 深度推理思考)</option>
-                    </>
-                  )}
-                  {store.apiProvider === 'claude' && (
-                    <>
-                      <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (文学创作天花板)</option>
-                      <option value="claude-3-5-haiku-20241022">claude-3-5-haiku (高速度高能)</option>
+                      {store.apiProvider === 'gemini' && (
+                        <>
+                          <option value="gemini-2.5-flash">Gemini 2.5 Flash (快速, 推荐)</option>
+                          <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度创意)</option>
+                          <option value="gemini-1.5-flash">Gemini 1.5 Flash (轻量)</option>
+                        </>
+                      )}
+                      {store.apiProvider === 'openai' && (
+                        <>
+                          <option value="gpt-4o-mini">gpt-4o-mini (经济快捷, 推荐)</option>
+                          <option value="gpt-4o">gpt-4o (全能旗舰)</option>
+                          <option value="o3-mini">o3-mini (高级推理)</option>
+                        </>
+                      )}
+                      {store.apiProvider === 'deepseek' && (
+                        <>
+                          <option value="deepseek-chat">deepseek-chat (V3 API, 极高性价比)</option>
+                          <option value="deepseek-reasoner">deepseek-reasoner (R1 深度推理思考)</option>
+                        </>
+                      )}
+                      {store.apiProvider === 'claude' && (
+                        <>
+                          <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (文学创作天花板)</option>
+                          <option value="claude-3-5-haiku-20241022">claude-3-5-haiku (高速度高能)</option>
+                        </>
+                      )}
                     </>
                   )}
                   <option value={store.modelName}>当前选择: {store.modelName}</option>
