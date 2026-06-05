@@ -731,6 +731,41 @@ export default function Home() {
     streaming?: boolean;
   }
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  const saveAndSetAgentMessages = (val: AgentMessage[] | ((prev: AgentMessage[]) => AgentMessage[])) => {
+    setAgentMessages(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      if (typeof window !== 'undefined' && store.currentProject) {
+        localStorage.setItem(`agent_messages_${store.currentProject.id}`, JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  // 切换项目或初始化时读取对话历史
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (store.currentProject) {
+        const saved = localStorage.getItem(`agent_messages_${store.currentProject.id}`);
+        if (saved) {
+          try {
+            setAgentMessages(JSON.parse(saved));
+            setTimeout(() => {
+              if (agentBottomRef.current) {
+                agentBottomRef.current.scrollIntoView({ behavior: 'auto' });
+              }
+            }, 100);
+          } catch (_) {
+            setAgentMessages([]);
+          }
+        } else {
+          setAgentMessages([]);
+        }
+      } else {
+        setAgentMessages([]);
+      }
+    }
+  }, [store.currentProject?.id]);
+
   const [isAgentLoading, setIsAgentLoading] = useState(false);
   const agentBottomRef = useRef<HTMLDivElement | null>(null);
   
@@ -1634,7 +1669,7 @@ export default function Home() {
     const userMsg = chatInput;
     const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-    setAgentMessages(prev => [...prev, {
+    saveAndSetAgentMessages(prev => [...prev, {
       id: msgId(),
       type: 'user',
       content: userMsg,
@@ -1699,12 +1734,12 @@ export default function Home() {
             case 'thinking':
               if (streamingMsgId) {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, streaming: false } : m
                 ));
                 streamingMsgId = null;
               }
-              setAgentMessages(prev => [...prev, {
+              saveAndSetAgentMessages(prev => [...prev, {
                 id: msgId(),
                 type: 'thinking',
                 agent: data.agent,
@@ -1722,7 +1757,7 @@ export default function Home() {
               if (!streamingMsgId) {
                 const newId = msgId();
                 streamingMsgId = newId;
-                setAgentMessages(prev => [...prev, {
+                saveAndSetAgentMessages(prev => [...prev, {
                   id: newId,
                   type: 'final_answer',
                   agent: data.agent,
@@ -1732,7 +1767,7 @@ export default function Home() {
                 }]);
               } else {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, content: m.content + data.content } : m
                 ));
               }
@@ -1746,12 +1781,12 @@ export default function Home() {
             case 'tool_call':
               if (streamingMsgId) {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, streaming: false } : m
                 ));
                 streamingMsgId = null;
               }
-              setAgentMessages(prev => [...prev, {
+              saveAndSetAgentMessages(prev => [...prev, {
                 id: msgId(),
                 type: 'tool_call',
                 agent: data.agent,
@@ -1768,7 +1803,7 @@ export default function Home() {
               break;
 
             case 'tool_result':
-              setAgentMessages(prev => [...prev, {
+              saveAndSetAgentMessages(prev => [...prev, {
                 id: msgId(),
                 type: 'tool_result',
                 agent: data.agent,
@@ -1785,12 +1820,12 @@ export default function Home() {
             case 'delegate':
               if (streamingMsgId) {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, streaming: false } : m
                 ));
                 streamingMsgId = null;
               }
-              setAgentMessages(prev => [...prev, {
+              saveAndSetAgentMessages(prev => [...prev, {
                 id: msgId(),
                 type: 'delegate',
                 from: data.from,
@@ -1810,11 +1845,11 @@ export default function Home() {
               if (streamingMsgId) {
                 const sid = streamingMsgId;
                 streamingMsgId = null;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, content: data.content, streaming: false } : m
                 ));
               } else {
-                setAgentMessages(prev => [...prev, {
+                saveAndSetAgentMessages(prev => [...prev, {
                   id: msgId(),
                   type: 'final_answer',
                   agent: data.agent,
@@ -1838,7 +1873,7 @@ export default function Home() {
             case 'done':
               if (streamingMsgId) {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, streaming: false } : m
                 ));
                 streamingMsgId = null;
@@ -1853,12 +1888,12 @@ export default function Home() {
             case 'error':
               if (streamingMsgId) {
                 const sid = streamingMsgId;
-                setAgentMessages(prev => prev.map(m =>
+                saveAndSetAgentMessages(prev => prev.map(m =>
                   m.id === sid ? { ...m, streaming: false } : m
                 ));
                 streamingMsgId = null;
               }
-              setAgentMessages(prev => [...prev, {
+              saveAndSetAgentMessages(prev => [...prev, {
                 id: msgId(),
                 type: 'error',
                 content: data.message || 'Agent 执行出错',
@@ -1873,7 +1908,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      setAgentMessages(prev => [...prev, {
+      saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,
         type: 'error',
         content: err.message || '连接 Agent 失败，请检查网络和 API Key',
@@ -4120,7 +4155,14 @@ export default function Home() {
                       <button 
                         type="button" 
                         className="btn btn-secondary" 
-                        onClick={() => { if(confirm('确定清除当前的协作对话历史吗？')) setAgentMessages([]) }}
+                        onClick={() => {
+                          if (confirm('确定清除当前的协作对话历史吗？')) {
+                            setAgentMessages([]);
+                            if (store.currentProject) {
+                              localStorage.removeItem(`agent_messages_${store.currentProject.id}`);
+                            }
+                          }
+                        }}
                         style={{ padding: '2px 8px', fontSize: '10.5px', border: 'none', background: 'rgba(244,63,94,0.08)', color: '#fda4af', cursor: 'pointer' }}
                       >
                         清空历史
