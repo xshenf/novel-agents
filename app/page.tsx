@@ -219,7 +219,7 @@ export default function Home() {
   const [autoWritingStatus, setAutoWritingStatus] = useState('准备自动写作...');
   const [targetChaptersCount, setTargetChaptersCount] = useState(3);
   const [finishedChaptersCount, setFinishedChaptersCount] = useState(0);
-  const [autoWriteMode, setAutoWriteMode] = useState(false); // 切换“手动编辑”与“AI自动写小说”模式
+  const [autoWriteMode, setAutoWriteMode] = useState(true); // 默认开启AI自动写小说模式
   const autoWriteStopRef = useRef(false);
 
   // ======= AI 多维度灵感生成状态 =======
@@ -2335,24 +2335,6 @@ export default function Home() {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {store.currentProject && (
-            <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-              <button 
-                className={`btn ${!autoWriteMode ? 'btn-primary' : ''}`} 
-                onClick={() => setAutoWriteMode(false)}
-                style={{ padding: '6px 12px', fontSize: '12px', background: !autoWriteMode ? 'var(--accent)' : 'transparent', border: 'none', boxShadow: 'none' }}
-              >
-                手动编辑模式
-              </button>
-              <button 
-                className={`btn ${autoWriteMode ? 'btn-primary' : ''}`} 
-                onClick={() => setAutoWriteMode(true)}
-                style={{ padding: '6px 12px', fontSize: '12px', background: autoWriteMode ? 'var(--accent)' : 'transparent', border: 'none', boxShadow: 'none' }}
-              >
-                AI自动写小说模式
-              </button>
-            </div>
-          )}
-          {store.currentProject && (
             <button className="btn btn-secondary" onClick={() => store.setCurrentProject(null)} style={{ padding: '6px 12px', fontSize: '12px' }}>
               <ChevronLeft size={16} /> 返回项目大厅
             </button>
@@ -2549,16 +2531,31 @@ export default function Home() {
                         <strong style={{ fontSize: '14px' }}>AI 自动小说创作引擎</strong>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({autoWritingStatus})</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
-                        <input 
-                          type="number" 
-                          className="input" 
-                          value={targetChaptersCount} 
-                          onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
-                          style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
-                          disabled={isAutoWriting}
-                        />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {!isAutoWriting && (
+                          <>
+                            <button 
+                              className="btn-link"
+                              onClick={() => setAutoWriteMode(false)}
+                              style={{ fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                              title="隐藏自动写作控制面板，进入纯粹手动编辑模式"
+                            >
+                              切换到纯编辑
+                            </button>
+                            <span style={{ width: '1px', height: '12px', background: 'var(--border-light)' }} />
+                          </>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
+                          <input 
+                            type="number" 
+                            className="input" 
+                            value={targetChaptersCount} 
+                            onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
+                            style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
+                            disabled={isAutoWriting}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -2615,6 +2612,15 @@ export default function Home() {
                         disabled={isAutoWriting}
                       />
                       <div className="editor-toolbar">
+                        {!autoWriteMode && (
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={() => setAutoWriteMode(true)}
+                            style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', border: '1px dashed var(--border-light)' }}
+                          >
+                            <span>开启 AI 自动面板</span>
+                          </button>
+                        )}
                         <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={{ padding: '8px 12px' }} disabled={isAutoWriting}>
                           <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} />
                           <span>逻辑一致性检测</span>
