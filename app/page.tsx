@@ -1642,6 +1642,13 @@ export default function Home() {
     setChatInput('');
     setIsAgentLoading(true);
 
+    const chatHistory = agentMessages
+      .filter(m => m.type === 'user' || (m.type === 'final_answer' && !m.streaming))
+      .map(m => ({
+        role: m.type === 'user' ? 'user' : 'assistant',
+        content: m.content
+      }));
+
     try {
       const response = await fetch('/api/agent', {
         method: 'POST',
@@ -1649,6 +1656,7 @@ export default function Home() {
         body: JSON.stringify({
           projectId: store.currentProject.id,
           message: userMsg,
+          history: chatHistory,
           apiKey: store.apiKey,
           modelName: store.modelName,
           apiProvider: store.apiProvider,

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
 
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: '无效的请求体' }), { status: 400 });
   }
 
-  const { projectId, message, apiKey, modelName } = body;
+  const { projectId, message, apiKey, modelName, history } = body;
 
   if (!projectId || !message) {
     return new Response(JSON.stringify({ error: '缺少 projectId 或 message' }), { status: 400 });
@@ -50,10 +50,23 @@ export async function POST(request: NextRequest) {
 
         send('start', { message: '多 Agent 系统启动...' });
 
+        // 处理历史对话
+        const inputMessages = [];
+        if (history && Array.isArray(history)) {
+          for (const msg of history) {
+            if (msg.role === 'user') {
+              inputMessages.push(new HumanMessage(msg.content));
+            } else if (msg.role === 'assistant') {
+              inputMessages.push(new AIMessage(msg.content));
+            }
+          }
+        }
+        inputMessages.push(new HumanMessage(message));
+
         // 流式执行图，监听每个事件
         const eventStream = await graph.streamEvents(
           {
-            messages: [new HumanMessage(message)],
+            messages: inputMessages,
             projectId,
           },
           {
