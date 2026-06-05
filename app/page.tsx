@@ -741,30 +741,99 @@ export default function Home() {
     });
   };
 
-  // 切换项目或初始化时读取对话历史
+  // 切换项目或初始化时从后台数据库读取对话历史，若失败或无数据则降级使用 localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (store.currentProject) {
-        const saved = localStorage.getItem(`agent_messages_${store.currentProject.id}`);
-        if (saved) {
-          try {
-            setAgentMessages(JSON.parse(saved));
-            setTimeout(() => {
-              if (agentBottomRef.current) {
-                agentBottomRef.current.scrollIntoView({ behavior: 'auto' });
+    let active = true;
+    if (store.currentProject) {
+      fetch(`/api/agent/history?projectId=${store.currentProject.id}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Network response error');
+          return res.json();
+        })
+        .then(data => {
+          if (!active) return;
+          if (Array.isArray(data) && data.length > 0) {
+            setAgentMessages(data);
+          } else {
+            const saved = localStorage.getItem(`agent_messages_${store.currentProject!.id}`);
+            if (saved) {
+              try {
+                setAgentMessages(JSON.parse(saved));
+              } catch (_) {
+                setAgentMessages([]);
               }
-            }, 100);
-          } catch (_) {
+            } else {
+              setAgentMessages([]);
+            }
+          }
+          setTimeout(() => {
+            if (agentBottomRef.current) {
+              agentBottomRef.current.scrollIntoView({ behavior: 'auto' });
+            }
+          }, 100);
+        })
+        .catch(() => {
+          if (!active) return;
+          const saved = localStorage.getItem(`agent_messages_${store.currentProject!.id}`);
+          if (saved) {
+            try {
+              setAgentMessages(JSON.parse(saved));
+            } catch (_) {
+              setAgentMessages([]);
+            }
+          } else {
             setAgentMessages([]);
           }
-        } else {
-          setAgentMessages([]);
-        }
-      } else {
-        setAgentMessages([]);
-      }
+          setTimeout(() => {
+            if (agentBottomRef.current) {
+              agentBottomRef.current.scrollIntoView({ behavior: 'auto' });
+            }
+          }, 100);
+        });
+    } else {
+      setAgentMessages([]);
     }
+    return () => {
+      active = false;
+    };
   }, [store.currentProject?.id]);
+
+  // 对话历史变动时，防抖并过滤流式状态后保存到后台数据库
+  useEffect(() => {
+    if (!store.currentProject || agentMessages.length === 0) return;
+    
+    // 如果有消息在流式传输中，不进行同步，等传输完毕再同步
+    if (agentMessages.some(m => m.streaming)) {
+      return;
+    }
+
+    const projectId = store.currentProject.id;
+    const timer = setTimeout(() => {
+      const messagesToSave = agentMessages.map(m => ({
+        id: m.id,
+        type: m.type,
+        agent: m.agent,
+        label: m.label,
+        content: m.content,
+        toolName: m.toolName,
+        toolInput: m.toolInput,
+        from: m.from,
+        fromLabel: m.fromLabel,
+        to: m.to,
+        toLabel: m.toLabel,
+      }));
+
+      fetch('/api/agent/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, messages: messagesToSave }),
+      }).catch(err => {
+        console.error('Failed to sync agent messages to backend:', err);
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [agentMessages, store.currentProject?.id]);
 
   const [isAgentLoading, setIsAgentLoading] = useState(false);
   const agentBottomRef = useRef<HTMLDivElement | null>(null);
@@ -4165,6 +4234,11 @@ export default function Home() {
                             setAgentMessages([]);
                             if (store.currentProject) {
                               localStorage.removeItem(`agent_messages_${store.currentProject.id}`);
+                              fetch(`/api/agent/history?projectId=${store.currentProject.id}`, {
+                                method: 'DELETE',
+                              }).catch(err => {
+                                console.error('Failed to delete agent history from database:', err);
+                              });
                             }
                           }
                         }}

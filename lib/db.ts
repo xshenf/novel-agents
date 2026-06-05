@@ -4,6 +4,7 @@ import path from 'path';
 // 定义接口类型
 export interface NovelProject {
   id: string;
+  userId?: string;
   title: string;
   description: string;
   styleSetting: string;
@@ -65,11 +66,29 @@ export interface Chapter {
   updatedAt: string;
 }
 
+export interface AgentMessage {
+  id: string;
+  projectId: string;
+  userId: string;
+  type: string;
+  agent?: string;
+  label?: string;
+  content: string;
+  toolName?: string;
+  toolInput?: unknown;
+  from?: string;
+  fromLabel?: string;
+  to?: string;
+  toLabel?: string;
+  createdAt: string;
+}
+
 export interface DatabaseSchema {
   projects: NovelProject[];
   characters: Character[];
   worldRules: WorldRule[];
   chapters: Chapter[];
+  agentMessages: AgentMessage[];
 }
 
 const DB_FILE_PATH = path.join(process.cwd(), 'data', 'db.json');
@@ -80,6 +99,7 @@ const initialData: DatabaseSchema = {
   characters: [],
   worldRules: [],
   chapters: [],
+  agentMessages: [],
 };
 
 // 确保目录和文件存在，并读取数据
@@ -94,7 +114,11 @@ function readDb(): DatabaseSchema {
       return initialData;
     }
     const dataStr = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-    return JSON.parse(dataStr) as DatabaseSchema;
+    const parsed = JSON.parse(dataStr) as DatabaseSchema;
+    if (!parsed.agentMessages) {
+      parsed.agentMessages = [];
+    }
+    return parsed;
   } catch (error) {
     console.error('Error reading database file, using fallback initial data:', error);
     return initialData;
@@ -131,6 +155,7 @@ export const db = {
     const newProject: NovelProject = {
       ...project,
       id: `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: 'default_user',
       createdAt: now,
       updatedAt: now,
     };
@@ -158,10 +183,11 @@ export const db = {
     const database = readDb();
     const originalLength = database.projects.length;
     database.projects = database.projects.filter(p => p.id !== id);
-    // 级联删除关联的章节、角色、设定
+    // 级联删除关联的章节、角色、设定及对话历史
     database.chapters = database.chapters.filter(c => c.projectId !== id);
     database.characters = database.characters.filter(c => c.projectId !== id);
     database.worldRules = database.worldRules.filter(w => w.projectId !== id);
+    database.agentMessages = database.agentMessages.filter(m => m.projectId !== id);
     writeDb(database);
     return database.projects.length < originalLength;
   },
@@ -294,5 +320,36 @@ export const db = {
     database.worldRules = database.worldRules.filter(w => w.id !== id);
     writeDb(database);
     return database.worldRules.length < originalLength;
+  },
+
+  // --- 对话历史 (AgentMessage) ---
+  getAgentMessages(projectId: string): AgentMessage[] {
+    return readDb().agentMessages.filter(m => m.projectId === projectId);
+  },
+
+  saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): AgentMessage[] {
+    const database = readDb();
+    const now = new Date().toISOString();
+    // 过滤掉当前项目的旧对话，然后再存入新的对话
+    const filteredMessages = database.agentMessages.filter(m => m.projectId !== projectId);
+    
+    const newMessages: AgentMessage[] = messages.map(msg => ({
+      ...msg,
+      projectId,
+      userId: 'default_user',
+      createdAt: now
+    }));
+
+    database.agentMessages = [...filteredMessages, ...newMessages];
+    writeDb(database);
+    return newMessages;
+  },
+
+  clearAgentMessages(projectId: string): boolean {
+    const database = readDb();
+    const originalLength = database.agentMessages.length;
+    database.agentMessages = database.agentMessages.filter(m => m.projectId !== projectId);
+    writeDb(database);
+    return database.agentMessages.length < originalLength;
   },
 };
