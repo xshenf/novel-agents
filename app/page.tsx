@@ -583,6 +583,10 @@ function parseInlineCode(text: string): React.ReactNode[] {
 
 export default function Home() {
   const store = useNovelStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const callAIApi = async (bodyParams: Record<string, any>) => {
     let apiKeyParam = store.apiKey;
@@ -3410,6 +3414,14 @@ export default function Home() {
     if (ruleFilter === 'all') return true;
     return rule.type === ruleFilter;
   }) : [];
+
+  if (!mounted) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0b0f19', color: '#94a3b8' }}>
+        加载中...
+      </div>
+    );
+  }
 
   return (
     <main>

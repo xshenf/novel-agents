@@ -6,6 +6,7 @@ onlyBuiltDependencies:
   - ','
   - '-'
   - '3'
+  - '@prisma/client'
   - '@prisma/engines'
   - '['
   - ']'
