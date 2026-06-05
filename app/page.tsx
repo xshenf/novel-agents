@@ -3415,6 +3415,15 @@ export default function Home() {
     return rule.type === ruleFilter;
   }) : [];
 
+  const isOutlineMissing = !!(store.currentProject && (!store.currentProject.outlineFull || !store.currentProject.outlineFull.trim()));
+  const isSettingsMissing = !!(store.currentProject && (
+    !store.currentProject.styleSetting || !store.currentProject.styleSetting.trim() ||
+    !store.currentProject.worldSetting || !store.currentProject.worldSetting.trim() ||
+    !store.currentProject.powerSystem || !store.currentProject.powerSystem.trim() ||
+    !store.currentProject.goldFinger || !store.currentProject.goldFinger.trim() ||
+    !store.currentProject.coreConflict || !store.currentProject.coreConflict.trim()
+  ));
+
   if (!mounted) {
     return (
       <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0b0f19', color: '#94a3b8' }}>
@@ -3552,21 +3561,27 @@ export default function Home() {
                   onClick={() => setActiveWorkspaceTab('write')}
                   style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'write' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'write' ? '#fff' : 'var(--text-muted)' }}
                 >
-                  ️ 连载写作
+                  连载写作
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'outline' ? 'btn-primary' : 'btn-secondary'}`} 
                   onClick={() => setActiveWorkspaceTab('outline')}
-                  style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
+                  style={{ position: 'relative', borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
                 >
                   核心大纲
+                  {isOutlineMissing && (
+                    <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                  )}
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} 
                   onClick={() => setActiveWorkspaceTab('settings')}
-                  style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'settings' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'settings' ? '#fff' : 'var(--text-muted)' }}
+                  style={{ position: 'relative', borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'settings' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'settings' ? '#fff' : 'var(--text-muted)' }}
                 >
                   核心设定
+                  {isSettingsMissing && (
+                    <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                  )}
                 </button>
               </div>
               
