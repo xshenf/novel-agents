@@ -673,7 +673,7 @@ export default function Home() {
   };
 
   const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
-  const [activeAITab, setActiveAITab] = useState<'chat' | 'actions'>('actions');
+
   
   // 模态弹窗与设置状态
   const [showSettings, setShowSettings] = useState(false);
@@ -2011,7 +2011,6 @@ export default function Home() {
       const data = await res.json();
       if (data.text) {
         setOutlineResult(data.text);
-        setActiveAITab('actions');
       }
     } catch (err) {
       alert('润色失败');
@@ -4236,19 +4235,7 @@ export default function Home() {
           {/* 右侧：AI 面板 */}
           {activeWorkspaceTab === 'write' && (
             <div className="workspace-ai-panel">
-              <div className="tab-container">
-                <button className={`tab-btn ${activeAITab === 'chat' ? 'active' : ''}`} onClick={() => setActiveAITab('chat')}>
-                  <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
-                  AI 创作智能体
-                </button>
-                <button className={`tab-btn ${activeAITab === 'actions' ? 'active' : ''}`} onClick={() => setActiveAITab('actions')}>
-                  <Sparkles size={14} style={{ marginRight: '6px', display: 'inline' }} />
-                  智能辅助写作
-                </button>
-              </div>
-
-              {activeAITab === 'chat' ? (
-                /* AI 多智能体协同创作聊天 */
+              {/* AI 多智能体协同创作聊天 */}
                 <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.01)' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>协同创作模式：5位智能体在线</span>
@@ -4420,148 +4407,6 @@ export default function Home() {
                     </button>
                   </form>
                 </div>
-              ) : (
-                /* AI 写作操作辅助面板 */
-                <div className="ai-actions-panel">
-                  {/* 1. AI 续写 */}
-                  <div className="action-section glass-card" style={{ padding: '14px' }}>
-                    <div className="action-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Sparkles size={14} style={{ color: 'var(--accent)' }} /> AI 灵感续写
-                    </div>
-                    <textarea 
-                      className="textarea" 
-                      placeholder="可选：在此输入特定情节指示（例如：“描写两人微小的眼神对峙，带有暧昧气氛”）" 
-                      value={writeInstruction}
-                      onChange={(e) => setWriteInstruction(e.target.value)}
-                      style={{ fontSize: '12px' }}
-                    />
-                    {/* 绑定的反 AI 规则提示 */}
-                    <div 
-                      style={{ 
-                        marginTop: '8px', 
-                        padding: '8px 10px', 
-                        background: 'rgba(99, 102, 241, 0.05)', 
-                        border: '1px solid rgba(99, 102, 241, 0.15)', 
-                        borderRadius: '6px', 
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '8px'
-                      }}
-                    >
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        ️ 续写已绑定: <strong>{store.currentProject?.antiAiStyleRules?.length || 0} 个</strong> 反 AI 规则
-                      </span>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setActiveWorkspaceTab('settings');
-                          setExpandedKernelCard('antiAiStyleRules');
-                        }}
-                        style={{ 
-                          background: 'transparent', 
-                          border: 'none', 
-                          color: 'var(--accent)', 
-                          cursor: 'pointer', 
-                          padding: 0,
-                          fontSize: '11px',
-                          textDecoration: 'underline'
-                        }}
-                      >
-                        管理
-                      </button>
-                    </div>
-                    <button className="btn btn-primary" onClick={startAutoWriting} disabled={isAiLoading} style={{ marginTop: '8px', width: '100%' }}>
-                      {isAiLoading ? <Loader2 className="animate-spin" size={14} /> : '接着末尾续写章节'}
-                    </button>
-                  </div>
-
-                  {/* 2. AI 润色 */}
-                  <div className="action-section glass-card" style={{ padding: '14px' }}>
-                    <div className="action-title">AI 精英润色</div>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      value={polishInstruction}
-                      onChange={(e) => setPolishInstruction(e.target.value)}
-                      placeholder="润色指令，如: 加强环境描写，改成古风文笔"
-                      style={{ fontSize: '12px', marginBottom: '8px' }}
-                    />
-                    <button className="btn btn-secondary" onClick={handlePolishText} disabled={isAiLoading} style={{ width: '100%' }}>
-                      润色整篇草稿
-                    </button>
-                  </div>
-
-                  {/* 3. 逻辑自检报告 */}
-                  {checkResult && (
-                    <div className={`check-result-box ${checkResult.passed ? 'success' : 'warning'}`}>
-                      <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <CheckCircle2 size={14} />
-                        {checkResult.passed ? '逻辑检验：符合设定要求' : '逻辑警告：发现设定冲突'}
-                      </div>
-                      {checkResult.issues.length > 0 && (
-                        <ul style={{ paddingLeft: '16px', marginBottom: '8px' }}>
-                          {checkResult.issues.map((iss, i) => <li key={i} className="check-item">{iss}</li>)}
-                        </ul>
-                      )}
-                      {checkResult.suggestions.length > 0 && (
-                        <div>
-                          <strong style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>修正方案</strong>
-                          <ul style={{ paddingLeft: '16px' }}>
-                            {checkResult.suggestions.map((sug, i) => <li key={i} className="check-item">{sug}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 4. 章节大纲生成器 */}
-                  <div className="action-section glass-card" style={{ padding: '14px' }}>
-                    <div className="action-title">自动章节细纲生成</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>生成后续章数:</span>
-                      <input 
-                        type="number" 
-                        className="input" 
-                        value={outlineChapters} 
-                        onChange={(e) => setOutlineChapters(Number(e.target.value))}
-                        style={{ width: '60px', padding: '6px' }}
-                        min={1} 
-                        max={5} 
-                      />
-                    </div>
-                    <button className="btn btn-secondary" onClick={handleGenerateOutline} disabled={isAiLoading} style={{ width: '100%' }}>
-                      生成后续故事细纲
-                    </button>
-                  </div>
-
-                  {/* 大纲/润色结果显示框 */}
-                  {outlineResult && (
-                    <div className="glass-card" style={{ padding: '14px', fontSize: '13px', maxHeight: '250px', overflowY: 'auto' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
-                        <span style={{ fontWeight: '600' }}>AI 生成结果</span>
-                        <button 
-                          className="btn btn-secondary" 
-                          onClick={() => {
-                            if (confirm('是否将当前编辑器内容全部替换为该 AI 润色结果？')) {
-                              setEditorContent(outlineResult);
-                              setSaveStatus('dirty');
-                              if (store.currentChapter) {
-                                store.updateChapter(store.currentChapter.id, { content: outlineResult });
-                              }
-                            }
-                          }}
-                          style={{ padding: '2px 6px', fontSize: '11px' }}
-                        >
-                          应用到正文
-                        </button>
-                      </div>
-                      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: '1.6' }}>{outlineResult}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>
