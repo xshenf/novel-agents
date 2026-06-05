@@ -10,11 +10,23 @@ interface NovelStore {
   worldRules: WorldRule[];
   apiKey: string;
   modelName: string;
+  apiProvider: string;
+  apiBaseUrl: string;
+  temperature: number;
+  maxTokens: number;
+  systemInstruction: string;
+  reasoningEnabled: boolean;
   isLoading: boolean;
   error: string | null;
 
   setApiKey: (key: string) => void;
   setModelName: (model: string) => void;
+  setApiProvider: (provider: string) => void;
+  setApiBaseUrl: (url: string) => void;
+  setTemperature: (temp: number) => void;
+  setMaxTokens: (tokens: number) => void;
+  setSystemInstruction: (inst: string) => void;
+  setReasoningEnabled: (enabled: boolean) => void;
   
   fetchProjects: () => Promise<void>;
   createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string) => Promise<NovelProject>;
@@ -43,6 +55,12 @@ export const useNovelStore = create<NovelStore>((set, get) => {
   // 仅在客户端运行时读取 localStorage
   const initialApiKey = typeof window !== 'undefined' ? localStorage.getItem('novel_api_key') || '' : '';
   const initialModel = typeof window !== 'undefined' ? localStorage.getItem('novel_model_name') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
+  const initialProvider = typeof window !== 'undefined' ? localStorage.getItem('novel_api_provider') || 'gemini' : 'gemini';
+  const initialBaseUrl = typeof window !== 'undefined' ? localStorage.getItem('novel_api_base_url') || '' : '';
+  const initialTemp = typeof window !== 'undefined' ? Number(localStorage.getItem('novel_temperature') || '0.7') : 0.7;
+  const initialTokens = typeof window !== 'undefined' ? Number(localStorage.getItem('novel_max_tokens') || '3000') : 3000;
+  const initialSystemInst = typeof window !== 'undefined' ? localStorage.getItem('novel_system_instruction') || '' : '';
+  const initialReasoning = typeof window !== 'undefined' ? localStorage.getItem('novel_reasoning_enabled') === 'true' : false;
 
   return {
     projects: [],
@@ -53,6 +71,12 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     worldRules: [],
     apiKey: initialApiKey,
     modelName: initialModel,
+    apiProvider: initialProvider,
+    apiBaseUrl: initialBaseUrl,
+    temperature: initialTemp,
+    maxTokens: initialTokens,
+    systemInstruction: initialSystemInst,
+    reasoningEnabled: initialReasoning,
     isLoading: false,
     error: null,
 
@@ -68,6 +92,48 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_model_name', model);
       }
       set({ modelName: model });
+    },
+
+    setApiProvider: (provider: string) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_api_provider', provider);
+      }
+      set({ apiProvider: provider });
+    },
+
+    setApiBaseUrl: (url: string) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_api_base_url', url);
+      }
+      set({ apiBaseUrl: url });
+    },
+
+    setTemperature: (temp: number) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_temperature', String(temp));
+      }
+      set({ temperature: temp });
+    },
+
+    setMaxTokens: (tokens: number) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_max_tokens', String(tokens));
+      }
+      set({ maxTokens: tokens });
+    },
+
+    setSystemInstruction: (inst: string) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_system_instruction', inst);
+      }
+      set({ systemInstruction: inst });
+    },
+
+    setReasoningEnabled: (enabled: boolean) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_reasoning_enabled', String(enabled));
+      }
+      set({ reasoningEnabled: enabled });
     },
 
     fetchProjects: async () => {

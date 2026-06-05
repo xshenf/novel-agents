@@ -476,6 +476,60 @@ const AddWorldRuleCard = ({
 
 export default function Home() {
   const store = useNovelStore();
+  
+  const callAIApi = async (bodyParams: Record<string, any>) => {
+    let apiKeyParam = store.apiKey;
+    if (store.apiKey && store.apiProvider) {
+      apiKeyParam = JSON.stringify({
+        apiKey: store.apiKey,
+        apiProvider: store.apiProvider,
+        apiBaseUrl: store.apiBaseUrl,
+        temperature: store.temperature,
+        maxTokens: store.maxTokens,
+        systemInstruction: store.systemInstruction,
+        reasoningEnabled: store.reasoningEnabled
+      });
+    }
+
+    return await fetch('/api/ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        apiKey: apiKeyParam,
+        modelName: store.modelName,
+        ...bodyParams,
+      }),
+    });
+  };
+
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
+
+  const handleTestConnection = async () => {
+    setTestStatus('testing');
+    setTestMessage('正在尝试连接服务商并探测可用模型...');
+    try {
+      const res = await callAIApi({
+        action: 'chat',
+        projectId: store.currentProject?.id || 'test_project_id',
+        query: '你好，这是一次 API 连通性测试。请用极其简短的内容回复（例如“测试成功”），不要多说任何废话。'
+      });
+      const data = await res.json();
+      if (data.reply) {
+        setTestStatus('success');
+        setTestMessage(`连接正常。回复延迟正常，测试回复：${data.reply}`);
+      } else {
+        setTestStatus('error');
+        setTestMessage(`连接失败: ${data.error || '接口未返回预期内容'}`);
+      }
+    } catch (e: any) {
+      setTestStatus('error');
+      setTestMessage(`网络请求异常: ${e.message || '未知错误'}`);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
   const [activeAITab, setActiveAITab] = useState<'chat' | 'actions'>('actions');
   
@@ -626,17 +680,11 @@ export default function Home() {
     if (!store.currentProject) return;
     setIsKernelLoading(true);
     try {
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'generateKernel',
-          projectTitle: store.currentProject.title,
-          genre: store.currentProject.description || '仙侠修真',
-          tone: store.currentProject.styleSetting || '传统正剧'
-        }),
+      const response = await callAIApi({
+        action: 'generateKernel',
+        projectTitle: store.currentProject.title,
+        genre: store.currentProject.description || '仙侠修真',
+        tone: store.currentProject.styleSetting || '传统正剧'
       });
       const data = await response.json();
       if (data.error) {
@@ -1058,15 +1106,11 @@ export default function Home() {
   const handleEditProjectAiPlan = async () => {
     setIsEditProjectAiLoading(true);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'autoPlan',
-          genre: editProjTitle ? '基于' + editProjTitle : '玄幻奇幻',
-          tone: editProjStyle || '传统正剧',
-          tags: []
-        })
+      const res = await callAIApi({
+        action: 'autoPlan',
+        genre: editProjTitle ? '基于' + editProjTitle : '玄幻奇幻',
+        tone: editProjStyle || '传统正剧',
+        tags: []
       });
       if (!res.ok) throw new Error('AI推演失败');
       const data = await res.json();
@@ -1094,17 +1138,11 @@ export default function Home() {
     setWizardLoading(true);
     setWizardResult(null);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'autoPlanBook',
-          genre: selectedGenre,
-          tone: selectedTone,
-          tags: selectedTags,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'autoPlanBook',
+        genre: selectedGenre,
+        tone: selectedTone,
+        tags: selectedTags
       });
       const data = await res.json();
       if (data.title) {
@@ -1273,18 +1311,12 @@ export default function Home() {
     if (activeChapters.length === 0) {
       setAutoWritingStatus('正在智能规划小说章节大纲目录...');
       try {
-        const res = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'outline',
-            projectId: store.currentProject.id,
-            projectTitle: store.currentProject.title,
-            projectDesc: store.currentProject.description,
-            numChapters: targetChaptersCount,
-            apiKey: store.apiKey,
-            modelName: store.modelName
-          })
+        const res = await callAIApi({
+          action: 'outline',
+          projectId: store.currentProject.id,
+          projectTitle: store.currentProject.title,
+          projectDesc: store.currentProject.description,
+          numChapters: targetChaptersCount
         });
         const data = await res.json();
         
@@ -1327,17 +1359,11 @@ export default function Home() {
 
       try {
         // 调用 AI 自动写小说接口
-        const writeRes = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'autoWrite',
-            projectId: store.currentProject.id,
-            chapterTitle: chap.title,
-            apiKey: store.apiKey,
-            modelName: store.modelName,
-            instruction: writeInstruction
-          })
+        const writeRes = await callAIApi({
+          action: 'autoWrite',
+          projectId: store.currentProject.id,
+          chapterTitle: chap.title,
+          instruction: writeInstruction
         });
         const writeData = await writeRes.json();
 
@@ -1355,15 +1381,9 @@ export default function Home() {
           // 自动进行章节复盘摘要与设定记忆更新
           setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${chap.title} ...`);
           
-          const sumRes = await fetch('/api/ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'summarize',
-              currentText: writeData.text,
-              apiKey: store.apiKey,
-              modelName: store.modelName
-            })
+          const sumRes = await callAIApi({
+            action: 'summarize',
+            currentText: writeData.text
           });
           const sumData = await sumRes.json();
 
@@ -1430,16 +1450,10 @@ export default function Home() {
     setIsAiLoading(true);
 
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'chat',
-          projectId: store.currentProject.id,
-          query: userMsg,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'chat',
+        projectId: store.currentProject.id,
+        query: userMsg
       });
       const data = await res.json();
       if (data.reply) {
@@ -1459,16 +1473,10 @@ export default function Home() {
     if (!editorContent.trim() || !store.currentChapter) return;
     setIsAiLoading(true);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'polish',
-          currentText: editorContent,
-          instruction: polishInstruction,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'polish',
+        currentText: editorContent,
+        instruction: polishInstruction
       });
       const data = await res.json();
       if (data.text) {
@@ -1488,16 +1496,10 @@ export default function Home() {
     setIsAiLoading(true);
     setCheckResult(null);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'selfCheck',
-          projectId: store.currentProject.id,
-          currentText: editorContent,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'selfCheck',
+        projectId: store.currentProject.id,
+        currentText: editorContent
       });
       const data = await res.json();
       setCheckResult(data);
@@ -1514,18 +1516,12 @@ export default function Home() {
     setIsAiLoading(true);
     setOutlineResult('');
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'outline',
-          projectId: store.currentProject.id,
-          projectTitle: store.currentProject.title,
-          projectDesc: store.currentProject.description,
-          numChapters: outlineChapters,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'outline',
+        projectId: store.currentProject.id,
+        projectTitle: store.currentProject.title,
+        projectDesc: store.currentProject.description,
+        numChapters: outlineChapters
       });
       const data = await res.json();
       if (data.outline) {
@@ -1543,15 +1539,9 @@ export default function Home() {
     if (!editorContent.trim() || !store.currentChapter) return;
     setIsAiLoading(true);
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'summarize',
-          currentText: editorContent,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'summarize',
+        currentText: editorContent
       });
       const data = await res.json();
       if (data.summary) {
@@ -1579,15 +1569,9 @@ export default function Home() {
     setInspRules([]);
 
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generateInspirations',
-          projectId: store.currentProject.id,
-          apiKey: store.apiKey,
-          modelName: store.modelName
-        })
+      const res = await callAIApi({
+        action: 'generateInspirations',
+        projectId: store.currentProject.id
       });
       const data = await res.json();
       
@@ -2299,42 +2283,251 @@ export default function Home() {
     );
   };
 
-  // 渲染设置面板 (弹出式 Modal)
-  const renderSettingsModal = () => {
-    if (!showSettings) return null;
+  // 渲染设置侧滑抽屉 (替代原本的 Modal)
+  const renderSettingsDrawer = () => {
     return (
-      <div className="modal-overlay">
-        <div className="modal-content glass-card">
-          <div className="modal-title">AI 智能体配置设定</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Gemini API Key</label>
-              <input 
-                type="password" 
-                className="input" 
-                placeholder="输入以启用真实 AI, 留空使用内置 Mock 引擎" 
-                value={store.apiKey}
-                onChange={(e) => store.setApiKey(e.target.value)}
-              />
+      <>
+        {/* 遮罩层 */}
+        <div 
+          className={`drawer-overlay ${showSettings ? 'active' : ''}`}
+          onClick={() => setShowSettings(false)}
+        />
+        
+        {/* 抽屉本体 */}
+        <div className={`drawer-content ${showSettings ? 'active' : ''}`}>
+          <div className="drawer-header">
+            <div className="drawer-title">
+              <Settings size={20} style={{ color: 'var(--accent)' }} />
+              <span>AI 写作模型配置面板</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', color: 'var(--text-muted)' }}>推荐模型选择</label>
-              <select 
-                className="input" 
-                value={store.modelName}
-                onChange={(e) => store.setModelName(e.target.value)}
-                style={{ background: 'var(--bg-input)' }}
-              >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (快速, 推荐)</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度创意与逻辑推理)</option>
-              </select>
+            <button 
+              type="button" 
+              className="btn-icon" 
+              onClick={() => setShowSettings(false)}
+              style={{ fontSize: '20px', lineHeight: '1' }}
+            >
+              &times;
+            </button>
+          </div>
+
+          <div className="drawer-body">
+            {/* 1. API 厂商与接入信息 */}
+            <div className="drawer-section">
+              <div className="drawer-section-title">接口服务商配置</div>
+              
+              <div className="drawer-field">
+                <label className="drawer-label">服务商 (Provider)</label>
+                <select 
+                  className="input"
+                  value={store.apiProvider}
+                  onChange={(e) => {
+                    const prov = e.target.value;
+                    store.setApiProvider(prov);
+                    // 自动设置对应服务商的默认模型和 BaseURL 占位
+                    if (prov === 'gemini') {
+                      store.setModelName('gemini-2.5-flash');
+                      store.setApiBaseUrl('');
+                    } else if (prov === 'openai') {
+                      store.setModelName('gpt-4o-mini');
+                      store.setApiBaseUrl('https://api.openai.com/v1');
+                    } else if (prov === 'deepseek') {
+                      store.setModelName('deepseek-chat');
+                      store.setApiBaseUrl('https://api.deepseek.com/v1');
+                    } else if (prov === 'claude') {
+                      store.setModelName('claude-3-5-sonnet-20241022');
+                      store.setApiBaseUrl('');
+                    } else {
+                      store.setModelName('gpt-4o-mini');
+                      store.setApiBaseUrl('');
+                    }
+                  }}
+                  style={{ background: 'var(--bg-input)' }}
+                >
+                  <option value="gemini">Google Gemini (默认)</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="deepseek">DeepSeek (深度求索)</option>
+                  <option value="claude">Anthropic Claude</option>
+                  <option value="custom">Custom (OpenAI 兼容中转)</option>
+                </select>
+              </div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">API 密钥 (API Key)</label>
+                <input 
+                  type="password" 
+                  className="input" 
+                  placeholder="输入对应厂商的 API Key (留空使用本地 Mock)" 
+                  value={store.apiKey}
+                  onChange={(e) => store.setApiKey(e.target.value)}
+                />
+              </div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">接口代理地址 (Base URL)</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  placeholder={
+                    store.apiProvider === 'gemini' 
+                      ? '默认: https://generativelanguage.googleapis.com' 
+                      : store.apiProvider === 'deepseek'
+                        ? '默认: https://api.deepseek.com/v1'
+                        : store.apiProvider === 'openai'
+                          ? '默认: https://api.openai.com/v1'
+                          : '请输入自定义的 API 请求地址'
+                  }
+                  value={store.apiBaseUrl}
+                  onChange={(e) => store.setApiBaseUrl(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* 2. 模型与参数微调 */}
+            <div className="drawer-section">
+              <div className="drawer-section-title">模型与微调参数</div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">推荐模型快捷选择</label>
+                <select 
+                  className="input"
+                  value={store.modelName}
+                  onChange={(e) => store.setModelName(e.target.value)}
+                  style={{ background: 'var(--bg-input)' }}
+                >
+                  {store.apiProvider === 'gemini' && (
+                    <>
+                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (快速, 推荐)</option>
+                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度创意)</option>
+                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (轻量)</option>
+                    </>
+                  )}
+                  {store.apiProvider === 'openai' && (
+                    <>
+                      <option value="gpt-4o-mini">gpt-4o-mini (经济快捷, 推荐)</option>
+                      <option value="gpt-4o">gpt-4o (全能旗舰)</option>
+                      <option value="o3-mini">o3-mini (高级推理)</option>
+                    </>
+                  )}
+                  {store.apiProvider === 'deepseek' && (
+                    <>
+                      <option value="deepseek-chat">deepseek-chat (V3 API, 极高性价比)</option>
+                      <option value="deepseek-reasoner">deepseek-reasoner (R1 深度推理思考)</option>
+                    </>
+                  )}
+                  {store.apiProvider === 'claude' && (
+                    <>
+                      <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (文学创作天花板)</option>
+                      <option value="claude-3-5-haiku-20241022">claude-3-5-haiku (高速度高能)</option>
+                    </>
+                  )}
+                  <option value={store.modelName}>当前选择: {store.modelName}</option>
+                </select>
+              </div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">自定义模型名称 (覆盖上面选项)</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  placeholder="手动输入任意模型名称, 如: gpt-4-turbo" 
+                  value={store.modelName}
+                  onChange={(e) => store.setModelName(e.target.value)}
+                />
+              </div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">生成温度 (Temperature)</label>
+                <div className="slider-container">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="2.0" 
+                    step="0.1"
+                    className="slider-input" 
+                    value={store.temperature}
+                    onChange={(e) => store.setTemperature(Number(e.target.value))}
+                  />
+                  <span className="slider-value">{store.temperature.toFixed(1)}</span>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>
+                  较低温度会让文本输出更稳定保守，较高温度能带来更多词汇创意。
+                </span>
+              </div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">单次最大生成长度 (Max Tokens)</label>
+                <input 
+                  type="number" 
+                  className="input" 
+                  min="100"
+                  max="16000"
+                  step="100"
+                  value={store.maxTokens}
+                  onChange={(e) => store.setMaxTokens(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            {/* 3. 系统指令与高级特性 */}
+            <div className="drawer-section">
+              <div className="drawer-section-title">高级指令与功能</div>
+
+              <div className="drawer-field">
+                <label className="drawer-label">全局系统提示词前缀 (注入小说大纲前)</label>
+                <textarea 
+                  className="textarea" 
+                  placeholder="例如: 用华丽委婉的古风词藻描写环境; 严格遵循单女主设定等" 
+                  value={store.systemInstruction}
+                  onChange={(e) => store.setSystemInstruction(e.target.value)}
+                  style={{ minHeight: '80px' }}
+                />
+              </div>
+
+              <div className="drawer-field">
+                <div className="switch-container">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '500', color: '#ffffff' }}>思考模型格式适配</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>针对 DeepSeek R1 等思考过程提供兼容输出</span>
+                  </div>
+                  <label className="switch-control">
+                    <input 
+                      type="checkbox" 
+                      checked={store.reasoningEnabled}
+                      onChange={(e) => store.setReasoningEnabled(e.target.checked)}
+                    />
+                    <span className="switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. 连通性测试 */}
+            <div className="drawer-section">
+              <div className="drawer-section-title">连接状态探测</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button 
+                  type="button"
+                  className="btn btn-secondary" 
+                  onClick={handleTestConnection}
+                  disabled={testStatus === 'testing' || !store.apiKey}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  {testStatus === 'testing' ? '正在探测中...' : '启动连接测试'}
+                </button>
+                {testStatus !== 'idle' && (
+                  <div className={`test-result-box ${testStatus === 'success' ? 'success' : testStatus === 'error' ? 'error' : ''}`}>
+                    {testMessage}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <div className="modal-actions">
+
+          <div className="drawer-footer">
             <button className="btn btn-primary" onClick={() => setShowSettings(false)}>保存并关闭</button>
           </div>
         </div>
-      </div>
+      </>
     );
   };
 
@@ -3665,7 +3858,7 @@ export default function Home() {
       )}
 
       {/* ======= Modals ======= */}
-      {renderSettingsModal()}
+      {renderSettingsDrawer()}
       {renderInspirationsModal()}
 
 

@@ -4,10 +4,26 @@ import { ai } from '@/lib/ai';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, projectId, currentText, instruction, query, projectTitle, projectDesc, numChapters, apiKey, modelName } = body;
+    let { 
+      action, projectId, currentText, instruction, query, projectTitle, projectDesc, numChapters, 
+      apiKey, modelName, apiProvider, apiBaseUrl, temperature, maxTokens, systemInstruction, reasoningEnabled 
+    } = body;
 
     if (!action) {
       return NextResponse.json({ error: '缺少 action 参数' }, { status: 400 });
+    }
+
+    // 如果单独提供了大模型参数并且 apiKey 不是已打包的 JSON，则在这里打包
+    if (apiKey && apiProvider && !(apiKey.trim().startsWith('{') && apiKey.trim().endsWith('}'))) {
+      apiKey = JSON.stringify({
+        apiKey: apiKey,
+        apiProvider: apiProvider || 'gemini',
+        apiBaseUrl: apiBaseUrl || '',
+        temperature: temperature !== undefined ? Number(temperature) : 0.7,
+        maxTokens: maxTokens !== undefined ? Number(maxTokens) : 3000,
+        systemInstruction: systemInstruction || '',
+        reasoningEnabled: reasoningEnabled === true
+      });
     }
 
     switch (action) {
