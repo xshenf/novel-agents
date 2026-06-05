@@ -152,6 +152,328 @@ const PRESET_TAG_GROUPS = [
   }
 ];
 
+// ======= 故事资产管理局部自治组件 =======
+
+const CharacterCard = ({ 
+  character, 
+  onSave, 
+  onDelete 
+}: { 
+  character: Character; 
+  onSave: (id: string, updates: any) => Promise<void>; 
+  onDelete: (id: string) => Promise<void>; 
+}) => {
+  const [name, setName] = useState(character.name);
+  const [role, setRole] = useState(character.role);
+  const [age, setAge] = useState(character.age);
+  const [identity, setIdentity] = useState(character.identity);
+  const [personality, setPersonality] = useState(character.personality.join(', '));
+  const [goals, setGoals] = useState(character.goals.join(', '));
+  const [currentState, setCurrentState] = useState(character.currentState);
+  const [forbidden, setForbidden] = useState(character.forbidden.join(', '));
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      alert('姓名不能为空');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onSave(character.id, {
+        name,
+        role,
+        age,
+        identity,
+        personality: personality.split(',').map(s => s.trim()).filter(Boolean),
+        goals: goals.split(',').map(s => s.trim()).filter(Boolean),
+        currentState,
+        forbidden: forbidden.split(',').map(s => s.trim()).filter(Boolean),
+      });
+    } catch (e) {
+      // 异常处理
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="glass-card animate-fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--border-light)', background: 'rgba(255, 255, 255, 0.015)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input 
+            type="text" 
+            value={name} 
+            onChange={e => setName(e.target.value)} 
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '15px', fontWeight: '600', width: '120px', outline: 'none', borderBottom: '1px dashed var(--border-light)' }} 
+          />
+          <select 
+            value={role} 
+            onChange={e => setRole(e.target.value)} 
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-light)', borderRadius: '4px', fontSize: '11px', color: 'var(--text-muted)', padding: '2px 6px', outline: 'none' }}
+          >
+            <option value="男主">男主</option>
+            <option value="女主">女主</option>
+            <option value="主角">主角</option>
+            <option value="配角">配角</option>
+            <option value="反派">反派</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ padding: '4px 10px', fontSize: '11px', border: 'none' }}>
+            {isSaving ? '保存中' : '保存'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { if(confirm(`确定删除角色 ${name} 吗？`)) onDelete(character.id) }} style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
+            删除
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>年龄</span>
+          <input type="text" className="input" value={age} onChange={e => setAge(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>性格（逗号隔开）</span>
+          <input type="text" className="input" value={personality} onChange={e => setPersonality(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+        <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>身份背景</span>
+        <input type="text" className="input" value={identity} onChange={e => setIdentity(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+        <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>行动目标</span>
+        <input type="text" className="input" value={goals} onChange={e => setGoals(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+        <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>当前状态/心思</span>
+        <input type="text" className="input" value={currentState} onChange={e => setCurrentState(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+        <span style={{ color: 'var(--text-dark)', fontSize: '11px' }}>写作禁忌</span>
+        <input type="text" className="input" value={forbidden} onChange={e => setForbidden(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      </div>
+    </div>
+  );
+};
+
+const AddCharacterCard = ({ 
+  projectId, 
+  onAdd, 
+  onCancel 
+}: { 
+  projectId: string; 
+  onAdd: (char: any) => Promise<void>; 
+  onCancel: () => void; 
+}) => {
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('配角');
+  const [age, setAge] = useState('');
+  const [identity, setIdentity] = useState('');
+  const [personality, setPersonality] = useState('');
+  const [goals, setGoals] = useState('');
+  const [currentState, setCurrentState] = useState('');
+  const [forbidden, setForbidden] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setIsLoading(true);
+    try {
+      await onAdd({
+        projectId,
+        name,
+        role,
+        age,
+        identity,
+        personality: personality.split(',').map(s => s.trim()).filter(Boolean),
+        goals: goals.split(',').map(s => s.trim()).filter(Boolean),
+        currentState,
+        forbidden: forbidden.split(',').map(s => s.trim()).filter(Boolean),
+        relationships: []
+      });
+      onCancel();
+    } catch (e) {
+      // 异常处理
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="glass-card animate-fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: '1px solid var(--accent)', background: 'rgba(99, 102, 241, 0.05)', marginBottom: '16px' }}>
+      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
+        新增角色卡资产
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <input required placeholder="姓名" type="text" className="input" value={name} onChange={e => setName(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+        <select className="input" value={role} onChange={e => setRole(e.target.value)} style={{ background: 'var(--bg-input)', padding: '4px 8px', fontSize: '12px', width: '100%', outline: 'none' }}>
+          <option value="主角">主角</option>
+          <option value="男主">男主</option>
+          <option value="女主">女主</option>
+          <option value="配角">配角</option>
+          <option value="反派">反派</option>
+        </select>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <input placeholder="年龄 (如：23)" type="text" className="input" value={age} onChange={e => setAge(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+        <input placeholder="性格 (如：冷静, 腹黑)" type="text" className="input" value={personality} onChange={e => setPersonality(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      </div>
+
+      <input placeholder="身份背景 (如：前朝失忆皇子)" type="text" className="input" value={identity} onChange={e => setIdentity(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      <input placeholder="行动目标 (如：保护女主)" type="text" className="input" value={goals} onChange={e => setGoals(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      <input placeholder="当前状态 (如：开始怀疑女主)" type="text" className="input" value={currentState} onChange={e => setCurrentState(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+      <input placeholder="写作禁忌 (如：不能变得轻佻油滑)" type="text" className="input" value={forbidden} onChange={e => setForbidden(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel} style={{ padding: '4px 10px', fontSize: '11px', border: 'none' }}>取消</button>
+        <button type="submit" className="btn btn-primary" disabled={isLoading} style={{ padding: '4px 10px', fontSize: '11px', border: 'none' }}>
+          {isLoading ? '创建中' : '确认创建'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+const WorldRuleCard = ({ 
+  rule, 
+  onSave, 
+  onDelete 
+}: { 
+  rule: WorldRule; 
+  onSave: (id: string, updates: any) => Promise<void>; 
+  onDelete: (id: string) => Promise<void>; 
+}) => {
+  const [name, setName] = useState(rule.name);
+  const [type, setType] = useState(rule.type);
+  const [description, setDescription] = useState(rule.description);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim() || !description.trim()) {
+      alert('名称和描述不能为空');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onSave(rule.id, { name, type, description });
+    } catch (e) {
+      // 异常处理
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="glass-card animate-fade-in" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-light)', background: 'rgba(255, 255, 255, 0.015)', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input 
+            type="text" 
+            value={name} 
+            onChange={e => setName(e.target.value)} 
+            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '13px', fontWeight: '600', width: '130px', outline: 'none', borderBottom: '1px dashed var(--border-light)' }} 
+          />
+          <select 
+            value={type} 
+            onChange={e => setType(e.target.value as any)} 
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-light)', borderRadius: '4px', fontSize: '11px', color: 'var(--text-muted)', padding: '2px 6px', outline: 'none' }}
+          >
+            <option value="location">地点</option>
+            <option value="faction">势力</option>
+            <option value="rule">法则</option>
+            <option value="item">道具</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ padding: '3px 8px', fontSize: '11px', border: 'none' }}>
+            {isSaving ? '保存中' : '保存'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { if(confirm(`确定删除设定项 ${name} 吗？`)) onDelete(rule.id) }} style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
+            删除
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+        <textarea 
+          className="textarea" 
+          value={description} 
+          onChange={e => setDescription(e.target.value)} 
+          style={{ minHeight: '80px', fontSize: '12px', padding: '8px', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border-light)', borderRadius: '6px', outline: 'none' }} 
+        />
+      </div>
+    </div>
+  );
+};
+
+const AddWorldRuleCard = ({ 
+  projectId, 
+  onAdd, 
+  onCancel 
+}: { 
+  projectId: string; 
+  onAdd: (rule: any) => Promise<void>; 
+  onCancel: () => void; 
+}) => {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'location' | 'faction' | 'rule' | 'item' | 'other'>('location');
+  const [description, setDescription] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !description.trim()) return;
+    setIsLoading(true);
+    try {
+      await onAdd({ projectId, name, type, description });
+      onCancel();
+    } catch (e) {
+      // 异常处理
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="glass-card animate-fade-in" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--accent)', background: 'rgba(99, 102, 241, 0.05)', marginBottom: '16px' }}>
+      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
+        新建设定项资产
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px' }}>
+        <input required placeholder="设定项名称 (如：藏书阁)" type="text" className="input" value={name} onChange={e => setName(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
+        <select className="input" value={type} onChange={e => setType(e.target.value as any)} style={{ background: 'var(--bg-input)', padding: '4px 8px', fontSize: '12px', outline: 'none' }}>
+          <option value="location">地理位置/地点</option>
+          <option value="faction">宗门势力/组织</option>
+          <option value="rule">核心规则/法则</option>
+          <option value="item">法宝/神兵/道具</option>
+          <option value="other">其他设定</option>
+        </select>
+      </div>
+
+      <textarea required placeholder="设定项的详细背景描述..." className="textarea" value={description} onChange={e => setDescription(e.target.value)} style={{ minHeight: '80px', fontSize: '12px', padding: '8px', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border-light)', borderRadius: '6px', outline: 'none' }} />
+
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel} style={{ padding: '3px 8px', fontSize: '11px', border: 'none' }}>取消</button>
+        <button type="submit" className="btn btn-primary" disabled={isLoading} style={{ padding: '3px 8px', fontSize: '11px', border: 'none' }}>
+          {isLoading ? '创建中' : '确认创建'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 export default function Home() {
   const store = useNovelStore();
   const [activeTab, setActiveTab] = useState<'chapters' | 'settings'>('chapters');
@@ -267,6 +589,12 @@ export default function Home() {
   const [isKernelLoading, setIsKernelLoading] = useState(false);
   const [expandedKernelCard, setExpandedKernelCard] = useState<string | null>('powerSystem');
 
+  // 故事资产管理状态
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<'kernel' | 'assets'>('kernel');
+  const [ruleFilter, setRuleFilter] = useState<'all' | 'location' | 'faction' | 'rule' | 'item' | 'other'>('all');
+  const [isAddingChar, setIsAddingChar] = useState(false);
+  const [isAddingRule, setIsAddingRule] = useState(false);
+
   // 临时设定编辑状态
   const [tempPowerSystem, setTempPowerSystem] = useState('');
   const [tempGoldFinger, setTempGoldFinger] = useState('');
@@ -285,8 +613,11 @@ export default function Home() {
       setTempSellingPoints(store.currentProject.sellingPoints || '');
       setTempOutlineFull(store.currentProject.outlineFull || '');
       
-      // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演
+      // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
+      setActiveSettingsSubTab('kernel');
+      setIsAddingChar(false);
+      setIsAddingRule(false);
     }
   }, [store.currentProject]);
 
@@ -2324,6 +2655,11 @@ export default function Home() {
     );
   };
 
+  const filteredRules = store.worldRules ? store.worldRules.filter(rule => {
+    if (ruleFilter === 'all') return true;
+    return rule.type === ruleFilter;
+  }) : [];
+
   return (
     <main>
       {/* 顶部通栏导航 */}
@@ -2757,192 +3093,363 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              /* settings Tab: 核心设定工作区 */
-              <div style={{ display: 'flex', flexDirection: 'column', padding: '30px', gap: '20px', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>核心设定矩阵</h3>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
-                    网络小说内核由 5 大设定维度共同支撑。您可以点击各展开项，微调具体内容，或一键选用 AI 为您推演的创意方案。
-                  </p>
-                </div>
-                
-                {renderKernelDimensionCard(
-                  'powerSystem', 
-                  '境界与力量体系', 
-                  '定义主角及世界的修炼境界、超自然等级与晋升逻辑', 
-                  tempPowerSystem, 
-                  setTempPowerSystem, 
-                  'powerSystem', 
-                  '例如：练气、筑基、金丹、元婴、化神...'
-                )}
-                
-                {renderKernelDimensionCard(
-                  'goldFinger', 
-                  '金手指设定', 
-                  '主角的特殊外挂、系统、随身宝物或独占机缘', 
-                  tempGoldFinger, 
-                  setTempGoldFinger, 
-                  'goldFinger', 
-                  '例如：可以复制万物的神秘古镜，或者属性加点的诸天面板...'
-                )}
-                
-                {renderKernelDimensionCard(
-                  'coreConflict', 
-                  '️ 核心矛盾与冲突线', 
-                  '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机', 
-                  tempCoreConflict, 
-                  setTempCoreConflict, 
-                  'coreConflict', 
-                  '例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印...'
-                )}
-                
-                {renderKernelDimensionCard(
-                  'factionsMap', 
-                  '️ 势力分布与地理', 
-                  '故事发生的世界地理架构，以及各大宗门、家族、帝国的敌友关系', 
-                  tempFactionsMap, 
-                  setTempFactionsMap, 
-                  'factionsMap', 
-                  '例如：东荒三宗、西漠佛国、北海妖域，各方势力犬牙交错...'
-                )}
-                
-                {renderKernelDimensionCard(
-                  'sellingPoints', 
-                  '爽点与核心卖点', 
-                  '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计', 
-                  tempSellingPoints, 
-                  setTempSellingPoints, 
-                  'sellingPoints', 
-                  '例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派...'
-                )}
-                
-                {/* 反 AI 写作控制与文风微调卡片 */}
-                <div 
-                  className="glass-card animate-fade-in" 
-                  style={{ 
-                    background: 'rgba(255, 255, 255, 0.02)', 
-                    border: '1px solid var(--border-light)', 
-                    borderRadius: '12px', 
-                    marginBottom: '16px',
-                    overflow: 'hidden',
-                    flexShrink: 0
-                  }}
-                >
-                  <div 
-                    onClick={() => setExpandedKernelCard(expandedKernelCard === 'antiAiStyleRules' ? null : 'antiAiStyleRules')}
+              /* settings Tab: 核心设定与故事资产工作区 */
+              <div style={{ display: 'flex', flexDirection: 'column', padding: '30px', gap: '20px', overflowY: 'auto', flexGrow: 1 }}>
+                {/* 顶部的次级 Tab 切换 */}
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', gap: '16px', flexShrink: 0 }}>
+                  <button 
+                    onClick={() => setActiveSettingsSubTab('kernel')}
                     style={{ 
-                      padding: '16px 20px', 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
+                      background: 'none', 
+                      border: 'none', 
+                      color: activeSettingsSubTab === 'kernel' ? '#fff' : 'var(--text-muted)', 
+                      fontSize: '14px', 
+                      fontWeight: activeSettingsSubTab === 'kernel' ? '600' : 'normal', 
+                      paddingBottom: '8px', 
+                      borderBottom: activeSettingsSubTab === 'kernel' ? '2px solid var(--accent)' : '2px solid transparent',
                       cursor: 'pointer',
-                      background: expandedKernelCard === 'antiAiStyleRules' ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
-                      transition: 'background 0.2s ease'
+                      transition: 'all 0.2s'
                     }}
                   >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <strong style={{ fontSize: '15px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span></span> 反 AI 写作控制与文风特征过滤器
-                      </strong>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的“AI 鸡汤味”与“模板腔”
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {store.currentProject?.antiAiStyleRules?.length ? `已启用 ${store.currentProject.antiAiStyleRules.length} 项` : '未启用'}
-                      </span>
-                      {expandedKernelCard === 'antiAiStyleRules' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </div>
-                  </div>
+                    网文策划内核
+                  </button>
+                  <button 
+                    onClick={() => setActiveSettingsSubTab('assets')}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      color: activeSettingsSubTab === 'assets' ? '#fff' : 'var(--text-muted)', 
+                      fontSize: '14px', 
+                      fontWeight: activeSettingsSubTab === 'assets' ? '600' : 'normal', 
+                      paddingBottom: '8px', 
+                      borderBottom: activeSettingsSubTab === 'assets' ? '2px solid var(--accent)' : '2px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    故事资产管理
+                  </button>
+                </div>
 
-                  {expandedKernelCard === 'antiAiStyleRules' && (
+                {activeSettingsSubTab === 'kernel' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>核心设定矩阵</h3>
+                      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                        网络小说内核由 5 大设定维度共同支撑。您可以点击各展开项，微调具体内容，或一键选用 AI 为您推演的创意方案。
+                      </p>
+                    </div>
+                    
+                    {renderKernelDimensionCard(
+                      'powerSystem', 
+                      '境界与力量体系', 
+                      '定义主角及世界的修炼境界、超自然等级与晋升逻辑', 
+                      tempPowerSystem, 
+                      setTempPowerSystem, 
+                      'powerSystem', 
+                      '例如：练气、筑基、金丹、元婴、化神...'
+                    )}
+                    
+                    {renderKernelDimensionCard(
+                      'goldFinger', 
+                      '金手指设定', 
+                      '主角的特殊外挂、系统、随身宝物或独占机缘', 
+                      tempGoldFinger, 
+                      setTempGoldFinger, 
+                      'goldFinger', 
+                      '例如：可以复制万物的神秘古镜，或者属性加点的诸天面板...'
+                    )}
+                    
+                    {renderKernelDimensionCard(
+                      'coreConflict', 
+                      '核心矛盾与冲突线', 
+                      '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机', 
+                      tempCoreConflict, 
+                      setTempCoreConflict, 
+                      'coreConflict', 
+                      '例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印...'
+                    )}
+                    
+                    {renderKernelDimensionCard(
+                      'factionsMap', 
+                      '势力分布与地理', 
+                      '故事发生的世界地理架构，以及各大宗门、家族、帝国的敌友关系', 
+                      tempFactionsMap, 
+                      setTempFactionsMap, 
+                      'factionsMap', 
+                      '例如：东荒三宗、西漠佛国、北海妖域，各方势力犬牙交错...'
+                    )}
+                    
+                    {renderKernelDimensionCard(
+                      'sellingPoints', 
+                      '爽点与核心卖点', 
+                      '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计', 
+                      tempSellingPoints, 
+                      setTempSellingPoints, 
+                      'sellingPoints', 
+                      '例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派...'
+                    )}
+                    
+                    {/* 反 AI 写作控制与文风微调卡片 */}
                     <div 
+                      className="glass-card animate-fade-in" 
                       style={{ 
-                        padding: '20px', 
-                        borderTop: '1px solid var(--border-light)',
-                        background: 'rgba(0,0,0,0.1)'
+                        background: 'rgba(255, 255, 255, 0.02)', 
+                        border: '1px solid var(--border-light)', 
+                        borderRadius: '12px', 
+                        marginBottom: '16px',
+                        overflow: 'hidden',
+                        flexShrink: 0
                       }}
                     >
-                      <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>点击以下文风特征药丸，一键启用或关闭（即时落库生效）：</span>
-                        {store.currentProject?.antiAiStyleRules && store.currentProject.antiAiStyleRules.length > 0 && (
+                      <div 
+                        onClick={() => setExpandedKernelCard(expandedKernelCard === 'antiAiStyleRules' ? null : 'antiAiStyleRules')}
+                        style={{ 
+                          padding: '16px 20px', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          cursor: 'pointer',
+                          background: expandedKernelCard === 'antiAiStyleRules' ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+                          transition: 'background 0.2s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <strong style={{ fontSize: '15px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span></span> 反 AI 写作控制与文风特征过滤器
+                          </strong>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的“AI 鸡汤味”与“模板腔”
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {store.currentProject?.antiAiStyleRules?.length ? `已启用 ${store.currentProject.antiAiStyleRules.length} 项` : '未启用'}
+                          </span>
+                          {expandedKernelCard === 'antiAiStyleRules' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </div>
+                      </div>
+
+                      {expandedKernelCard === 'antiAiStyleRules' && (
+                        <div 
+                          style={{ 
+                            padding: '20px', 
+                            borderTop: '1px solid var(--border-light)',
+                            background: 'rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>点击以下文风特征药丸，一键启用或关闭（即时落库生效）：</span>
+                            {store.currentProject?.antiAiStyleRules && store.currentProject.antiAiStyleRules.length > 0 && (
+                              <button 
+                                className="btn btn-secondary" 
+                                onClick={async () => {
+                                  if (!store.currentProject) return;
+                                  if (confirm('是否清空所有已启用的反 AI 规则？')) {
+                                    await store.updateProject(store.currentProject.id, { antiAiStyleRules: [] });
+                                  }
+                                }}
+                                style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
+                              >
+                                重置全部
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                            {DEFAULT_ANTI_AI_RULES.map((rule) => {
+                              const isActive = store.currentProject?.antiAiStyleRules?.includes(rule.key) || false;
+                              return (
+                                <div 
+                                  key={rule.key}
+                                  onClick={async () => {
+                                    if (!store.currentProject) return;
+                                    const currentRules = store.currentProject.antiAiStyleRules || [];
+                                    let nextRules: string[];
+                                    if (currentRules.includes(rule.key)) {
+                                      nextRules = currentRules.filter(k => k !== rule.key);
+                                    } else {
+                                      nextRules = [...currentRules, rule.key];
+                                    }
+                                    try {
+                                      await store.updateProject(store.currentProject.id, { antiAiStyleRules: nextRules });
+                                    } catch (e) {
+                                      alert('更新反 AI 写作规则失败');
+                                    }
+                                  }}
+                                  style={{ 
+                                    padding: '12px 16px', 
+                                    background: isActive ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)', 
+                                    border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)', 
+                                    borderRadius: '10px', 
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: isActive ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <strong style={{ fontSize: '13px', color: isActive ? '#fff' : 'var(--text-muted)' }}>
+                                      {rule.name}
+                                    </strong>
+                                    <span style={{ 
+                                      width: '14px', 
+                                      height: '14px', 
+                                      borderRadius: '50%', 
+                                      border: isActive ? 'none' : '1px solid var(--border-light)', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center',
+                                      background: isActive ? 'var(--accent)' : 'transparent'
+                                    }}>
+                                      {isActive && <CheckCircle2 size={10} style={{ color: '#fff' }} />}
+                                    </span>
+                                  </div>
+                                  <p style={{ fontSize: '11px', color: 'var(--text-dark)', margin: 0, lineHeight: '1.5' }}>
+                                    {rule.promptInstruction}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '30px', flexGrow: 1, minHeight: 0 }}>
+                    {/* 左侧：角色资产列表 */}
+                    <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: 0 }}>
+                          角色卡资产库 ({store.characters ? store.characters.length : 0})
+                        </h4>
+                        {!isAddingChar && store.currentProject && (
                           <button 
-                            className="btn btn-secondary" 
-                            onClick={async () => {
-                              if (!store.currentProject) return;
-                              if (confirm('是否清空所有已启用的反 AI 规则？')) {
-                                await store.updateProject(store.currentProject.id, { antiAiStyleRules: [] });
-                              }
-                            }}
-                            style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
+                            className="btn btn-primary" 
+                            onClick={() => setIsAddingChar(true)}
+                            style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--accent)', border: 'none' }}
                           >
-                            重置全部
+                            添加角色
+                          </button>
+                        )}
+                      </div>
+                      {isAddingChar && store.currentProject && (
+                        <AddCharacterCard 
+                          projectId={store.currentProject.id} 
+                          onAdd={async (char) => {
+                            await store.createCharacter(char);
+                          }} 
+                          onCancel={() => setIsAddingChar(false)} 
+                        />
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {!store.characters || (store.characters.length === 0 && !isAddingChar) ? (
+                          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dark)', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '12px' }}>
+                            当前尚未添加角色卡资产，点击右上角按钮创建！
+                          </div>
+                        ) : (
+                          store.characters.map((char) => (
+                            <CharacterCard 
+                              key={char.id}
+                              character={char} 
+                              onSave={async (id, updates) => {
+                                await store.updateCharacter(id, updates);
+                              }} 
+                              onDelete={async (id) => {
+                                await store.deleteCharacter(id);
+                              }} 
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 右侧：世界设定列表 */}
+                    <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: 0 }}>
+                          世界设定资产库 ({store.worldRules ? store.worldRules.length : 0})
+                        </h4>
+                        {!isAddingRule && store.currentProject && (
+                          <button 
+                            className="btn btn-primary" 
+                            onClick={() => setIsAddingRule(true)}
+                            style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--accent)', border: 'none' }}
+                          >
+                            新建设定项
                           </button>
                         )}
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
-                        {DEFAULT_ANTI_AI_RULES.map((rule) => {
-                          const isActive = store.currentProject?.antiAiStyleRules?.includes(rule.key) || false;
+                      {/* 世界设定类型过滤器小药丸 */}
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        {(['all', 'location', 'faction', 'rule', 'item', 'other'] as const).map((filterOpt) => {
+                          const labels: Record<string, string> = {
+                            all: '全部',
+                            location: '地点',
+                            faction: '势力',
+                            rule: '法则',
+                            item: '道具',
+                            other: '其他'
+                          };
+                          const isActive = ruleFilter === filterOpt;
                           return (
-                            <div 
-                              key={rule.key}
-                              onClick={async () => {
-                                if (!store.currentProject) return;
-                                const currentRules = store.currentProject.antiAiStyleRules || [];
-                                let nextRules: string[];
-                                if (currentRules.includes(rule.key)) {
-                                  nextRules = currentRules.filter(k => k !== rule.key);
-                                } else {
-                                  nextRules = [...currentRules, rule.key];
-                                }
-                                try {
-                                  await store.updateProject(store.currentProject.id, { antiAiStyleRules: nextRules });
-                                } catch (e) {
-                                  alert('更新反 AI 写作规则失败');
-                                }
-                              }}
-                              style={{ 
-                                padding: '12px 16px', 
-                                background: isActive ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)', 
-                                border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)', 
-                                borderRadius: '10px', 
+                            <button
+                              key={filterOpt}
+                              onClick={() => setRuleFilter(filterOpt)}
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
                                 cursor: 'pointer',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px',
-                                transition: 'all 0.2s ease',
-                                boxShadow: isActive ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none'
+                                border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)',
+                                background: isActive ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-input)',
+                                color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                                transition: 'all 0.2s'
                               }}
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <strong style={{ fontSize: '13px', color: isActive ? '#fff' : 'var(--text-muted)' }}>
-                                  {rule.name}
-                                </strong>
-                                <span style={{ 
-                                  width: '14px', 
-                                  height: '14px', 
-                                  borderRadius: '50%', 
-                                  border: isActive ? 'none' : '1px solid var(--border-light)', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  justifyContent: 'center',
-                                  background: isActive ? 'var(--accent)' : 'transparent'
-                                }}>
-                                  {isActive && <CheckCircle2 size={10} style={{ color: '#fff' }} />}
-                                </span>
-                              </div>
-                              <p style={{ fontSize: '11px', color: 'var(--text-dark)', margin: 0, lineHeight: '1.5' }}>
-                                {rule.promptInstruction}
-                              </p>
-                            </div>
+                              {labels[filterOpt]}
+                            </button>
                           );
                         })}
                       </div>
+
+                      {isAddingRule && store.currentProject && (
+                        <AddWorldRuleCard 
+                          projectId={store.currentProject.id} 
+                          onAdd={async (rule) => {
+                            await store.createWorldRule(rule);
+                          }} 
+                          onCancel={() => setIsAddingRule(false)} 
+                        />
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {!filteredRules || (filteredRules.length === 0 && !isAddingRule) ? (
+                          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dark)', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '12px' }}>
+                            当前尚未添加该类型的设定项，点击右上角按钮创建！
+                          </div>
+                        ) : (
+                          filteredRules.map((rule) => (
+                            <WorldRuleCard 
+                              key={rule.id}
+                              rule={rule} 
+                              onSave={async (id, updates) => {
+                                await store.updateWorldRule(id, updates);
+                              }} 
+                              onDelete={async (id) => {
+                                await store.deleteWorldRule(id);
+                              }} 
+                            />
+                          ))
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
