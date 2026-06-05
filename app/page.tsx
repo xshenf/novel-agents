@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNovelStore } from '@/lib/store';
 import { 
-  BookOpen, Plus, Trash2, Settings, ChevronLeft, 
+  BookOpen, Plus, Trash2, Settings, ChevronLeft, ChevronRight,
   User, Globe, MessageSquare, Sparkles, CheckCircle2, 
   Save, Download, FileText, Loader2, HelpCircle, Eye, Play, Pause, RefreshCw,
   ChevronDown, ChevronUp
@@ -336,6 +336,22 @@ export default function Home() {
   const [customTagInput, setCustomTagInput] = useState('');
   const [loadingTip, setLoadingTip] = useState('正在推演天机...');
 
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('layout_sidebar_width');
+      return saved ? Number(saved) : 260;
+    }
+    return 260;
+  });
+  const [aiPanelWidth, setAiPanelWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('layout_ai_panel_width');
+      return saved ? Number(saved) : 340;
+    }
+    return 340;
+  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   // ======= 核心设定与故事大纲平铺工作区状态 =======
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'write' | 'outline' | 'settings'>('write');
   const [kernelOptions, setKernelOptions] = useState<any>(null);
@@ -583,10 +599,18 @@ export default function Home() {
   // 初始化获取项目
   useEffect(() => {
     store.fetchProjects().then(() => {
-      // 自动种子数据预设 (如果项目列表为空)
       const currentProjects = useNovelStore.getState().projects;
       if (currentProjects.length === 0) {
         seedDemoData();
+      } else {
+        // 恢复上次打开的项目
+        const savedProjectId = localStorage.getItem('current_project_id');
+        if (savedProjectId && !useNovelStore.getState().currentProject) {
+          const project = currentProjects.find((p: any) => p.id === savedProjectId);
+          if (project) {
+            useNovelStore.getState().setCurrentProject(project);
+          }
+        }
       }
     });
   }, []);
@@ -2941,16 +2965,31 @@ export default function Home() {
         )
       ) : (
         /* 2. Workspace 写作工作台视图 */
-        <div className="workspace-layout">
+        <div className="workspace-layout" style={{ display: 'flex' }}>
           {/* 左侧侧边栏：章节与设定 */}
-          <div className="workspace-sidebar">
+          {sidebarCollapsed ? (
+            <div style={{ width: '40px', flexShrink: 0, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '12px', gap: '8px' }}>
+              <button className="btn-icon" onClick={() => setSidebarCollapsed(false)} title="展开章节列表">
+                <ChevronRight size={16} />
+              </button>
+              <button className="btn-icon" onClick={() => setShowNewChapModal(true)} title="新建章节">
+                <Plus size={16} />
+              </button>
+            </div>
+          ) : (
+          <div className="workspace-sidebar" style={{ width: sidebarWidth, minWidth: 160, maxWidth: 500, flexShrink: 0 }}>
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div className="sidebar-section" style={{ flexGrow: 1, overflowY: 'auto' }}>
                 <div className="sidebar-header">
                   <span>章节列表</span>
-                  <button className="btn-icon" onClick={() => setShowNewChapModal(true)}>
-                    <Plus size={16} />
-                  </button>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="btn-icon" onClick={() => setSidebarCollapsed(true)} title="收起章节列表">
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button className="btn-icon" onClick={() => setShowNewChapModal(true)}>
+                      <Plus size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="sidebar-list">
                   {store.chapters.map((chap) => (
@@ -2982,9 +3021,39 @@ export default function Home() {
               </div>
             </div>
           </div>
+          )}
+
+          {/* 左侧拖拽条 */}
+          {!sidebarCollapsed && (
+          <div
+            className="resize-handle"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = sidebarWidth;
+              const handle = e.currentTarget;
+              handle.classList.add('active');
+              document.body.style.userSelect = 'none';
+              const onMove = (ev: MouseEvent) => {
+                const delta = ev.clientX - startX;
+                const newWidth = Math.max(160, Math.min(500, startWidth + delta));
+                setSidebarWidth(newWidth);
+                localStorage.setItem('layout_sidebar_width', String(newWidth));
+              };
+              const onUp = () => {
+                handle.classList.remove('active');
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          />
+          )}
 
           {/* 中间：主章节编辑器 / 大纲 / 设定 工作区 */}
-          <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+          <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', flexGrow: 1, minWidth: 300 }}>
             {/* 顶部的 3 Tab 切换导航 */}
             <div style={{ display: 'flex', gap: '8px', padding: '16px 30px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255, 255, 255, 0.02)', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '20px', display: 'flex', gap: '4px' }}>
@@ -3665,8 +3734,35 @@ export default function Home() {
             )}
           </div>
 
+          {/* 右侧拖拽条 */}
+          <div
+            className="resize-handle"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = aiPanelWidth;
+              const handle = e.currentTarget;
+              handle.classList.add('active');
+              document.body.style.userSelect = 'none';
+              const onMove = (ev: MouseEvent) => {
+                const delta = startX - ev.clientX;
+                const newWidth = Math.max(240, Math.min(600, startWidth + delta));
+                setAiPanelWidth(newWidth);
+                localStorage.setItem('layout_ai_panel_width', String(newWidth));
+              };
+              const onUp = () => {
+                handle.classList.remove('active');
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          />
+
           {/* 右侧：AI 面板 */}
-          <div className="workspace-ai-panel">
+          <div className="workspace-ai-panel" style={{ width: aiPanelWidth, minWidth: 240, maxWidth: 600, flexShrink: 0 }}>
               {/* AI 多智能体协同创作聊天 */}
                 <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.01)' }}>

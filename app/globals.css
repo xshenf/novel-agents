@@ -313,14 +313,13 @@ select.input option {
 /* ======= Workspace 工作台三栏布局 ======= */
 .workspace-layout {
   display: grid;
-  grid-template-columns: 260px 1fr 340px;
+  grid-template-columns: var(--sidebar-width, 260px) 1fr var(--ai-panel-width, 340px);
   height: calc(100vh - 60px);
   overflow: hidden;
 }
 
 .workspace-sidebar {
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -337,11 +336,27 @@ select.input option {
 
 .workspace-ai-panel {
   background: var(--bg-sidebar);
-  border-left: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.resize-handle {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+  position: relative;
+  z-index: 10;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.resize-handle:hover,
+.resize-handle.active {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* 侧边栏子项 */

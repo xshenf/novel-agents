@@ -211,9 +211,12 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     setCurrentProject: (project) => {
       set({ currentProject: project, currentChapter: null });
       if (project) {
+        localStorage.setItem('current_project_id', project.id);
         get().fetchChapters(project.id);
         get().fetchCharacters(project.id);
         get().fetchWorldRules(project.id);
+      } else {
+        localStorage.removeItem('current_project_id');
       }
     },
 
