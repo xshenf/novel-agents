@@ -10,10 +10,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
-    const characters = db.getCharacters(projectId);
+    const characters = await db.getCharacters(projectId);
     return NextResponse.json(characters);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '获取角色列表失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '获取角色列表失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '角色名称不能为空' }, { status: 400 });
     }
 
-    const newChar = db.createCharacter({
+    const newChar = await db.createCharacter({
       projectId,
       name,
       role: role || '配角',
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newChar, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '创建角色失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '创建角色失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

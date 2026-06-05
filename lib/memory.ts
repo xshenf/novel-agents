@@ -13,11 +13,11 @@ function tokenize(text: string): string[] {
   return clean.split(/\s+/).filter(word => word.length >= 1);
 }
 
-export function searchMemory(projectId: string, query: string): MemorySearchResult {
-  const chapters = db.getChapters(projectId);
-  const characters = db.getCharacters(projectId);
-  const worldRules = db.getWorldRules(projectId);
-  const project = db.getProject(projectId);
+export async function searchMemory(projectId: string, query: string): Promise<MemorySearchResult> {
+  const chapters = await db.getChapters(projectId);
+  const characters = await db.getCharacters(projectId);
+  const worldRules = await db.getWorldRules(projectId);
+  const project = await db.getProject(projectId);
 
   const queryTokens = tokenize(query);
 

@@ -10,10 +10,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
-    const chapters = db.getChapters(projectId);
+    const chapters = await db.getChapters(projectId);
     return NextResponse.json(chapters);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '获取章节列表失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '获取章节列表失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '章节标题不能为空' }, { status: 400 });
     }
 
-    const newChapter = db.createChapter({
+    const newChapter = await db.createChapter({
       projectId,
       title,
       content: content || '',
@@ -41,7 +42,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newChapter, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '创建章节失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '创建章节失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

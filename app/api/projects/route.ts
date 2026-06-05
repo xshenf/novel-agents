@@ -3,10 +3,11 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
-    const projects = db.getProjects();
+    const projects = await db.getProjects();
     return NextResponse.json(projects);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '获取项目失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '获取项目失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '项目标题不能为空' }, { status: 400 });
     }
 
-    const newProject = db.createProject({
+    const newProject = await db.createProject({
       title,
       description: description || '',
       styleSetting: styleSetting || '',
@@ -34,7 +35,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newProject, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '创建项目失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '创建项目失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

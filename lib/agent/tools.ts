@@ -16,7 +16,7 @@ export function setAgentApiConfig(packed: string, model: string) {
 // ─── 1. 查询记忆 ─────────────────────────────────────────────────────────────
 export const queryMemoryTool = tool(
   async ({ projectId, query }) => {
-    const result = searchMemory(projectId, query);
+    const result = await searchMemory(projectId, query);
     return result.contextText || '未找到相关记忆内容。';
   },
   {
@@ -32,11 +32,11 @@ export const queryMemoryTool = tool(
 // ─── 2. 获取项目概览 ──────────────────────────────────────────────────────────
 export const getProjectOverviewTool = tool(
   async ({ projectId }) => {
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
-    const characters = db.getCharacters(projectId);
-    const chapters = db.getChapters(projectId);
-    const worldRules = db.getWorldRules(projectId);
+    const characters = await db.getCharacters(projectId);
+    const chapters = await db.getChapters(projectId);
+    const worldRules = await db.getWorldRules(projectId);
 
     return JSON.stringify({
       title: project.title,
@@ -65,7 +65,7 @@ export const getProjectOverviewTool = tool(
 // ─── 3. 生成章节大纲 ──────────────────────────────────────────────────────────
 export const generateOutlineTool = tool(
   async ({ projectId, numChapters }) => {
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const outline = await ai.generateOutline(
       projectId, project.title, project.description, numChapters, _apiConfig, _modelName
@@ -88,8 +88,8 @@ export const autoPlanBookTool = tool(
     const result = await ai.autoPlanBook(genre, tone, tags, _apiConfig, _modelName);
     // 同时更新项目设定
     if (projectId && result) {
-      const r = result as any;
-      const updates: Record<string, any> = {};
+      const r = result as Record<string, unknown>;
+      const updates: Record<string, unknown> = {};
       if (r.title) updates.title = r.title;
       if (r.description) updates.description = r.description;
       if (r.styleSetting) updates.styleSetting = r.styleSetting;
@@ -98,7 +98,7 @@ export const autoPlanBookTool = tool(
       if (r.coreConflict) updates.coreConflict = r.coreConflict;
       if (r.sellingPoints) updates.sellingPoints = r.sellingPoints;
       if (Object.keys(updates).length > 0) {
-        db.updateProject(projectId, updates);
+        await db.updateProject(projectId, updates);
       }
     }
     return `书籍核心设定已生成并保存：\n\n${JSON.stringify(result, null, 2)}`;
@@ -118,18 +118,18 @@ export const autoPlanBookTool = tool(
 // ─── 5. 生成内核设定 ──────────────────────────────────────────────────────────
 export const generateKernelTool = tool(
   async ({ projectId, genre, tone }) => {
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const result = await ai.generateKernelSettings(project.title, genre, tone, _apiConfig, _modelName);
     // 保存到项目
-    const updates: Record<string, any> = {};
+    const updates: Record<string, unknown> = {};
     if (result.powerSystem) updates.powerSystem = result.powerSystem;
     if (result.goldFinger) updates.goldFinger = result.goldFinger;
     if (result.coreConflict) updates.coreConflict = result.coreConflict;
     if (result.factionsMap) updates.factionsMap = result.factionsMap;
     if (result.sellingPoints) updates.sellingPoints = result.sellingPoints;
     if (Object.keys(updates).length > 0) {
-      db.updateProject(projectId, updates);
+      await db.updateProject(projectId, updates);
     }
     return `内核设定已生成并保存：\n\n${JSON.stringify(result, null, 2)}`;
   },
@@ -147,7 +147,7 @@ export const generateKernelTool = tool(
 // ─── 6. 创建角色卡 ────────────────────────────────────────────────────────────
 export const createCharacterTool = tool(
   async ({ projectId, name, role, age, identity, personality, goals, forbidden, currentState }) => {
-    const char = db.createCharacter({
+    const char = await db.createCharacter({
       projectId,
       name,
       role,
@@ -181,7 +181,7 @@ export const createCharacterTool = tool(
 // ─── 7. 创建世界观设定 ────────────────────────────────────────────────────────
 export const createWorldRuleTool = tool(
   async ({ projectId, name, type, description }) => {
-    const rule = db.createWorldRule({ projectId, name, type, description });
+    const rule = await db.createWorldRule({ projectId, name, type, description });
     return `世界观设定「${name}」已创建，ID: ${rule.id}`;
   },
   {
@@ -207,7 +207,7 @@ export const updateProjectFieldTool = tool(
     if (!allowedFields.includes(field)) {
       return `不允许修改字段 "${field}"，可用字段：${allowedFields.join(', ')}`;
     }
-    db.updateProject(projectId, { [field]: value });
+    await db.updateProject(projectId, { [field]: value });
     return `项目设定「${field}」已更新。`;
   },
   {
@@ -224,7 +224,7 @@ export const updateProjectFieldTool = tool(
 // ─── 9. 新建章节 ──────────────────────────────────────────────────────────────
 export const createChapterTool = tool(
   async ({ projectId, title }) => {
-    const chapter = db.createChapter({
+    const chapter = await db.createChapter({
       projectId,
       title,
       content: '',
@@ -300,13 +300,13 @@ export const checkConsistencyTool = tool(
 // ─── 13. 添加反 AI 写作规则 ───────────────────────────────────────────────────
 export const addAntiAiRuleTool = tool(
   async ({ projectId, rule }) => {
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const currentRules = project.antiAiStyleRules || [];
     if (currentRules.includes(rule)) {
       return `规则「${rule}」已存在，无需重复添加。`;
     }
-    db.updateProject(projectId, { antiAiStyleRules: [...currentRules, rule] });
+    await db.updateProject(projectId, { antiAiStyleRules: [...currentRules, rule] });
     return `反 AI 写作规则「${rule}」已添加，当前共 ${currentRules.length + 1} 条规则。`;
   },
   {

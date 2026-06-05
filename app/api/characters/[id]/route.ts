@@ -9,13 +9,14 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     
-    const updated = db.updateCharacter(id, body);
+    const updated = await db.updateCharacter(id, body);
     if (!updated) {
       return NextResponse.json({ error: '角色未找到' }, { status: 404 });
     }
     return NextResponse.json(updated);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '更新角色失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '更新角色失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -25,12 +26,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const success = db.deleteCharacter(id);
+    const success = await db.deleteCharacter(id);
     if (!success) {
       return NextResponse.json({ error: '角色未找到或删除失败' }, { status: 404 });
     }
     return NextResponse.json({ success: true, message: '角色已删除' });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '删除角色失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '删除角色失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

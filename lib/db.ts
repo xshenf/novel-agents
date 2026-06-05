@@ -1,5 +1,24 @@
-import fs from 'fs';
-import path from 'path';
+import { 
+  PrismaClient, 
+  NovelProject as PrismaProject, 
+  Character as PrismaCharacter, 
+  Chapter as PrismaChapter, 
+  AgentMessage as PrismaMessage 
+} from '@prisma/client';
+
+const prismaClientSingleton = () => {
+  return new PrismaClient();
+};
+
+type PrismaClientSingleton = ReturnType<typeof prismaClientSingleton>;
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClientSingleton | undefined;
+};
+
+const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // 定义接口类型
 export interface NovelProject {
@@ -83,273 +102,326 @@ export interface AgentMessage {
   createdAt: string;
 }
 
-export interface DatabaseSchema {
-  projects: NovelProject[];
-  characters: Character[];
-  worldRules: WorldRule[];
-  chapters: Chapter[];
-  agentMessages: AgentMessage[];
+// 辅助序列化/反序列化格式化函数
+function formatProject(p: PrismaProject): NovelProject {
+  return {
+    ...p,
+    antiAiStyleRules: p.antiAiStyleRules ? JSON.parse(p.antiAiStyleRules) as string[] : [],
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+  };
 }
 
-const DB_FILE_PATH = path.join(process.cwd(), 'data', 'db.json');
-
-// 默认空数据库结构
-const initialData: DatabaseSchema = {
-  projects: [],
-  characters: [],
-  worldRules: [],
-  chapters: [],
-  agentMessages: [],
-};
-
-// 确保目录和文件存在，并读取数据
-function readDb(): DatabaseSchema {
-  try {
-    const dir = path.dirname(DB_FILE_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(DB_FILE_PATH)) {
-      fs.writeFileSync(DB_FILE_PATH, JSON.stringify(initialData, null, 2), 'utf-8');
-      return initialData;
-    }
-    const dataStr = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-    const parsed = JSON.parse(dataStr) as DatabaseSchema;
-    if (!parsed.agentMessages) {
-      parsed.agentMessages = [];
-    }
-    return parsed;
-  } catch (error) {
-    console.error('Error reading database file, using fallback initial data:', error);
-    return initialData;
-  }
+function formatCharacter(c: PrismaCharacter): Character {
+  return {
+    ...c,
+    personality: c.personality ? JSON.parse(c.personality) as string[] : [],
+    goals: c.goals ? JSON.parse(c.goals) as string[] : [],
+    forbidden: c.forbidden ? JSON.parse(c.forbidden) as string[] : [],
+    relationships: c.relationships ? JSON.parse(c.relationships) as CharacterRelationship[] : [],
+  };
 }
 
-// 写入数据到文件
-function writeDb(data: DatabaseSchema): void {
-  try {
-    const dir = path.dirname(DB_FILE_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Failed to write database file:', error);
-  }
+function formatChapter(ch: PrismaChapter): Chapter {
+  return {
+    ...ch,
+    characterChanges: ch.characterChanges ? JSON.parse(ch.characterChanges) as CharacterChange[] : [],
+    newForeshadowing: ch.newForeshadowing ? JSON.parse(ch.newForeshadowing) as string[] : [],
+    resolvedForeshadowing: ch.resolvedForeshadowing ? JSON.parse(ch.resolvedForeshadowing) as string[] : [],
+    timelineEvents: ch.timelineEvents ? JSON.parse(ch.timelineEvents) as string[] : [],
+    createdAt: ch.createdAt.toISOString(),
+    updatedAt: ch.updatedAt.toISOString(),
+  };
 }
 
-// 数据库操作类
+function formatAgentMessage(m: PrismaMessage): AgentMessage {
+  return {
+    ...m,
+    agent: m.agent ?? undefined,
+    label: m.label ?? undefined,
+    toolName: m.toolName ?? undefined,
+    toolInput: m.toolInput ? JSON.parse(m.toolInput) : undefined,
+    from: m.from ?? undefined,
+    fromLabel: m.fromLabel ?? undefined,
+    to: m.to ?? undefined,
+    toLabel: m.toLabel ?? undefined,
+    createdAt: m.createdAt.toISOString(),
+  };
+}
+
+// 数据库操作类 (全部转为 async/await 异步操作)
 export const db = {
   // --- 项目 (NovelProject) ---
-  getProjects(): NovelProject[] {
-    return readDb().projects;
+  async getProjects(): Promise<NovelProject[]> {
+    const list = await prisma.novelProject.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return list.map(formatProject);
   },
 
-  getProject(id: string): NovelProject | undefined {
-    return readDb().projects.find(p => p.id === id);
+  async getProject(id: string): Promise<NovelProject | undefined> {
+    const item = await prisma.novelProject.findUnique({ where: { id } });
+    return item ? formatProject(item) : undefined;
   },
 
-  createProject(project: Omit<NovelProject, 'id' | 'createdAt' | 'updatedAt'>): NovelProject {
-    const database = readDb();
-    const now = new Date().toISOString();
-    const newProject: NovelProject = {
-      ...project,
-      id: `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId: 'default_user',
-      createdAt: now,
-      updatedAt: now,
-    };
-    database.projects.push(newProject);
-    writeDb(database);
-    return newProject;
+  async createProject(project: Omit<NovelProject, 'id' | 'createdAt' | 'updatedAt'>): Promise<NovelProject> {
+    const id = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const created = await prisma.novelProject.create({
+      data: {
+        id,
+        userId: 'default_user',
+        title: project.title,
+        description: project.description,
+        styleSetting: project.styleSetting,
+        worldSetting: project.worldSetting,
+        powerSystem: project.powerSystem || '',
+        goldFinger: project.goldFinger || '',
+        coreConflict: project.coreConflict || '',
+        factionsMap: project.factionsMap || '',
+        sellingPoints: project.sellingPoints || '',
+        outlineFull: project.outlineFull || '',
+        antiAiStyleRules: JSON.stringify(project.antiAiStyleRules || []),
+      },
+    });
+    return formatProject(created);
   },
 
-  updateProject(id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>): NovelProject | undefined {
-    const database = readDb();
-    const index = database.projects.findIndex(p => p.id === id);
-    if (index === -1) return undefined;
-
-    const updated = {
-      ...database.projects[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    database.projects[index] = updated;
-    writeDb(database);
-    return updated;
+  async updateProject(id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>): Promise<NovelProject | undefined> {
+    const data: Record<string, unknown> = { ...updates };
+    if (updates.antiAiStyleRules !== undefined) {
+      data.antiAiStyleRules = JSON.stringify(updates.antiAiStyleRules);
+    }
+    const updated = await prisma.novelProject.update({
+      where: { id },
+      data,
+    });
+    return updated ? formatProject(updated) : undefined;
   },
 
-  deleteProject(id: string): boolean {
-    const database = readDb();
-    const originalLength = database.projects.length;
-    database.projects = database.projects.filter(p => p.id !== id);
-    // 级联删除关联的章节、角色、设定及对话历史
-    database.chapters = database.chapters.filter(c => c.projectId !== id);
-    database.characters = database.characters.filter(c => c.projectId !== id);
-    database.worldRules = database.worldRules.filter(w => w.projectId !== id);
-    database.agentMessages = database.agentMessages.filter(m => m.projectId !== id);
-    writeDb(database);
-    return database.projects.length < originalLength;
+  async deleteProject(id: string): Promise<boolean> {
+    try {
+      await prisma.novelProject.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // --- 章节 (Chapter) ---
-  getChapters(projectId: string): Chapter[] {
-    return readDb().chapters.filter(c => c.projectId === projectId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  async getChapters(projectId: string): Promise<Chapter[]> {
+    const list = await prisma.chapter.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return list.map(formatChapter);
   },
 
-  getChapter(id: string): Chapter | undefined {
-    return readDb().chapters.find(c => c.id === id);
+  async getChapter(id: string): Promise<Chapter | undefined> {
+    const item = await prisma.chapter.findUnique({ where: { id } });
+    return item ? formatChapter(item) : undefined;
   },
 
-  createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>): Chapter {
-    const database = readDb();
-    const now = new Date().toISOString();
-    const newChapter: Chapter = {
-      ...chapter,
-      id: `chap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: now,
-      updatedAt: now,
-    };
-    database.chapters.push(newChapter);
-    writeDb(database);
-    return newChapter;
+  async createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>): Promise<Chapter> {
+    const id = `chap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const created = await prisma.chapter.create({
+      data: {
+        id,
+        projectId: chapter.projectId,
+        title: chapter.title,
+        content: chapter.content || '',
+        summary: chapter.summary || '',
+        characterChanges: JSON.stringify(chapter.characterChanges || []),
+        newForeshadowing: JSON.stringify(chapter.newForeshadowing || []),
+        resolvedForeshadowing: JSON.stringify(chapter.resolvedForeshadowing || []),
+        timelineEvents: JSON.stringify(chapter.timelineEvents || []),
+      },
+    });
+    return formatChapter(created);
   },
 
-  updateChapter(id: string, updates: Partial<Omit<Chapter, 'id' | 'projectId' | 'createdAt'>>): Chapter | undefined {
-    const database = readDb();
-    const index = database.chapters.findIndex(c => c.id === id);
-    if (index === -1) return undefined;
-
-    const updated = {
-      ...database.chapters[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    database.chapters[index] = updated;
-    writeDb(database);
-    return updated;
+  async updateChapter(id: string, updates: Partial<Omit<Chapter, 'id' | 'projectId' | 'createdAt'>>): Promise<Chapter | undefined> {
+    const data: Record<string, unknown> = { ...updates };
+    if (updates.characterChanges !== undefined) {
+      data.characterChanges = JSON.stringify(updates.characterChanges);
+    }
+    if (updates.newForeshadowing !== undefined) {
+      data.newForeshadowing = JSON.stringify(updates.newForeshadowing);
+    }
+    if (updates.resolvedForeshadowing !== undefined) {
+      data.resolvedForeshadowing = JSON.stringify(updates.resolvedForeshadowing);
+    }
+    if (updates.timelineEvents !== undefined) {
+      data.timelineEvents = JSON.stringify(updates.timelineEvents);
+    }
+    const updated = await prisma.chapter.update({
+      where: { id },
+      data,
+    });
+    return updated ? formatChapter(updated) : undefined;
   },
 
-  deleteChapter(id: string): boolean {
-    const database = readDb();
-    const originalLength = database.chapters.length;
-    database.chapters = database.chapters.filter(c => c.id !== id);
-    writeDb(database);
-    return database.chapters.length < originalLength;
+  async deleteChapter(id: string): Promise<boolean> {
+    try {
+      await prisma.chapter.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // --- 角色 (Character) ---
-  getCharacters(projectId: string): Character[] {
-    return readDb().characters.filter(c => c.projectId === projectId);
+  async getCharacters(projectId: string): Promise<Character[]> {
+    const list = await prisma.character.findMany({
+      where: { projectId },
+    });
+    return list.map(formatCharacter);
   },
 
-  getCharacter(id: string): Character | undefined {
-    return readDb().characters.find(c => c.id === id);
+  async getCharacter(id: string): Promise<Character | undefined> {
+    const item = await prisma.character.findUnique({ where: { id } });
+    return item ? formatCharacter(item) : undefined;
   },
 
-  createCharacter(character: Omit<Character, 'id'>): Character {
-    const database = readDb();
-    const newCharacter: Character = {
-      ...character,
-      id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
-    database.characters.push(newCharacter);
-    writeDb(database);
-    return newCharacter;
+  async createCharacter(character: Omit<Character, 'id'>): Promise<Character> {
+    const id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const created = await prisma.character.create({
+      data: {
+        id,
+        projectId: character.projectId,
+        name: character.name,
+        role: character.role,
+        age: character.age,
+        identity: character.identity,
+        personality: JSON.stringify(character.personality || []),
+        goals: JSON.stringify(character.goals || []),
+        relationships: JSON.stringify(character.relationships || []),
+        currentState: character.currentState,
+        forbidden: JSON.stringify(character.forbidden || []),
+      },
+    });
+    return formatCharacter(created);
   },
 
-  updateCharacter(id: string, updates: Partial<Omit<Character, 'id' | 'projectId'>>): Character | undefined {
-    const database = readDb();
-    const index = database.characters.findIndex(c => c.id === id);
-    if (index === -1) return undefined;
-
-    const updated = {
-      ...database.characters[index],
-      ...updates,
-    };
-    database.characters[index] = updated;
-    writeDb(database);
-    return updated;
+  async updateCharacter(id: string, updates: Partial<Omit<Character, 'id' | 'projectId'>>): Promise<Character | undefined> {
+    const data: Record<string, unknown> = { ...updates };
+    if (updates.personality !== undefined) {
+      data.personality = JSON.stringify(updates.personality);
+    }
+    if (updates.goals !== undefined) {
+      data.goals = JSON.stringify(updates.goals);
+    }
+    if (updates.relationships !== undefined) {
+      data.relationships = JSON.stringify(updates.relationships);
+    }
+    if (updates.forbidden !== undefined) {
+      data.forbidden = JSON.stringify(updates.forbidden);
+    }
+    const updated = await prisma.character.update({
+      where: { id },
+      data,
+    });
+    return updated ? formatCharacter(updated) : undefined;
   },
 
-  deleteCharacter(id: string): boolean {
-    const database = readDb();
-    const originalLength = database.characters.length;
-    database.characters = database.characters.filter(c => c.id !== id);
-    writeDb(database);
-    return database.characters.length < originalLength;
+  async deleteCharacter(id: string): Promise<boolean> {
+    try {
+      await prisma.character.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // --- 世界观设定 (WorldRule) ---
-  getWorldRules(projectId: string): WorldRule[] {
-    return readDb().worldRules.filter(w => w.projectId === projectId);
+  async getWorldRules(projectId: string): Promise<WorldRule[]> {
+    const list = await prisma.worldRule.findMany({
+      where: { projectId },
+    });
+    return list.map(r => ({
+      ...r,
+      type: r.type as 'location' | 'faction' | 'rule' | 'item' | 'other',
+    }));
   },
 
-  getWorldRule(id: string): WorldRule | undefined {
-    return readDb().worldRules.find(w => w.id === id);
+  async getWorldRule(id: string): Promise<WorldRule | undefined> {
+    const item = await prisma.worldRule.findUnique({ where: { id } });
+    return item ? { ...item, type: item.type as 'location' | 'faction' | 'rule' | 'item' | 'other' } : undefined;
   },
 
-  createWorldRule(rule: Omit<WorldRule, 'id'>): WorldRule {
-    const database = readDb();
-    const newRule: WorldRule = {
-      ...rule,
-      id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    };
-    database.worldRules.push(newRule);
-    writeDb(database);
-    return newRule;
+  async createWorldRule(rule: Omit<WorldRule, 'id'>): Promise<WorldRule> {
+    const id = `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const created = await prisma.worldRule.create({
+      data: {
+        id,
+        projectId: rule.projectId,
+        type: rule.type,
+        name: rule.name,
+        description: rule.description,
+      },
+    });
+    return { ...created, type: created.type as 'location' | 'faction' | 'rule' | 'item' | 'other' };
   },
 
-  updateWorldRule(id: string, updates: Partial<Omit<WorldRule, 'id' | 'projectId'>>): WorldRule | undefined {
-    const database = readDb();
-    const index = database.worldRules.findIndex(w => w.id === id);
-    if (index === -1) return undefined;
-
-    const updated = {
-      ...database.worldRules[index],
-      ...updates,
-    };
-    database.worldRules[index] = updated;
-    writeDb(database);
-    return updated;
+  async updateWorldRule(id: string, updates: Partial<Omit<WorldRule, 'id' | 'projectId'>>): Promise<WorldRule | undefined> {
+    const updated = await prisma.worldRule.update({
+      where: { id },
+      data: updates,
+    });
+    return updated ? { ...updated, type: updated.type as 'location' | 'faction' | 'rule' | 'item' | 'other' } : undefined;
   },
 
-  deleteWorldRule(id: string): boolean {
-    const database = readDb();
-    const originalLength = database.worldRules.length;
-    database.worldRules = database.worldRules.filter(w => w.id !== id);
-    writeDb(database);
-    return database.worldRules.length < originalLength;
+  async deleteWorldRule(id: string): Promise<boolean> {
+    try {
+      await prisma.worldRule.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   // --- 对话历史 (AgentMessage) ---
-  getAgentMessages(projectId: string): AgentMessage[] {
-    return readDb().agentMessages.filter(m => m.projectId === projectId);
+  async getAgentMessages(projectId: string): Promise<AgentMessage[]> {
+    const list = await prisma.agentMessage.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return list.map(formatAgentMessage);
   },
 
-  saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): AgentMessage[] {
-    const database = readDb();
-    const now = new Date().toISOString();
-    // 过滤掉当前项目的旧对话，然后再存入新的对话
-    const filteredMessages = database.agentMessages.filter(m => m.projectId !== projectId);
-    
-    const newMessages: AgentMessage[] = messages.map(msg => ({
-      ...msg,
-      projectId,
-      userId: 'default_user',
-      createdAt: now
-    }));
+  async saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): Promise<AgentMessage[]> {
+    // 过滤并删除旧历史对话
+    await prisma.agentMessage.deleteMany({ where: { projectId } });
 
-    database.agentMessages = [...filteredMessages, ...newMessages];
-    writeDb(database);
-    return newMessages;
+    const createdList = [];
+    for (const msg of messages) {
+      const created = await prisma.agentMessage.create({
+        data: {
+          id: msg.id,
+          projectId,
+          userId: 'default_user',
+          type: msg.type,
+          agent: msg.agent,
+          label: msg.label,
+          content: msg.content,
+          toolName: msg.toolName,
+          toolInput: msg.toolInput ? JSON.stringify(msg.toolInput) : null,
+          from: msg.from,
+          fromLabel: msg.fromLabel,
+          to: msg.to,
+          toLabel: msg.toLabel,
+        },
+      });
+      createdList.push(formatAgentMessage(created));
+    }
+    return createdList;
   },
 
-  clearAgentMessages(projectId: string): boolean {
-    const database = readDb();
-    const originalLength = database.agentMessages.length;
-    database.agentMessages = database.agentMessages.filter(m => m.projectId !== projectId);
-    writeDb(database);
-    return database.agentMessages.length < originalLength;
+  async clearAgentMessages(projectId: string): Promise<boolean> {
+    try {
+      await prisma.agentMessage.deleteMany({ where: { projectId } });
+      return true;
+    } catch {
+      return false;
+    }
   },
 };

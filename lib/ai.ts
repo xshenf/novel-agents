@@ -719,7 +719,7 @@ export const ai = {
    * AI 聊天与记忆查询
    */
   async chat(projectId: string, query: string, apiKey?: string, modelName?: string): Promise<string> {
-    const memory = searchMemory(projectId, query);
+    const memory = await searchMemory(projectId, query);
     const systemInstruction = `你是一个高级小说创作助手。你非常熟悉这部小说的设定和剧情，能基于提供的上下文记忆，准确、专业、充满创作灵感地回答作者的问题。请保持小说文风，并给出明确、符合逻辑的推断。`;
     const prompt = `【当前背景上下文信息】:\n${memory.contextText}\n\n【作者提问】:\n${query}\n\n请结合上下文进行专业解答，说明事实并给出合理的创作建议。`;
 
@@ -740,10 +740,10 @@ export const ai = {
    * AI 自动写小说章节正文
    */
   async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string): Promise<string> {
-    const memory = searchMemory(projectId, chapterTitle);
+    const memory = await searchMemory(projectId, chapterTitle);
     
     // 获取当前项目的反 AI 规则配置
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     let antiAiInstructions = '';
     if (project?.antiAiStyleRules && project.antiAiStyleRules.length > 0) {
       const activeRules = DEFAULT_ANTI_AI_RULES.filter(r => project.antiAiStyleRules?.includes(r.key));
@@ -780,7 +780,7 @@ export const ai = {
    * AI 多维度设定自动生成
    */
   async generateInspirations(projectId: string, apiKey?: string, modelName?: string): Promise<{ characters: any[]; worldRules: any[] }> {
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     const title = project?.title || '';
     const desc = project?.description || '';
     const style = project?.styleSetting || '';
@@ -880,7 +880,7 @@ export const ai = {
    * AI 正文续写
    */
   async continueWriting(projectId: string, currentText: string, instruction?: string, apiKey?: string, modelName?: string): Promise<string> {
-    const memory = searchMemory(projectId, instruction || currentText);
+    const memory = await searchMemory(projectId, instruction || currentText);
     const systemInstruction = `你是一个职业网络小说作家。你将基于提供的小说世界观、人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
 要求：
 1. 风格、文笔、口吻要与已有内容高度一致。
@@ -930,7 +930,7 @@ export const ai = {
    * AI 章节大纲生成
    */
   async generateOutline(projectId: string, projectTitle: string, projectDesc: string, numChapters: number = 3, apiKey?: string, modelName?: string): Promise<string> {
-    const memory = searchMemory(projectId, '大纲 章节');
+    const memory = await searchMemory(projectId, '大纲 章节');
     const systemInstruction = `你是一个资深网络小说架构师和大纲主笔。你将基于小说的基本设定和目前的章节回顾，为作者规划生成接下来的章节大纲。`;
     const prompt = `【小说名】: ${projectTitle}
 【小说简介】: ${projectDesc}
@@ -957,7 +957,7 @@ ${memory.contextText}
     await new Promise(resolve => setTimeout(resolve, 1500));
     const charsList = memory.characters.map(c => c.name).join(', ');
     const rulesList = memory.worldRules.map(r => r.name).join(', ');
-    const project = db.getProject(projectId);
+    const project = await db.getProject(projectId);
     let inferredGenre = '玄幻奇幻';
     if (project) {
       const text = (project.worldSetting + " " + project.description).toLowerCase();
@@ -982,7 +982,7 @@ ${memory.contextText}
    * AI 逻辑一致性自检
    */
   async checkConsistency(projectId: string, currentText: string, apiKey?: string, modelName?: string): Promise<AICheckResult> {
-    const memory = searchMemory(projectId, currentText);
+    const memory = await searchMemory(projectId, currentText);
     const systemInstruction = `你是一个极度挑剔的小说审校编辑。你的任务是比对作者新写的章节正文与小说的人物卡、世界观设定、前文回顾等记忆，查找其中可能存在的逻辑漏洞、设定冲突、人物性格崩坏或违反写作禁忌的地方。`;
     const prompt = `【小说设定与前文背景】:\n${memory.contextText}\n\n【作者新写的正文内容】:\n\"\"\"\n${currentText}\n\"\"\"\n\n请详细检查上述正文是否与设定冲突。
 请以 JSON 格式输出，格式如下：

@@ -10,10 +10,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
-    const rules = db.getWorldRules(projectId);
+    const rules = await db.getWorldRules(projectId);
     return NextResponse.json(rules);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '获取设定失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '获取设定失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '名称不能为空' }, { status: 400 });
     }
 
-    const newRule = db.createWorldRule({
+    const newRule = await db.createWorldRule({
       projectId,
       name,
       type: type || 'other',
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newRule, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '创建设定失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '创建设定失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

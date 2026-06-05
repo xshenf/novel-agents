@@ -1,0 +1,87 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model NovelProject {
+  id               String         @id
+  userId           String         @default("default_user")
+  title            String
+  description      String
+  styleSetting     String
+  worldSetting     String
+  powerSystem      String         @default("")
+  goldFinger       String         @default("")
+  coreConflict     String         @default("")
+  factionsMap      String         @default("")
+  sellingPoints    String         @default("")
+  outlineFull      String         @default("")
+  antiAiStyleRules String         @default("[]")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  characters       Character[]
+  worldRules       WorldRule[]
+  chapters         Chapter[]
+  agentMessages    AgentMessage[]
+}
+
+model Character {
+  id            String       @id
+  projectId     String
+  project       NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  role          String
+  age           String
+  identity      String
+  personality   String       @default("[]")
+  goals         String       @default("[]")
+  relationships String       @default("[]")
+  currentState  String
+  forbidden     String       @default("[]")
+}
+
+model WorldRule {
+  id          String       @id
+  projectId   String
+  project     NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        String
+  name        String
+  description String
+}
+
+model Chapter {
+  id                    String       @id
+  projectId             String
+  project               NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                 String
+  content               String       @default("")
+  summary               String       @default("")
+  characterChanges      String       @default("[]")
+  newForeshadowing      String       @default("[]")
+  resolvedForeshadowing String       @default("[]")
+  timelineEvents        String       @default("[]")
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model AgentMessage {
+  id        String       @id
+  projectId String
+  project   NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String       @default("default_user")
+  type      String
+  agent     String?
+  label     String?
+  content   String
+  toolName  String?
+  toolInput String?
+  from      String?
+  fromLabel String?
+  to        String?
+  toLabel   String?
+  createdAt DateTime     @default(now())
+}

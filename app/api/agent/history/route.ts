@@ -10,7 +10,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
-    const messages = db.getAgentMessages(projectId);
+    const messages = await db.getAgentMessages(projectId);
     return NextResponse.json(messages);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '获取历史对话失败';
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '无效的 messages 参数' }, { status: 400 });
     }
 
-    const saved = db.saveAgentMessages(projectId, messages);
+    const saved = await db.saveAgentMessages(projectId, messages);
     return NextResponse.json(saved);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '保存历史对话失败';
@@ -48,7 +48,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
-    db.clearAgentMessages(projectId);
+    await db.clearAgentMessages(projectId);
     return NextResponse.json({ success: true, message: '历史对话已清空' });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '清空历史对话失败';

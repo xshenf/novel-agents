@@ -7,13 +7,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const chapter = db.getChapter(id);
+    const chapter = await db.getChapter(id);
     if (!chapter) {
       return NextResponse.json({ error: '章节未找到' }, { status: 404 });
     }
     return NextResponse.json(chapter);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '获取章节失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '获取章节失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -25,13 +26,14 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     
-    const updated = db.updateChapter(id, body);
+    const updated = await db.updateChapter(id, body);
     if (!updated) {
       return NextResponse.json({ error: '章节未找到' }, { status: 404 });
     }
     return NextResponse.json(updated);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '更新章节失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '更新章节失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -41,12 +43,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const success = db.deleteChapter(id);
+    const success = await db.deleteChapter(id);
     if (!success) {
       return NextResponse.json({ error: '章节未找到或删除失败' }, { status: 404 });
     }
     return NextResponse.json({ success: true, message: '章节已删除' });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || '删除章节失败' }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '删除章节失败';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
