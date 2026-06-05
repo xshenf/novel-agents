@@ -849,6 +849,8 @@ export default function Home() {
   const [tempFactionsMap, setTempFactionsMap] = useState('');
   const [tempSellingPoints, setTempSellingPoints] = useState('');
   const [tempOutlineFull, setTempOutlineFull] = useState('');
+  const [tempStyleSetting, setTempStyleSetting] = useState('');
+  const [tempWorldSetting, setTempWorldSetting] = useState('');
 
   // 切换项目时同步设定状态
   useEffect(() => {
@@ -859,6 +861,8 @@ export default function Home() {
       setTempFactionsMap(store.currentProject.factionsMap || '');
       setTempSellingPoints(store.currentProject.sellingPoints || '');
       setTempOutlineFull(store.currentProject.outlineFull || '');
+      setTempStyleSetting(store.currentProject.styleSetting || '');
+      setTempWorldSetting(store.currentProject.worldSetting || '');
       
       // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
@@ -3454,25 +3458,6 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-
-              <div className="sidebar-section" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>小说核心世界观</span>
-                  <button className="btn-icon" onClick={handleOpenEditProject} title="修改小说设定" style={{ padding: '2px' }}>
-                    <Settings size={14} />
-                  </button>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                  <div style={{ marginBottom: '8px' }}>
-                    <strong style={{ color: 'var(--text-main)' }}>文风设定：</strong>
-                    {store.currentProject.styleSetting || '未设定文风'}
-                  </div>
-                  <div>
-                    <strong style={{ color: 'var(--text-main)' }}>背景描述：</strong>
-                    {store.currentProject.worldSetting ? store.currentProject.worldSetting.substring(0, 75) + '...' : '未设定'}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -3817,6 +3802,26 @@ export default function Home() {
                         网络小说内核由 5 大设定维度共同支撑。您可以点击各展开项，微调具体内容，或一键选用 AI 为您推演的创意方案。
                       </p>
                     </div>
+                    
+                    {renderKernelDimensionCard(
+                      'styleSetting', 
+                      '小说文风与题材基调', 
+                      '定义小说的体裁定位、情感色调与写作偏好（如：快节奏爽文、热血升级、幽默吐槽等）', 
+                      tempStyleSetting, 
+                      setTempStyleSetting, 
+                      'styleSetting', 
+                      '例如：都市超能体裁，快节奏神豪爽文，整体色调轻松幽默，节奏明快...'
+                    )}
+                    
+                    {renderKernelDimensionCard(
+                      'worldSetting', 
+                      '核心世界观背景描述', 
+                      '定义小说主舞台的大陆疆域、宏观规则、历史背景与微观社会法则', 
+                      tempWorldSetting, 
+                      setTempWorldSetting, 
+                      'worldSetting', 
+                      '例如：一个灵气衰退的仙侠世界，修行者寿元大减，凡人建立的机械帝国与修士宗门共存...'
+                    )}
                     
                     {renderKernelDimensionCard(
                       'powerSystem', 
