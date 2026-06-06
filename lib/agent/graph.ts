@@ -349,7 +349,9 @@ const afterSpecialistToolNode = async (state: typeof AgentState.State) => ({
 });
 
 // ─── 构建 Graph ────────────────────────────────────────────────────────────────
-export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string) {
+// llmFactory 为可选的测试注入点：传入时用它按角色构造 LLM（桩模型），
+// 不传则走正常的 apiConfig 解析逻辑。生产调用无需传入，行为不变。
+export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string, llmFactory?: (role: string) => any) {
   let models: any[] = [];
   let bindings: Record<string, string> = {};
   let overrides: Record<string, any> = {};
@@ -370,6 +372,7 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
   }
 
   const getLLMForAgent = (agentRole: string) => {
+    if (llmFactory) return llmFactory(agentRole);
     if (isMultiModel) {
       const modelId = bindings[agentRole];
       const modelConfig = models.find(m => m.id === modelId) || models[0];
