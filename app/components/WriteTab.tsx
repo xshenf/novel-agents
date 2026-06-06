@@ -23,24 +23,33 @@ export function WriteTab() {
   const { isAutoWriting, startAutoWriting, pauseAutoWriting } = autoWriter;
   const { busy: inlineBusy, continueWriting, transformSelection } = inlineAi;
   const { handleOpenEditProject } = kernel;
+  const isCreatingRef = useRef(false);
 
   useEffect(() => {
     const createEmptyChapterIfNeeded = async () => {
       // 只有在 URL 中没有章节 ID (urlChapterId 为空) 且当前章节确实为 null 时，才去自动创建新章节。
-      // 这能完美防止在刷新页面时，因数据库章节列表尚未加载完成而造成的重复创建 Bug。
+      // 使用 isCreatingRef 锁来彻底杜绝在异步网络请求返回之前，多次重新渲染导致并发创建多个同名章节的竞态条件。
       if (
         selectedVolumeIdx !== null &&
         selectedChapterIdx !== null &&
         !store.currentChapter &&
         !urlChapterId &&
-        store.currentProject
+        store.currentProject &&
+        !isCreatingRef.current
       ) {
         const sec = outlineTree.localSections[selectedVolumeIdx]?.chapters[selectedChapterIdx];
         if (sec) {
-          const title = sec.title || '新章节';
-          const newChap = await store.createChapter(store.currentProject.id, title);
-          store.setCurrentChapter(newChap);
-          router.push(buildWorkspaceUrl(store.currentProject.id, 'write', newChap.id));
+          isCreatingRef.current = true;
+          try {
+            const title = sec.title || '新章节';
+            const newChap = await store.createChapter(store.currentProject.id, title);
+            store.setCurrentChapter(newChap);
+            router.push(buildWorkspaceUrl(store.currentProject.id, 'write', newChap.id));
+          } catch (e) {
+            console.error('自动创建新章节失败:', e);
+          } finally {
+            isCreatingRef.current = false;
+          }
         }
       }
     };
