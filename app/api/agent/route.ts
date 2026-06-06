@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { Command } from '@langchain/langgraph';
 import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
@@ -15,9 +16,11 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: '无效的请求体' }), { status: 400 });
   }
 
-  const { projectId, message, apiKey, modelName, messageId } = body;
+  const { projectId, message, apiKey, modelName, messageId, resume } = body;
+  // resume：用户对锁定项确认弹窗的回传（'confirm'/'cancel' 等真值字符串），用于恢复被 interrupt 暂停的图
+  const isResume = resume !== undefined && resume !== null && resume !== '';
 
-  if (!projectId || !message) {
+  if (!projectId || (!message && !isResume)) {
     return new Response(JSON.stringify({ error: '缺少 projectId 或 message' }), { status: 400 });
   }
 
@@ -63,24 +66,26 @@ export async function POST(request: NextRequest) {
           } catch { /* controller 已关闭时忽略 */ }
         }, 15000);
 
-        // 保存用户发送的消息
-        const userMsgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        await db.appendAgentMessage(projectId, {
-          id: userMsgId,
-          type: 'user',
-          content: message,
-        });
+        // 初次请求才保存用户消息；resume（确认/取消）不是新的用户输入
+        if (!isResume) {
+          const userMsgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          await db.appendAgentMessage(projectId, {
+            id: userMsgId,
+            type: 'user',
+            content: message,
+          });
+        }
 
-        send('start', { message: '多 Agent 系统启动...' });
+        send('start', { message: isResume ? '继续执行...' : '多 Agent 系统启动...' });
 
-        const inputMessages = [new HumanMessage(message)];
+        // resume 时用 Command 注入用户决定，恢复被 interrupt 暂停的图；否则按新消息正常启动
+        const graphInput: any = isResume
+          ? new Command({ resume })
+          : { messages: [new HumanMessage(message)], projectId };
 
         // 流式执行图，监听每个事件
         const eventStream = await graph.streamEvents(
-          {
-            messages: inputMessages,
-            projectId,
-          },
+          graphInput,
           {
             version: 'v2',
             recursionLimit: 50,
@@ -237,7 +242,22 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        send('done', { message: '任务完成' });
+        // 检测图是否在 interrupt 处暂停（如锁定项删除/修改需用户确认）
+        const snapshot = await graph.getState({ configurable: { thread_id: projectId } });
+        const pending = ((snapshot?.tasks as any[]) || []).flatMap((t: any) => t.interrupts || []);
+        if (pending.length > 0) {
+          const payload = pending[0]?.value || {};
+          const confirmMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          await db.appendAgentMessage(projectId, {
+            id: confirmMsgId,
+            type: 'confirm',
+            content: `需要你确认：${payload.action || '操作'}「${payload.target || ''}」（该项已锁定）`,
+            toolInput: payload,
+          });
+          send('confirm', { id: confirmMsgId, payload });
+        } else {
+          send('done', { message: '任务完成' });
+        }
       } catch (err: any) {
         console.error('Agent error:', err);
         const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
