@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { countChineseChars } from '@/lib/textStats';
@@ -9,6 +9,7 @@ import { GenerationControl } from './write/GenerationControl';
 import { MemoryPanel } from './write/MemoryPanel';
 import { DriftCheckPanel } from './write/DriftCheckPanel';
 import { VolumeManagementView } from './write/VolumeManagementView';
+import { ChapterOutlinePreview } from './write/ChapterOutlinePreview';
 
 export function WriteTab() {
   const { store, editor, autoWriter, inlineAi, kernel, outlineTree } = useWorkspace();
@@ -20,6 +21,14 @@ export function WriteTab() {
   const { isAutoWriting } = autoWriter;
   const { busy: inlineBusy, continueWriting, transformSelection } = inlineAi;
   const { handleOpenEditProject } = kernel;
+
+  const [showOutlineFirst, setShowOutlineFirst] = useState(true);
+
+  useEffect(() => {
+    if (store.currentChapter?.id) {
+      setShowOutlineFirst(true);
+    }
+  }, [store.currentChapter?.id]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const locked = isAutoWriting || inlineBusy !== null;
@@ -61,8 +70,11 @@ export function WriteTab() {
       {selectedVolumeIdx !== null && selectedChapterIdx === null ? (
         <VolumeManagementView vIdx={selectedVolumeIdx} />
       ) : store.currentChapter ? (
-        <>
-          <ChapterContextBar />
+        showOutlineFirst ? (
+          <ChapterOutlinePreview onStartWriting={() => setShowOutlineFirst(false)} />
+        ) : (
+          <>
+            <ChapterContextBar />
           <MemoryPanel />
           <DriftCheckPanel />
 
@@ -76,6 +88,11 @@ export function WriteTab() {
               disabled={locked}
             />
             <div className="editor-toolbar">
+              {/* 查看本章大纲 */}
+              <button className="btn btn-secondary" onClick={() => setShowOutlineFirst(true)} style={inlineBtn} disabled={locked} title="查看本章大纲">
+                <BookOpen size={13} />
+                <span>大纲</span>
+              </button>
               {/* 内联 AI：仅做编辑/修改辅助，正文以 AI 生成为主 */}
               <button className="btn btn-secondary" onClick={continueWriting} style={inlineBtn} disabled={locked} title="在全文末尾续写">
                 {inlineBusy === 'continue' ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
@@ -128,6 +145,7 @@ export function WriteTab() {
             <div>字数统计: {countChineseChars(editorContent)} 字</div>
           </div>
         </>
+        )
       ) : (
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-dark)', gap: '15px' }}>
           <BookOpen size={48} style={{ opacity: 0.3 }} />
