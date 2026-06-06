@@ -184,12 +184,29 @@ export function filterSpecialistMessages(role: string, messages: BaseMessage[]):
     }
   }
 
+  // 从历史消息中查找最新获取的 get_project_overview 概览信息，避免专家角色再次重复调用拉取
+  let latestOverview = '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg._getType() === 'tool' && (msg as any).name === 'get_project_overview') {
+      latestOverview = typeof msg.content === 'string' ? msg.content : '';
+      break;
+    }
+  }
+
   if (delegateIndex !== -1) {
     const delegateMsg = messages[delegateIndex];
     const delegateContent = typeof delegateMsg.content === 'string' ? delegateMsg.content : '';
     const taskContent = delegateContent.replace(delegatePattern, '').trim();
 
-    filteredMessages.push(new HumanMessage(`请执行编导委派给你的任务：\n${taskContent}`));
+    let taskInstruction = '';
+    if (latestOverview) {
+      taskInstruction = `当前项目的最新概览信息如下：\n${latestOverview}\n\n请执行编导委派给你的任务，且已掌握上述项目背景，无需再次调用 get_project_overview 进行拉取：\n${taskContent}`;
+    } else {
+      taskInstruction = `请执行编导委派给你的任务：\n${taskContent}`;
+    }
+
+    filteredMessages.push(new HumanMessage(taskInstruction));
 
     // 追加该委托之后的消息（专家在这一轮内部交互产生的 tool / ai 消息）
     for (let i = delegateIndex + 1; i < messages.length; i++) {

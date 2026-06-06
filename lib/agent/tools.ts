@@ -249,7 +249,7 @@ export const createWorldRuleTool = tool(
   },
   {
     name: 'create_world_rule',
-    description: '新建一条世界观设定，包括地点、势力、法则/规则、物品等。',
+    description: '新建一条具体的故事要素设定（如具体的地点、门派势力、法宝、局部的天道法则）。注意：如果涉及小说 7 大全局核心框架设定（文风题材、核心世界观整体大背景、境界与力量体系、金手指外挂、核心矛盾与终极危机、势力地理大板块、爽点卖点），请使用 update_project_field 工具修改，绝对不要在此创建重复的全局规则实体。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       name: z.string().describe('设定名称'),
@@ -275,7 +275,7 @@ export const updateProjectFieldTool = tool(
   },
   {
     name: 'update_project_field',
-    description: '更新小说项目的某个具体设定字段，如写作风格、世界观描述、能力体系等。',
+    description: '更新小说项目的全局核心设定字段。注意：此处仅用于宏观全局的框架设定，如果需要添加具体的微观设定要素（如具体的门派详情、地名历史、法宝细节），请使用 create_world_rule 工具，不要污染此处的全局宏观字段。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       field: z.string().describe('要更新的字段名，可选：title, description, styleSetting, worldSetting, powerSystem, goldFinger, coreConflict, factionsMap, sellingPoints, outlineFull'),
@@ -898,7 +898,6 @@ export const LORE_BUILDER_TOOLS = [
   getProjectOverviewTool,
   createCharacterTool,
   createWorldRuleTool,
-  updateProjectFieldTool,
   generateInspirationsTool,
   queryMemoryTool,
 ];

@@ -38,7 +38,7 @@ export function WorkspaceTabBar() {
         </button>
       </div>
 
-      {activeWorkspaceTab !== 'write' && (
+      {activeWorkspaceTab === 'outline' && (
         <button
           className="btn btn-secondary"
           onClick={fetchKernelOptions}
