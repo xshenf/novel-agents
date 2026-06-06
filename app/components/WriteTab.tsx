@@ -181,7 +181,7 @@ export function WriteTab() {
                     <button className="btn btn-secondary" onClick={() => exportFile('md')} style={exportBtn} title="导出为 Markdown">
                       <Download size={14} />
                     </button>
-                    <button className="btn btn-primary" onClick={forceSave} style={saveBtn} disabled={locked}>
+                    <button className="btn btn-primary" onClick={forceSave} style={saveBtn} disabled={locked} title="立即手动保存正文草稿">
                       <Save size={14} />
                       <span>保存</span>
                     </button>

@@ -202,6 +202,7 @@ ${contextChapters}
                 e.stopPropagation();
                 handleGenerateOutline();
               }}
+              title="根据现有设定智能推演生成剧情大纲"
               style={{
                 background: 'rgba(56, 189, 248, 0.1)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
@@ -299,6 +300,7 @@ ${contextChapters}
               type="button"
               disabled={isGenerating}
               onClick={handleGenerateOutline}
+              title="根据现有设定智能推演生成剧情大纲"
               style={{
                 width: '100%',
                 padding: '6px 10px',

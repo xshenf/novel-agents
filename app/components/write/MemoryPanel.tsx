@@ -33,10 +33,10 @@ function EditableText({ value, onSave, placeholder }: { value: string; onSave: (
         style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: '5px', color: '#fff', fontSize: '12px', padding: '6px 8px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
       />
       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-        <button onClick={() => { setEditing(false); onSave(draft); }} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '3px 8px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: 'var(--accent-success)', borderRadius: '4px', cursor: 'pointer' }}>
+        <button onClick={() => { setEditing(false); onSave(draft); }} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '3px 8px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: 'var(--accent-success)', borderRadius: '4px', cursor: 'pointer' }} title="保存对此段记忆信息的修改">
           <Check size={11} /> 保存
         </button>
-        <button onClick={() => { setEditing(false); setDraft(value); }} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '3px 8px', background: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '4px', cursor: 'pointer' }}>
+        <button onClick={() => { setEditing(false); setDraft(value); }} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '3px 8px', background: 'transparent', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '4px', cursor: 'pointer' }} title="放弃修改并还原">
           <X size={11} /> 取消
         </button>
       </div>
@@ -68,7 +68,7 @@ export function MemoryPanel() {
 
   return (
     <div className="glass-card" style={{ margin: '12px 30px 0', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.18)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: open ? '12px' : 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setOpen(o => !o)} title={open ? "收起 AI 记忆卡片" : "展开 AI 记忆卡片"}>
         <Brain size={14} style={{ color: '#34d399' }} />
         <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff', flex: 1 }}>AI 记忆</span>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>校对此处可阻断跑偏</span>
