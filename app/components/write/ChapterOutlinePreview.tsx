@@ -118,6 +118,11 @@ ${contextChapters}
 
         const md = generateMarkdownFromSections(newSections);
         kernel.setTempOutlineFull(md);
+        if (store.currentProject) {
+          store.updateProject(store.currentProject.id, { outlineFull: md }).catch(e => {
+            console.error('自动保存推演大纲至数据库失败:', e);
+          });
+        }
       } else {
         throw new Error('AI 返回的内容无法解析为标准的章节大纲格式，请重试');
       }

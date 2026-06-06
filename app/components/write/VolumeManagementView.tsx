@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Lock, Unlock, ArrowUp, ArrowDown, Trash2, Sparkles, PenLine, Plus, Loader2, Save } from 'lucide-react';
+import { BookOpen, Lock, Unlock, ArrowUp, ArrowDown, Trash2, PenLine, Plus, Save } from 'lucide-react';
 import { useWorkspace } from '../../workspace-context';
 import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
+import { VolumeAiPanel } from './VolumeAiPanel';
 
 interface VolumeManagementViewProps {
   vIdx: number;
@@ -20,10 +21,6 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
   const { router, buildWorkspaceUrl } = routing;
   const { localSections, setSelectedVolumeIdx, setSelectedChapterIdx } = outlineTree;
   const {
-    isAiOutlineLoading,
-    handleAiGenerateVolumeOutline,
-    handleAiGenerateVolumeChapters,
-    handleAiGenerateFullVolume,
     handleAddChapter,
     handleDeleteVolume,
     toggleLockVolume,
@@ -36,7 +33,6 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
   // 局部状态，用于输入框编辑
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [numChapters, setNumChapters] = useState(3);
   const [isSaved, setIsSaved] = useState(true);
 
   // 当分卷变化时，同步局部状态
@@ -429,146 +425,7 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
         </div>
 
         {/* 右侧：AI 智能助手与规划 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="glass-card" style={{
-            background: 'linear-gradient(135deg, rgba(56,189,248,0.02) 0%, rgba(56,189,248,0.005) 100%)',
-            border: '1px solid rgba(56, 189, 248, 0.15)',
-            borderRadius: '12px',
-            padding: '20px',
-            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)'
-          }}>
-            <h5 style={{ fontSize: '13px', fontWeight: '700', color: '#38bdf8', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} />
-              <span>AI 剧情大纲助手</span>
-            </h5>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* ① 走向一键推演 */}
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
-                  分卷走向推演
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
-                  让 AI 结合全书背景设定，智能重写或丰富本分卷的整体矛盾与高潮走向。
-                </div>
-                <button
-                  type="button"
-                  disabled={isAiOutlineLoading}
-                  onClick={() => handleAiGenerateVolumeOutline(vIdx)}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    background: 'rgba(56, 189, 248, 0.1)',
-                    color: '#38bdf8',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  <span>AI 推演分卷走向</span>
-                </button>
-              </div>
-
-              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-              {/* ② 规划新章节 */}
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
-                  AI 规划章节细纲
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
-                  仅在本卷末尾接续规划新的章节大纲，不影响现有分卷标题与概要。
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>规划数量：</span>
-                  <select
-                    value={numChapters}
-                    onChange={e => setNumChapters(Number(e.target.value))}
-                    style={{
-                      background: 'rgba(0,0,0,0.3)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      outline: 'none'
-                    }}
-                  >
-                    {[2, 3, 5, 8, 10].map(n => (
-                      <option key={n} value={n}>{n} 章</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  disabled={isAiOutlineLoading}
-                  onClick={() => handleAiGenerateVolumeChapters(vIdx, numChapters)}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(56, 189, 248, 0.2)',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    color: '#e0e0e0',
-                    fontSize: '11px',
-                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  <span>规划新章节大纲</span>
-                </button>
-              </div>
-
-              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-              {/* ③ 重置重建整卷 */}
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
-                  AI 一键重建本卷
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
-                  重写本卷的标题、概要走向，并重新规划所含的章节。警告：这将清空该卷旧的章节细纲。
-                </div>
-                <button
-                  type="button"
-                  disabled={isAiOutlineLoading}
-                  onClick={() => handleAiGenerateFullVolume(vIdx, 5)}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    background: 'rgba(239, 68, 68, 0.05)',
-                    color: '#f87171',
-                    fontSize: '11px',
-                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  <span>重建本卷大纲与章节</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <VolumeAiPanel vIdx={vIdx} />
       </div>
     </div>
   );

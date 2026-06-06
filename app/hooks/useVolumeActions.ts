@@ -21,11 +21,19 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
   const [isAiOutlineLoading, setIsAiOutlineLoading] = useState(false);
 
   const persist = useCallback(
-    (next: OutlineVolume[]) => {
+    async (next: OutlineVolume[]) => {
       const renumbered = renumberVolumesAndChapters(next);
-      setOutlineFull(generateMarkdownFromSections(renumbered));
+      const md = generateMarkdownFromSections(renumbered);
+      setOutlineFull(md);
+      if (store.currentProject) {
+        try {
+          await store.updateProject(store.currentProject.id, { outlineFull: md });
+        } catch (e) {
+          console.error('自动保存大纲至数据库失败:', e);
+        }
+      }
     },
-    [setOutlineFull]
+    [setOutlineFull, store]
   );
 
   // 通用：把 AI 生成的细纲 Markdown 文本追加到指定分卷

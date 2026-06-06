@@ -70,6 +70,9 @@ export function WriteTab() {
       });
       const md = generateMarkdownFromSections(newSections);
       kernel.setTempOutlineFull(md);
+      store.updateProject(store.currentProject.id, { outlineFull: md }).catch(e => {
+        console.error('自动保存重命名后大纲失败:', e);
+      });
     }
   };
 
