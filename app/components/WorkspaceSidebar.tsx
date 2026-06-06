@@ -33,7 +33,7 @@ export function WorkspaceSidebar() {
     setSelectedChapterIdx(null);
     store.setCurrentChapter(null);
     setActiveWorkspaceTab('write');
-    router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
+    router.push(buildWorkspaceUrl(store.currentProject!.id, 'write', undefined, vIdx));
   };
 
   const handleSelectChapter = (vIdx: number, cIdx: number) => {
@@ -211,7 +211,7 @@ export function WorkspaceSidebar() {
                       setSelectedChapterIdx(null);
                       store.setCurrentChapter(null);
                       setActiveWorkspaceTab('write');
-                      router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
+                      router.push(buildWorkspaceUrl(store.currentProject!.id, 'write', undefined, localSections.length));
                     }}
                     style={treeActionBtn}
                     title="新建一个空分卷"
@@ -226,7 +226,7 @@ export function WorkspaceSidebar() {
                         setSelectedChapterIdx(null);
                         store.setCurrentChapter(null);
                         setActiveWorkspaceTab('write');
-                        router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
+                        router.push(buildWorkspaceUrl(store.currentProject!.id, 'write', undefined, localSections.length));
                       }, 100);
                     }}
                     disabled={isAiOutlineLoading}

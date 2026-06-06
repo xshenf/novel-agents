@@ -46,7 +46,7 @@ export default function Home() {
   const modals = useCreationModals(store);
   const layout = useResizablePanels();
   const agent = useAgentChat(store);
-  const outlineTree = useOutlineTreeState({ tempOutlineFull: kernel.tempOutlineFull, currentChapter: store.currentChapter });
+  const outlineTree = useOutlineTreeState({ tempOutlineFull: kernel.tempOutlineFull, currentChapter: store.currentChapter, urlVolumeIdx: routing.urlVolumeIdx });
   const volumeActions = useVolumeActions({
     store,
     getLocalSections: () => outlineTree.localSections,

@@ -4,16 +4,25 @@ import { parseStructureOutline, type OutlineVolume } from '@/lib/outlineParser';
 interface UseOutlineTreeStateParams {
   tempOutlineFull: string;
   currentChapter: any;
+  urlVolumeIdx: number | null;
 }
 
 // 共享"目录式大纲"状态：解析分卷-章节并维护最左侧章节列表的选中节点
 // WorkspaceSidebar / WriteTab / OutlineTab 均复用同一份解析结果与选中态
-export function useOutlineTreeState({ tempOutlineFull, currentChapter }: UseOutlineTreeStateParams) {
+export function useOutlineTreeState({ tempOutlineFull, currentChapter, urlVolumeIdx }: UseOutlineTreeStateParams) {
   const [selectedVolumeIdx, setSelectedVolumeIdx] = useState<number | null>(null);
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(null);
   const [collapsedVolumes, setCollapsedVolumes] = useState<Record<number, boolean>>({});
 
   const localSections = useMemo(() => parseStructureOutline(tempOutlineFull), [tempOutlineFull]);
+
+  // 从 URL 恢复选中的分卷
+  useEffect(() => {
+    if (urlVolumeIdx !== null && !currentChapter) {
+      setSelectedVolumeIdx(urlVolumeIdx);
+      setSelectedChapterIdx(null);
+    }
+  }, [urlVolumeIdx, currentChapter]);
 
   // 当当前章节存在且大纲加载成功时，自动反向匹配定位并高亮对应大纲章节
   useEffect(() => {

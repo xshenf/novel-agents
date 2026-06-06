@@ -170,7 +170,11 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             type="button"
             onClick={() => {
               handleMoveVolume(vIdx, 'up');
-              setSelectedVolumeIdx(Math.max(0, vIdx - 1));
+              const nextIdx = Math.max(0, vIdx - 1);
+              setSelectedVolumeIdx(nextIdx);
+              if (store.currentProject) {
+                router.push(buildWorkspaceUrl(store.currentProject.id, 'write', undefined, nextIdx));
+              }
             }}
             disabled={vIdx === 0}
             style={{
@@ -195,7 +199,11 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             type="button"
             onClick={() => {
               handleMoveVolume(vIdx, 'down');
-              setSelectedVolumeIdx(Math.min(localSections.length - 1, vIdx + 1));
+              const nextIdx = Math.min(localSections.length - 1, vIdx + 1);
+              setSelectedVolumeIdx(nextIdx);
+              if (store.currentProject) {
+                router.push(buildWorkspaceUrl(store.currentProject.id, 'write', undefined, nextIdx));
+              }
             }}
             disabled={vIdx === localSections.length - 1}
             style={{
@@ -221,6 +229,9 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             onClick={() => {
               handleDeleteVolume(vIdx);
               setSelectedVolumeIdx(null);
+              if (store.currentProject) {
+                router.push(buildWorkspaceUrl(store.currentProject.id, 'write'));
+              }
             }}
             style={{
               background: 'transparent',
