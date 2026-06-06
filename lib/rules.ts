@@ -8,3 +8,13 @@ export const DEFAULT_ANTI_AI_RULES = [
   { key: 'no_moralizing', name: '️ 禁止直接说教与评判', promptInstruction: '作者视角禁止对人物的行为或选择进行直接的价值评判、道德说教或客观判定。让事情自然呈现，由读者自行体会。' },
   { key: 'dynamic_status', name: '️ 避免大段静态解释', promptInstruction: '注意避免连续几段全是静态的设定解释或背景交代。必须将设定拆散，融入到人物动作和当下的对话交锋中。' }
 ];
+
+// 把项目启用的反 AI 规则 key 解析成编号指令文本（不含表头）。
+// 供 ai.autoWriteChapter / polishTextTool / agent.buildStyleContext 复用，避免重复实现。
+// 无启用规则时返回空串，由调用方决定是否拼接自己的表头。
+export function formatAntiAiInstructions(ruleKeys?: string[]): string {
+  if (!ruleKeys || ruleKeys.length === 0) return '';
+  const active = DEFAULT_ANTI_AI_RULES.filter(r => ruleKeys.includes(r.key));
+  if (active.length === 0) return '';
+  return active.map((r, i) => `${i + 1}. [${r.name}] ${r.promptInstruction}`).join('\n');
+}

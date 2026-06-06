@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, type Chapter } from '../db';
 import { searchMemory } from '../memory';
 import { ai } from '../ai';
+import { formatAntiAiInstructions } from '../rules';
 
 // ─── 构建 callAIApi 参数（从 agent 环境变量注入） ────────────────────────────
 
@@ -388,13 +389,8 @@ export const polishTextTool = tool(
     let antiAiNote = '';
     if (projectId) {
       const project = await db.getProject(projectId);
-      if (project?.antiAiStyleRules && project.antiAiStyleRules.length > 0) {
-        const { DEFAULT_ANTI_AI_RULES } = await import('../rules');
-        const activeRules = DEFAULT_ANTI_AI_RULES.filter(r => project.antiAiStyleRules?.includes(r.key));
-        if (activeRules.length > 0) {
-          antiAiNote = '\n' + activeRules.map((r, i) => `${i + 1}. [${r.name}] ${r.promptInstruction}`).join('\n');
-        }
-      }
+      const lines = formatAntiAiInstructions(project?.antiAiStyleRules);
+      if (lines) antiAiNote = '\n' + lines;
     }
 
     const fullInstruction = (instruction || '') + antiAiNote;

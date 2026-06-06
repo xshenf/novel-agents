@@ -1,6 +1,6 @@
 import { searchMemory } from './memory';
 import { db } from './db';
-import { DEFAULT_ANTI_AI_RULES } from './rules';
+import { formatAntiAiInstructions } from './rules';
 
 export interface AIChatMessage {
   role: 'user' | 'model';
@@ -794,16 +794,14 @@ export const ai = {
   async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string): Promise<string> {
     const memory = await searchMemory(projectId, chapterTitle);
     
-    // 获取当前项目的反 AI 规则配置
+    // 获取当前项目的文风设定与反 AI 规则配置
     const project = await db.getProject(projectId);
-    let antiAiInstructions = '';
-    if (project?.antiAiStyleRules && project.antiAiStyleRules.length > 0) {
-      const activeRules = DEFAULT_ANTI_AI_RULES.filter(r => project.antiAiStyleRules?.includes(r.key));
-      if (activeRules.length > 0) {
-        antiAiInstructions = `\n请务必严格遵守以下文风控制与反AI写作控制规则（极其重要）：\n` + 
-          activeRules.map((r, i) => `${i + 1}. [${r.name}] ${r.promptInstruction}`).join('\n');
-      }
-    }
+    const styleText = (project?.styleSetting || '').trim();
+    const styleBlock = styleText ? `\n本书既定文风（务必严格贴合）：${styleText}` : '';
+    const antiAiLines = formatAntiAiInstructions(project?.antiAiStyleRules);
+    const antiAiInstructions = antiAiLines
+      ? `\n请务必严格遵守以下文风控制与反AI写作控制规则（极其重要）：\n` + antiAiLines
+      : '';
 
     const systemInstruction = `你是一个网络小说全职写手，擅长撰写情节跌宕起伏、伏笔连贯、人物塑造深刻的网络小说。
 你的任务是根据提供的小说设定、相关人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
@@ -811,7 +809,7 @@ export const ai = {
 1. 章节标题是：“${chapterTitle}”。
 2. 字数在 1000 字左右，结构必须包含：起（环境烘托与引子）、承（角色互动与对话）、转（核心冲突与博弈）、合（悬念留白与下章伏笔）。
 3. 必须绝对遵循人物卡的性格描述、关系背景以及“写作禁忌”。
-4. 行文文风必须与小说项目的文风一致。${antiAiInstructions}
+4. 行文文风必须与本书既定文风严格一致。${styleBlock}${antiAiInstructions}
 5. 仅输出章节的正文内容，不要包含任何多余的引言、前言或总结。`;
 
     const prompt = `【小说设定与长期记忆】:\n${memory.contextText}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
