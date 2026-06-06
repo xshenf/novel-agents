@@ -142,12 +142,16 @@ ${contextChapters}
       transition: 'all 0.25s ease'
     }}>
       {/* 头部：标题与状态控制 */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
+      <div 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          cursor: 'pointer'
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
           <div style={{
             width: '26px',
@@ -172,6 +176,7 @@ ${contextChapters}
               onChange={e => setLocalTitle(e.target.value)}
               onBlur={handleTitleBlur}
               onKeyDown={e => { if (e.key === 'Enter') handleTitleBlur(); }}
+              onClick={e => e.stopPropagation()}
               placeholder="输入章节名称..."
               style={{
                 background: 'transparent',
@@ -193,7 +198,10 @@ ${contextChapters}
             <button
               type="button"
               disabled={isGenerating}
-              onClick={handleGenerateOutline}
+              onClick={e => {
+                e.stopPropagation();
+                handleGenerateOutline();
+              }}
               style={{
                 background: 'rgba(56, 189, 248, 0.1)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
@@ -215,7 +223,10 @@ ${contextChapters}
 
           <button
             type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={e => {
+              e.stopPropagation();
+              setIsCollapsed(!isCollapsed);
+            }}
             style={{
               background: 'transparent',
               border: 'none',
