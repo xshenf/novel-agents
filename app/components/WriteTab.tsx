@@ -74,11 +74,36 @@ export function WriteTab() {
     transformSelection(mode, el.selectionStart, el.selectionEnd);
   };
 
+  const toolbarBtnBase: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    height: '32px',
+    fontSize: '12px',
+    borderRadius: '6px',
+    boxSizing: 'border-box',
+    whiteSpace: 'nowrap',
+  };
+
   const inlineBtn: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: '4px',
-    padding: '8px 10px', fontSize: '12px', borderRadius: '6px',
-    background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)',
-    color: '#c7d2fe', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1,
+    ...toolbarBtnBase,
+    padding: '0 10px',
+    background: 'rgba(99,102,241,0.08)',
+    border: '1px solid rgba(99,102,241,0.22)',
+    color: '#c7d2fe',
+    cursor: locked ? 'not-allowed' : 'pointer',
+    opacity: locked ? 0.5 : 1,
+  };
+
+  const exportBtn: React.CSSProperties = {
+    ...toolbarBtnBase,
+    padding: '0 8px',
+  };
+
+  const saveBtn: React.CSSProperties = {
+    ...toolbarBtnBase,
+    padding: '0 12px',
   };
 
   return (
@@ -139,10 +164,10 @@ export function WriteTab() {
                     {inlineBusy === 'rewrite' ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                     <span>改写</span>
                   </button>
-                  <button className="btn btn-secondary" onClick={() => exportFile('md')} style={{ padding: '8px 8px' }} title="导出为 Markdown">
+                  <button className="btn btn-secondary" onClick={() => exportFile('md')} style={exportBtn} title="导出为 Markdown">
                     <Download size={14} />
                   </button>
-                  <button className="btn btn-primary" onClick={forceSave} style={{ padding: '8px 12px' }} disabled={locked}>
+                  <button className="btn btn-primary" onClick={forceSave} style={saveBtn} disabled={locked}>
                     <Save size={14} />
                     <span>保存</span>
                   </button>

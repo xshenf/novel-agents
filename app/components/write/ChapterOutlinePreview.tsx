@@ -129,13 +129,13 @@ ${contextChapters}
   };
 
   return (
-    <div style={{
+    <div className="glass-card" style={{
       margin: '12px 30px 0',
-      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
-      border: '1px solid rgba(255, 255, 255, 0.04)',
+      background: 'rgba(255, 255, 255, 0.015)',
+      border: '1px solid var(--border-light)',
       borderRadius: '12px',
-      padding: isCollapsed ? '10px 16px' : '16px 20px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+      padding: '12px 16px',
+      boxShadow: 'var(--shadow-md)',
       display: 'flex',
       flexDirection: 'column',
       gap: '12px',

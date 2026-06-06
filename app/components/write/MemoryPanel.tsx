@@ -67,7 +67,7 @@ export function MemoryPanel() {
   if (!store.currentChapter) return null;
 
   return (
-    <div className="glass-card" style={{ margin: '12px 30px 0', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.18)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: open ? '12px' : 0 }}>
+    <div className="glass-card" style={{ margin: '12px 30px 0', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.18)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: open ? '12px' : 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
         <Brain size={14} style={{ color: '#34d399' }} />
         <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff', flex: 1 }}>AI 记忆</span>

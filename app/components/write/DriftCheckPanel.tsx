@@ -12,7 +12,7 @@ export function DriftCheckPanel() {
   if (!summarizeMsg && !checkResult) return null;
 
   return (
-    <div style={{ margin: '12px 30px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div className="glass-card" style={{ margin: '12px 30px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {summarizeMsg && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '6px', fontSize: '12px', color: '#a7f3d0' }}>
           <CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
