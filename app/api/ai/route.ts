@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       }
 
       case 'generateKernel': {
-        const { genre, tone, concurrency } = body;
+        const { genre, tone, concurrency, projectId } = body;
         if (!projectTitle || !genre || !tone) {
           return NextResponse.json({ error: '缺少 projectTitle, genre 或 tone' }, { status: 400 });
         }
@@ -175,8 +175,16 @@ export async function POST(request: Request) {
             try {
               const result = await ai.generateKernelSettings(
                 projectTitle, genre, tone, apiKey, modelName,
-                (dimKey, dimLabel, index, total) => {
-                  send('progress', { dimKey, dimLabel, index, total });
+                async (dimKey, dimLabel, index, total, dimOptions) => {
+                  // 每个维度完成后立即保存到数据库并通知前端
+                  if (projectId && dimOptions && dimOptions.length > 0 && dimOptions[0].description) {
+                    try {
+                      await db.updateProject(projectId, { [dimKey]: dimOptions[0].description });
+                    } catch (e) {
+                      console.error('Failed to save dimension result', e);
+                    }
+                  }
+                  send('dimension_done', { dimKey, dimLabel, index, total, firstOption: dimOptions?.[0]?.description || '' });
                 },
                 concurrency || 3
               );

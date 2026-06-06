@@ -30,7 +30,7 @@ export interface AICheckResult {
 async function runWithConcurrency<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (result: T, completed: number, total: number) => void
 ): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
   let nextIndex = 0;
@@ -39,13 +39,15 @@ async function runWithConcurrency<T>(
   async function worker() {
     while (nextIndex < tasks.length) {
       const idx = nextIndex++;
+      let result: T;
       try {
-        results[idx] = await tasks[idx]();
+        result = await tasks[idx]();
       } catch (err) {
-        results[idx] = err as any;
+        result = err as any;
       }
+      results[idx] = result;
       completedCount++;
-      if (onProgress) onProgress(completedCount, tasks.length);
+      if (onProgress) onProgress(result, completedCount, tasks.length);
     }
   }
 
@@ -331,12 +333,12 @@ export const ai = {
   /**
    * AI 推演网络小说核心设定 (10 大维度，各 3 套备选推荐)
    * 按维度并发调用，concurrency 控制同时请求数
-   * onProgress 回调在每完成一个维度时触发，参数为 (dimKey, dimLabel, index, total)
+   * onProgress 回调在每完成一个维度时触发，参数为 (dimKey, dimLabel, index, total, dimOptions)
    */
   async generateKernelSettings(
     projectTitle: string, genre: string, tone: string,
     apiKey?: string, modelName?: string,
-    onProgress?: (dimKey: string, dimLabel: string, index: number, total: number) => void,
+    onProgress?: (dimKey: string, dimLabel: string, index: number, total: number, dimOptions?: Array<{ name: string; description: string }>) => void,
     concurrency: number = 3
   ): Promise<any> {
     const dimensions = [
@@ -390,27 +392,22 @@ export const ai = {
     });
 
     // 并发执行，按 concurrency 控制并发数
-    const taskResults = await runWithConcurrency(tasks, concurrency, (completed) => {
-      if (onProgress && completed <= dimensions.length) {
-        const dim = dimensions[completed - 1];
-        if (dim) {
-          onProgress(dim.key, dim.label, completed, dimensions.length);
-        }
+    const taskResults = await runWithConcurrency(tasks, concurrency, (result, completed, total) => {
+      if (onProgress && !(result instanceof Error)) {
+        const item = result as { key: string; label: string; options: Array<{ name: string; description: string }> };
+        onProgress(item.key, item.label, completed, total, item.options);
       }
     });
 
-    const result: Record<string, any> = {};
+    const finalResult: Record<string, any> = {};
     for (const r of taskResults) {
       if (r && !(r instanceof Error)) {
         const item = r as { key: string; label: string; options: any[] };
-        result[item.key] = item.options;
-        if (onProgress) {
-          onProgress(item.key, item.label, Object.keys(result).length, dimensions.length);
-        }
+        finalResult[item.key] = item.options;
       }
     }
 
-    return result;
+    return finalResult;
   },
 
   /**

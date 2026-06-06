@@ -101,7 +101,8 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         projectTitle: store.currentProject.title,
         genre: store.currentProject.description || '仙侠修真',
         tone: store.currentProject.styleSetting || '传统正剧',
-        concurrency
+        concurrency,
+        projectId: store.currentProject.id
       });
 
       if (!response.ok) {
@@ -115,7 +116,21 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         const reader = response.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let finalResult: any = null;
+
+        // 维度 key -> 对应的 temp setter
+        const tempSetters: Record<string, (v: string) => void> = {
+          worldSetting: setTempWorldSetting,
+          coreConflict: setTempCoreConflict,
+          sellingPoints: setTempSellingPoints,
+          powerSystem: setTempPowerSystem,
+          goldFinger: setTempGoldFinger,
+          styleSetting: setTempStyleSetting,
+          skillSystem: setTempSkillSystem,
+          location: setTempLocation,
+          faction: setTempFaction,
+          currency: setTempCurrency,
+          item: setTempItem,
+        };
 
         while (true) {
           const { done, value } = await reader.read();
@@ -133,10 +148,22 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
               const dataStr = line.slice(6);
               try {
                 const data = JSON.parse(dataStr);
-                if (currentEvent === 'progress') {
-                  setKernelProgress(`正在推演第 ${data.index}/${data.total} 维度：${data.dimLabel}`);
+                if (currentEvent === 'dimension_done') {
+                  // 每个维度完成后实时更新 UI
+                  setKernelProgress(`正在推演第 ${data.index}/${data.total} 维度：${data.dimLabel} - 已完成`);
+                  if (data.dimKey && data.firstOption) {
+                    const setter = tempSetters[data.dimKey];
+                    if (setter) setter(data.firstOption);
+                  }
                 } else if (currentEvent === 'done') {
-                  finalResult = data;
+                  // 全部完成，刷新项目数据
+                  if (store.currentProject) {
+                    try {
+                      await store.refreshProject(store.currentProject.id);
+                    } catch (e) {
+                      console.error('Failed to refresh project', e);
+                    }
+                  }
                 } else if (currentEvent === 'error') {
                   throw new Error(data.error || 'AI 操作执行失败');
                 }
@@ -144,41 +171,6 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
                 if (e.message && !e.message.includes('JSON')) throw e;
               }
               currentEvent = '';
-            }
-          }
-        }
-
-        if (finalResult) {
-          // 直接应用每个维度的第一个方案，自动保存
-          const updates: Record<string, string> = {};
-          for (const [dimKey, options] of Object.entries(finalResult)) {
-            const opts = options as Array<{ name: string; description: string }>;
-            if (opts && opts.length > 0 && opts[0].description) {
-              updates[dimKey] = opts[0].description;
-            }
-          }
-          if (Object.keys(updates).length > 0 && store.currentProject) {
-            try {
-              await store.updateProject(store.currentProject.id, updates);
-              // 同步更新 temp 状态
-              const tempSetters: Record<string, (v: string) => void> = {
-                worldSetting: setTempWorldSetting,
-                coreConflict: setTempCoreConflict,
-                sellingPoints: setTempSellingPoints,
-                powerSystem: setTempPowerSystem,
-                goldFinger: setTempGoldFinger,
-                styleSetting: setTempStyleSetting,
-                skillSystem: setTempSkillSystem,
-                location: setTempLocation,
-                faction: setTempFaction,
-                currency: setTempCurrency,
-                item: setTempItem,
-              };
-              for (const [key, setter] of Object.entries(tempSetters)) {
-                if (updates[key]) setter(updates[key]);
-              }
-            } catch (e) {
-              console.error('Failed to auto-apply kernel options', e);
             }
           }
         }

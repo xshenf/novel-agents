@@ -57,6 +57,7 @@ export interface NovelStore {
   createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string) => Promise<NovelProject>;
   deleteProject: (id: string) => Promise<void>;
   updateProject: (id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>) => Promise<NovelProject>;
+  refreshProject: (id: string) => Promise<void>;
   setCurrentProject: (project: NovelProject | null) => void;
 
   fetchChapters: (projectId: string) => Promise<void>;
@@ -473,6 +474,18 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         set({ error: err.message, isLoading: false });
         throw err;
       }
+    },
+
+    refreshProject: async (id: string) => {
+      try {
+        const res = await fetch(`/api/projects/${id}`);
+        if (!res.ok) return;
+        const updated = await res.json();
+        set(state => ({
+          projects: state.projects.map(p => p.id === id ? updated : p),
+          currentProject: state.currentProject?.id === id ? updated : state.currentProject,
+        }));
+      } catch { /* ignore */ }
     },
 
     setCurrentProject: (project) => {
