@@ -1,6 +1,6 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { db } from '../db';
+import { db, type Chapter } from '../db';
 import { searchMemory } from '../memory';
 import { ai } from '../ai';
 
@@ -11,6 +11,22 @@ let _modelName: string = 'gemini-2.5-flash';
 export function setAgentApiConfig(packed: string, model: string) {
   _apiConfig = packed;
   _modelName = model;
+}
+
+// 判断当前是否注入了「可用」的 API Key（兼容原始字符串与打包 JSON）。
+// 用于决定是否自动生成章节摘要——无 Key 时正文走 mock，不应再用 mock 摘要污染记忆。
+function agentHasKey(): boolean {
+  const t = (_apiConfig || '').trim();
+  if (!t) return false;
+  if (t.startsWith('{') && t.endsWith('}')) {
+    try {
+      const o = JSON.parse(t);
+      return !!(o.apiKey && String(o.apiKey).trim());
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 // ─── 1. 查询记忆 ─────────────────────────────────────────────────────────────
@@ -70,7 +86,9 @@ export const generateOutlineTool = tool(
     const outline = await ai.generateOutline(
       projectId, project.title, project.description, numChapters, _apiConfig, _modelName
     );
-    return outline;
+    // 持久化到项目大纲字段，避免「只生成不保存」
+    await db.updateProject(projectId, { outlineFull: outline });
+    return `已生成并保存接下来 ${numChapters} 章的大纲到项目大纲（outlineFull）：\n\n${outline}`;
   },
   {
     name: 'generate_outline',
@@ -248,18 +266,63 @@ export const createChapterTool = tool(
 
 // ─── 10. 自动写作章节内容 ────────────────────────────────────────────────────
 export const autoWriteChapterTool = tool(
-  async ({ projectId, chapterTitle, instruction }) => {
+  async ({ projectId, chapterTitle, chapterId, instruction }) => {
     const text = await ai.autoWriteChapter(
       projectId, chapterTitle, _apiConfig, _modelName, instruction || ''
     );
-    return `【章节内容已生成，共 ${text.length} 字】\n\n${text.slice(0, 500)}${text.length > 500 ? '\n\n...(内容已生成，请在编辑器查看)' : ''}`;
+
+    // 定位目标章节：优先 chapterId，其次按标题匹配，最后新建；确保正文真正落库
+    let target: Chapter | undefined;
+    if (chapterId) {
+      target = await db.getChapter(chapterId);
+    }
+    if (!target) {
+      const chapters = await db.getChapters(projectId);
+      target = chapters.find(c => c.title === chapterTitle);
+    }
+    if (target) {
+      await db.updateChapter(target.id, { content: text });
+    } else {
+      target = await db.createChapter({
+        projectId,
+        title: chapterTitle,
+        content: text,
+        summary: '',
+        characterChanges: [],
+        newForeshadowing: [],
+        resolvedForeshadowing: [],
+        timelineEvents: [],
+      });
+    }
+
+    // 写入记忆：自动提取摘要、人物状态、伏笔与时间线（仅在配置了真实 Key 时，
+    // 避免用 mock 摘要污染长期记忆）。摘要失败不影响正文已保存的事实。
+    let memoryNote = '';
+    if (agentHasKey()) {
+      try {
+        const s = await ai.summarizeChapter(text, _apiConfig, _modelName);
+        await db.updateChapter(target.id, {
+          summary: s.summary,
+          characterChanges: s.characterChanges,
+          newForeshadowing: s.newForeshadowing,
+          resolvedForeshadowing: s.resolvedForeshadowing,
+          timelineEvents: s.timelineEvents,
+        });
+        memoryNote = '，并已同步更新章节摘要与长期记忆';
+      } catch {
+        memoryNote = '（注意：摘要生成失败，仅保存了正文）';
+      }
+    }
+
+    return `章节「${chapterTitle}」正文已生成并保存（共 ${text.length} 字，章节ID: ${target.id}）${memoryNote}。\n\n正文预览：\n${text.slice(0, 400)}${text.length > 400 ? '\n\n...(完整正文已写入该章节，请在编辑器查看)' : ''}`;
   },
   {
     name: 'auto_write_chapter',
-    description: '根据项目设定和章节标题，自动生成章节的正文内容。',
+    description: '根据项目设定和章节标题，自动生成章节正文并保存到该章节（不存在则新建），同时自动提取摘要写入长期记忆。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       chapterTitle: z.string().describe('要写作的章节标题'),
+      chapterId: z.string().optional().describe('目标章节ID；已存在章节时传入以更新指定章节，不传则按标题匹配或新建'),
       instruction: z.string().optional().describe('具体写作指令，如特定情节要求、情绪基调等'),
     }),
   }
@@ -297,7 +360,43 @@ export const checkConsistencyTool = tool(
   }
 );
 
-// ─── 13. 添加反 AI 写作规则 ───────────────────────────────────────────────────
+// ─── 13. 章节复盘：摘要与状态写入记忆 ─────────────────────────────────────────
+export const summarizeChapterTool = tool(
+  async ({ projectId, chapterId, text }) => {
+    void projectId;
+    let content = text || '';
+    let target: Chapter | undefined;
+    if (chapterId) {
+      target = await db.getChapter(chapterId);
+      if (target && !content) content = target.content;
+    }
+    if (!content || !content.trim()) {
+      return '没有可供摘要的正文内容（请提供 text，或提供含正文的有效 chapterId）。';
+    }
+    const s = await ai.summarizeChapter(content, _apiConfig, _modelName);
+    if (target) {
+      await db.updateChapter(target.id, {
+        summary: s.summary,
+        characterChanges: s.characterChanges,
+        newForeshadowing: s.newForeshadowing,
+        resolvedForeshadowing: s.resolvedForeshadowing,
+        timelineEvents: s.timelineEvents,
+      });
+    }
+    return `章节摘要已生成${target ? '并写入该章节的长期记忆' : ''}：\n\n${JSON.stringify(s, null, 2)}`;
+  },
+  {
+    name: 'summarize_chapter',
+    description: '提取章节正文的摘要、人物状态变化、伏笔与时间线，并写入该章节的长期记忆（对应复盘/记忆更新步骤）。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      chapterId: z.string().optional().describe('章节ID；传入则把摘要结果写回该章节'),
+      text: z.string().optional().describe('要摘要的正文；不传则使用 chapterId 对应章节的正文'),
+    }),
+  }
+);
+
+// ─── 14. 添加反 AI 写作规则 ───────────────────────────────────────────────────
 export const addAntiAiRuleTool = tool(
   async ({ projectId, rule }) => {
     const project = await db.getProject(projectId);
@@ -358,6 +457,7 @@ export const WRITER_TOOLS = [
   getProjectOverviewTool,
   createChapterTool,
   autoWriteChapterTool,
+  summarizeChapterTool,
 ];
 
 export const EDITOR_TOOLS = [
@@ -365,6 +465,7 @@ export const EDITOR_TOOLS = [
   getProjectOverviewTool,
   polishTextTool,
   checkConsistencyTool,
+  summarizeChapterTool,
   addAntiAiRuleTool,
 ];
 

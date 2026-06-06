@@ -7,10 +7,38 @@ export interface MemorySearchResult {
   worldRules: WorldRule[];
 }
 
-// 简单分词，去掉一些极短的无意义字符
+// 转义正则中的特殊字符，避免用 token 构造 RegExp 时报错
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const CJK = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/;
+// 中文高频虚词：仅在「单字」层面过滤以降噪，二元组不受影响
+const STOPWORDS = new Set([
+  '的', '了', '是', '在', '我', '你', '他', '她', '它', '们', '和', '与', '也',
+  '不', '有', '个', '这', '那', '之', '就', '都', '而', '及', '或', '吗', '呢', '吧',
+]);
+
+// 分词：英文按词切，中文按「单字 + 相邻二元组(bigram)」切，兼顾召回与精度。
+// 旧实现按空格切分对无空格的中文几乎失效，这里专门处理 CJK。
 function tokenize(text: string): string[] {
-  const clean = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'，。！？：；（）“”]/g, ' ');
-  return clean.split(/\s+/).filter(word => word.length >= 1);
+  if (!text) return [];
+  const segments = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const tokens = new Set<string>();
+
+  for (const seg of segments) {
+    if (CJK.test(seg)) {
+      const chars = Array.from(seg);
+      for (let i = 0; i < chars.length; i++) {
+        if (!STOPWORDS.has(chars[i])) tokens.add(chars[i]);
+        if (i < chars.length - 1) tokens.add(chars[i] + chars[i + 1]);
+      }
+    } else if (seg.length >= 1) {
+      tokens.add(seg);
+    }
+  }
+
+  return Array.from(tokens);
 }
 
 export async function searchMemory(projectId: string, query: string): Promise<MemorySearchResult> {
@@ -49,7 +77,7 @@ export async function searchMemory(projectId: string, query: string): Promise<Me
       if (contentToSearch.includes(token)) {
         score += 10;
         // 匹配次数加分
-        const occurrences = (contentToSearch.match(new RegExp(token, 'g')) || []).length;
+        const occurrences = (contentToSearch.match(new RegExp(escapeRegExp(token), 'g')) || []).length;
         score += occurrences * 2;
       }
     });
@@ -80,7 +108,7 @@ export async function searchMemory(projectId: string, query: string): Promise<Me
       }
       if (contentToSearch.includes(token)) {
         score += 8;
-        const occurrences = (contentToSearch.match(new RegExp(token, 'g')) || []).length;
+        const occurrences = (contentToSearch.match(new RegExp(escapeRegExp(token), 'g')) || []).length;
         score += occurrences * 1.5;
       }
     });

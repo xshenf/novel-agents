@@ -31,6 +31,11 @@ export const AgentState = Annotation.Root({
     reducer: (_, y) => y,
     default: () => '',
   }),
+  // 已完成的委托次数：每个 specialist 完成后 +1，用于在 orchestrator 汇总阶段封顶，防止无限委托
+  delegationCount: Annotation<number>({
+    reducer: (_, y) => y,
+    default: () => 0,
+  }),
 });
 
 // ─── LLM 工厂 ─────────────────────────────────────────────────────────────────
@@ -120,6 +125,11 @@ const ORCHESTRATOR_TOOLS = [
   delegateToEditorTool,
 ];
 
+// 汇总阶段 orchestrator 可用的工具（去掉所有 delegate_* 工具），从机制上保证不会再次委托而停不下来
+const ORCHESTRATOR_SUMMARY_TOOLS = [queryMemoryTool, getProjectOverviewTool];
+// 委托次数上限：达到后强制进入汇总，配合 recursionLimit 作为双重保险
+const MAX_DELEGATIONS = 5;
+
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
 function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string) {
   const bound = llm.bindTools(tools);
@@ -133,12 +143,39 @@ function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: str
   };
 }
 
+// Orchestrator 节点：根据已委托次数动态切换「调度模式 / 汇总模式」。
+// 一旦有专家完成（delegationCount > 0），就引导其综合成果做最终汇报；
+// 达到上限后绑定无 delegate 工具的工具集，从机制上强制收尾。
+function createOrchestratorNode(llm: any, projectId: string) {
+  const boundFull = llm.bindTools(ORCHESTRATOR_TOOLS);
+  const boundSummary = llm.bindTools(ORCHESTRATOR_SUMMARY_TOOLS);
+  const base = AGENT_PROMPTS['orchestrator'];
+
+  return async (state: typeof AgentState.State) => {
+    const force = state.delegationCount >= MAX_DELEGATIONS;
+    const bound = force ? boundSummary : boundFull;
+    let sys = base + `\n\n当前项目ID: ${projectId}（调用工具时必须传入此ID）`;
+    if (state.delegationCount > 0) {
+      sys += force
+        ? '\n\n【收尾阶段】已多次委托专家，请立即综合现有所有成果，用简洁专业的语言给用户最终汇报，不要再委托任何任务。'
+        : '\n\n【汇总阶段】专家已返回阶段性成果（见上文工具结果）。若任务已完成，请综合各专家成果向用户做最终汇报并给出下一步建议；只有确有必要时才继续委托其他专家。';
+    }
+    const response = await bound.invoke([new SystemMessage(sys), ...state.messages]);
+    return { messages: [response], currentAgent: 'orchestrator' };
+  };
+}
+
+// 专家完成后经过此节点累加委托计数，再回到 orchestrator 汇总
+const afterSpecialistNode = async (state: typeof AgentState.State) => ({
+  delegationCount: state.delegationCount + 1,
+});
+
 // ─── 构建 Graph ────────────────────────────────────────────────────────────────
 export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string) {
   setAgentApiConfig(apiConfig, modelName);
   const llm = buildLLM(apiConfig, modelName);
 
-  const orchestratorNode = createAgentNode('orchestrator', ORCHESTRATOR_TOOLS, llm, projectId);
+  const orchestratorNode = createOrchestratorNode(llm, projectId);
   const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      llm, projectId);
   const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, llm, projectId);
   const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       llm, projectId);
@@ -151,44 +188,39 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
   const editorToolNode        = new ToolNode(EDITOR_TOOLS);
 
   // ── 路由函数 ─────────────────────────────────────────────────────────────
+  // 专家完成（无 tool_calls）后回到 orchestrator 汇总，而不是直接结束
   const routeAfterAgent = (nextToolsNode: string) =>
     (state: typeof AgentState.State) => {
       const last = state.messages[state.messages.length - 1] as AIMessage;
-      return (last.tool_calls && last.tool_calls.length > 0) ? nextToolsNode : END;
+      return (last.tool_calls && last.tool_calls.length > 0) ? nextToolsNode : 'after_specialist';
     };
 
+  // Orchestrator 产出后：只要有 tool_calls 一律先执行工具（含 delegate_*），
+  // 避免出现「有 tool_call 却无对应 ToolMessage」的悬空调用导致后续 LLM 报错
   const routeAfterOrchestrator = (state: typeof AgentState.State) => {
     const last = state.messages[state.messages.length - 1] as AIMessage;
-    if (!last.tool_calls || last.tool_calls.length === 0) return END;
-    const name = last.tool_calls[0].name;
-    if (name === 'delegate_to_planner')      return 'planner';
-    if (name === 'delegate_to_lore_builder') return 'lore_builder';
-    if (name === 'delegate_to_writer')       return 'writer';
-    if (name === 'delegate_to_editor')       return 'editor';
-    return 'orchestrator_tools'; // query_memory / get_project_overview
+    return (last.tool_calls && last.tool_calls.length > 0) ? 'orchestrator_tools' : END;
   };
 
-  // 工具执行后：决定回哪个 specialist 还是回 orchestrator
+  const SPECIALISTS = ['planner', 'lore_builder', 'writer', 'editor'];
+
+  // 工具执行后：扫描本轮新产生的 ToolMessage，若有 DELEGATE 信号则路由到对应专家，否则回 orchestrator
   const routeAfterOrchestratorTools = (state: typeof AgentState.State) => {
-    // 找最后一条 ToolMessage，看其 content 是否是 DELEGATE 信号
     const msgs = state.messages;
     for (let i = msgs.length - 1; i >= 0; i--) {
       const m = msgs[i];
-      if (m._getType() === 'tool') {
-        const content = typeof m.content === 'string' ? m.content : '';
-        if (content.startsWith('[DELEGATE:planner]'))      return 'planner';
-        if (content.startsWith('[DELEGATE:lore_builder]')) return 'lore_builder';
-        if (content.startsWith('[DELEGATE:writer]'))       return 'writer';
-        if (content.startsWith('[DELEGATE:editor]'))       return 'editor';
-        break;
-      }
+      if (m._getType() !== 'tool') break; // 只检查末尾连续的工具结果
+      const content = typeof m.content === 'string' ? m.content : '';
+      const match = content.match(/^\[DELEGATE:(\w+)\]/);
+      if (match && SPECIALISTS.includes(match[1])) return match[1];
     }
-    return 'orchestrator'; // 普通工具调用后回 orchestrator 继续
+    return 'orchestrator'; // 普通工具调用（query_memory / get_project_overview）后回 orchestrator 继续
   };
 
   const graph = new StateGraph(AgentState)
     .addNode('orchestrator',       orchestratorNode)
     .addNode('orchestrator_tools', orchestratorToolNode)
+    .addNode('after_specialist',   afterSpecialistNode)
     .addNode('planner',            plannerNode)
     .addNode('planner_tools',      plannerToolNode)
     .addNode('lore_builder',       loreBuilderNode)
@@ -200,12 +232,15 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
 
     .addEdge(START, 'orchestrator')
 
-    // Orchestrator 根据 tool_call 路由
+    // Orchestrator 根据 tool_call 路由：有工具调用 -> 执行工具；否则结束
     .addConditionalEdges('orchestrator', routeAfterOrchestrator)
-    // Orchestrator 工具执行后：delegate 信号路由到 specialist，否则回 orchestrator
+    // 工具执行后：delegate 信号路由到 specialist，否则回 orchestrator
     .addConditionalEdges('orchestrator_tools', routeAfterOrchestratorTools)
 
-    // Specialist agents：有 tool_calls 就用工具，没有就结束
+    // 专家完成后统一经 after_specialist 累加计数再回 orchestrator 汇总
+    .addEdge('after_specialist', 'orchestrator')
+
+    // Specialist agents：有 tool_calls 就用工具，没有就回到 after_specialist
     .addConditionalEdges('planner',      routeAfterAgent('planner_tools'))
     .addEdge('planner_tools', 'planner')
 

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useNovelStore } from '@/lib/store';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
   BookOpen, Plus, Trash2, Settings, ChevronLeft, ChevronRight,
   User, Globe, MessageSquare, Sparkles, CheckCircle2, 
@@ -16,9 +17,27 @@ import { Markdown } from './components/Markdown';
 
 export default function Home() {
   const store = useNovelStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // 从 URL 路径中提取项目 ID
+  const urlProjectId = pathname.startsWith('/project/') ? pathname.split('/project/')[1] : null;
+  const urlTab = searchParams.get('tab') as 'write' | 'outline' | 'settings' | null;
+  const urlChapterId = searchParams.get('chapter');
+
+  // 构建工作区 URL
+  const buildWorkspaceUrl = useCallback((projectId: string, tab?: string, chapterId?: string) => {
+    const url = `/project/${projectId}`;
+    const params = new URLSearchParams();
+    if (tab) params.set('tab', tab);
+    if (chapterId) params.set('chapter', chapterId);
+    const qs = params.toString();
+    return qs ? `${url}?${qs}` : url;
   }, []);
   
   const callAIApi = async (bodyParams: Record<string, any>) => {
@@ -602,18 +621,29 @@ export default function Home() {
       const currentProjects = useNovelStore.getState().projects;
       if (currentProjects.length === 0) {
         seedDemoData();
-      } else {
-        // 恢复上次打开的项目
-        const savedProjectId = localStorage.getItem('current_project_id');
-        if (savedProjectId && !useNovelStore.getState().currentProject) {
-          const project = currentProjects.find((p: any) => p.id === savedProjectId);
-          if (project) {
-            useNovelStore.getState().setCurrentProject(project);
-          }
+      } else if (urlProjectId && !useNovelStore.getState().currentProject) {
+        // 从 URL 恢复项目
+        const project = currentProjects.find((p: any) => p.id === urlProjectId);
+        if (project) {
+          useNovelStore.getState().setCurrentProject(project);
         }
       }
     });
   }, []);
+
+  // 从 URL 恢复 tab 和 chapter 选中状态
+  useEffect(() => {
+    if (!store.currentProject) return;
+    if (urlTab && ['write', 'outline', 'settings'].includes(urlTab)) {
+      setActiveWorkspaceTab(urlTab as 'write' | 'outline' | 'settings');
+    }
+    if (urlChapterId && store.chapters.length > 0) {
+      const chapter = store.chapters.find(c => c.id === urlChapterId);
+      if (chapter) {
+        store.setCurrentChapter(chapter);
+      }
+    }
+  }, [store.currentProject?.id, store.chapters.length]);
 
   // 滚动聊天到底部
   useEffect(() => {
@@ -690,6 +720,7 @@ export default function Home() {
 
       // 选择此项目
       store.setCurrentProject(demoProj);
+      router.push(buildWorkspaceUrl(demoProj.id, 'write'));
 
       // 创建角色卡
       await store.createCharacter({
@@ -796,6 +827,7 @@ export default function Home() {
 
       setIsWizardMode(false);
       store.setCurrentProject(newProj);
+      router.push(buildWorkspaceUrl(newProj.id, 'write'));
       alert("已跳过向导！已为您创建一个初始项目《未命名故事》，并在左侧生成了前三章的初始目录，您可以在左侧设定库中慢慢补充各种故事背景设定。");
     } catch (err) {
       alert("直接建书失败");
@@ -938,6 +970,7 @@ export default function Home() {
 
       setIsWizardMode(false);
       store.setCurrentProject(newProj);
+      router.push(buildWorkspaceUrl(newProj.id, 'write'));
       alert(`《${wizardResult.title}》项目建档成功！已自动初始化前三章大纲目录，您可以直接开启“AI自动写小说模式”进行智能连载！`);
     } catch (err) {
       alert('建档失败');
@@ -963,10 +996,9 @@ export default function Home() {
       setNewProjStyle('');
       setNewProjWorld('');
       store.setCurrentProject(newProj);
+      router.push(buildWorkspaceUrl(newProj.id, 'write'));
     } catch (err) {}
   };
-
-  // --- 章节操作 ---
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!store.currentProject || !newChapTitle.trim()) return;
@@ -1259,7 +1291,9 @@ export default function Home() {
           const eIdx = chunk.indexOf('\n');
           if (eIdx === -1 || !chunk.startsWith('event: ')) continue;
           const eventType = chunk.slice(7, eIdx);
-          const dataStr = chunk.slice(eIdx + 6); // skip '\ndata: '
+          // 取 event 行之后的内容并剥离 "data:" 前缀（兼容有无空格，修正原先 +6 的偏移）
+          const dataLine = chunk.slice(eIdx + 1);
+          const dataStr = dataLine.startsWith('data:') ? dataLine.slice(5).trimStart() : '';
           if (!eventType || !dataStr) continue;
           let data: any = {};
           try { data = JSON.parse(dataStr); } catch { continue; }
@@ -2892,14 +2926,14 @@ export default function Home() {
     <main>
       {/* 顶部通栏导航 */}
       <nav className="navbar">
-        <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => store.setCurrentProject(null)}>
+        <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => { store.setCurrentProject(null); router.push('/'); }}>
           <BookOpen size={20} style={{ color: 'var(--accent)' }} />
           <span>小说智能体创作台 <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-dark)' }}>MVP v1.1</span></span>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {store.currentProject && (
-            <button className="btn btn-secondary" onClick={() => store.setCurrentProject(null)} style={{ padding: '6px 12px', fontSize: '12px' }}>
+            <button className="btn btn-secondary" onClick={() => { store.setCurrentProject(null); router.push('/'); }} style={{ padding: '6px 12px', fontSize: '12px' }}>
               <ChevronLeft size={16} /> 返回项目大厅
             </button>
           )}
@@ -2929,7 +2963,7 @@ export default function Home() {
 
             <div className="project-grid">
               {store.projects.map((project) => (
-                <div key={project.id} className="project-card glass-card" onClick={() => store.setCurrentProject(project)}>
+                <div key={project.id} className="project-card glass-card" onClick={() => { store.setCurrentProject(project); router.push(buildWorkspaceUrl(project.id, 'write')); }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="project-title">{project.title}</div>
                     <button 
@@ -2996,7 +3030,7 @@ export default function Home() {
                     <div 
                       key={chap.id} 
                       className={`sidebar-item ${store.currentChapter?.id === chap.id ? 'active' : ''}`}
-                      onClick={() => store.setCurrentChapter(chap)}
+                      onClick={() => { store.setCurrentChapter(chap); router.push(buildWorkspaceUrl(store.currentProject!.id, activeWorkspaceTab, chap.id)); }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                         <FileText size={14} style={{ flexShrink: 0 }} />
@@ -3059,14 +3093,14 @@ export default function Home() {
               <div style={{ background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '20px', display: 'flex', gap: '4px' }}>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'write' ? 'btn-primary' : 'btn-secondary'}`} 
-                  onClick={() => setActiveWorkspaceTab('write')}
+                  onClick={() => { setActiveWorkspaceTab('write'); router.push(buildWorkspaceUrl(store.currentProject!.id, 'write', store.currentChapter?.id)); }}
                   style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'write' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'write' ? '#fff' : 'var(--text-muted)' }}
                 >
                   连载写作
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'outline' ? 'btn-primary' : 'btn-secondary'}`} 
-                  onClick={() => setActiveWorkspaceTab('outline')}
+                  onClick={() => { setActiveWorkspaceTab('outline'); router.push(buildWorkspaceUrl(store.currentProject!.id, 'outline')); }}
                   style={{ position: 'relative', borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
                 >
                   核心大纲
@@ -3076,7 +3110,7 @@ export default function Home() {
                 </button>
                 <button 
                   className={`btn ${activeWorkspaceTab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} 
-                  onClick={() => setActiveWorkspaceTab('settings')}
+                  onClick={() => { setActiveWorkspaceTab('settings'); router.push(buildWorkspaceUrl(store.currentProject!.id, 'settings')); }}
                   style={{ position: 'relative', borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'settings' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'settings' ? '#fff' : 'var(--text-muted)' }}
                 >
                   核心设定

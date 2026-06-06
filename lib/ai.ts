@@ -23,6 +23,23 @@ export interface AICheckResult {
 
 
 
+// 判断调用方是否提供了「可用」的 API Key（兼容原始字符串与打包后的 JSON 配置）。
+// 仅当返回 false（未配置 Key）时才使用本地 mock；配置了 Key 时一律走真实接口，
+// 真实接口的错误会向上抛出而不再被静默吞掉伪装成 mock 结果。
+function hasUsableKey(apiKey?: string): boolean {
+  if (!apiKey || !apiKey.trim()) return false;
+  const t = apiKey.trim();
+  if (t.startsWith('{') && t.endsWith('}')) {
+    try {
+      const o = JSON.parse(t);
+      return !!(o.apiKey && String(o.apiKey).trim());
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 // 辅助方法：直接调用大语言模型 API（支持 Gemini 及多种 OpenAI 兼容服务商）
 async function callGemini(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false): Promise<string> {
   // 默认配置
@@ -60,7 +77,7 @@ async function callGemini(apiKey: string, modelName: string, systemInstruction: 
     const model = modelName || 'gemini-2.5-flash';
     const rawBaseUrl = config.apiBaseUrl ? config.apiBaseUrl.trim() : 'https://generativelanguage.googleapis.com';
     const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
-    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${config.apiKey}`;
+    const url = `${baseUrl}/v1beta/models/${model}:generateContent`;
 
     const body: any = {
       contents: [
@@ -92,6 +109,7 @@ async function callGemini(apiKey: string, modelName: string, systemInstruction: 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey,
       },
       body: JSON.stringify(body),
     });
@@ -613,9 +631,9 @@ export const ai = {
       if (apiProvider === 'gemini') {
         const rawBaseUrl = apiBaseUrl ? apiBaseUrl.trim() : 'https://generativelanguage.googleapis.com';
         const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
-        const url = `${baseUrl}/v1beta/models?key=${apiKey}`;
+        const url = `${baseUrl}/v1beta/models`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } });
         if (!res.ok) {
           throw new Error(`Gemini API returned status ${res.status}`);
         }
@@ -702,13 +720,9 @@ export const ai = {
 文风是：${tone}
 请根据以上信息推演出这 6 个维度的 3 套高品质备选设定方案，务必符合当前题材且具备商业网文的流行爽感。`;
 
-    if (apiKey) {
-      try {
-        const jsonStr = await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-        return JSON.parse(jsonStr);
-      } catch (error) {
-        console.error('Gemini generateKernelSettings failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      const jsonStr = await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      return JSON.parse(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -723,12 +737,8 @@ export const ai = {
     const systemInstruction = `你是一个高级小说创作助手。你非常熟悉这部小说的设定和剧情，能基于提供的上下文记忆，准确、专业、充满创作灵感地回答作者的问题。请保持小说文风，并给出明确、符合逻辑的推断。`;
     const prompt = `【当前背景上下文信息】:\n${memory.contextText}\n\n【作者提问】:\n${query}\n\n请结合上下文进行专业解答，说明事实并给出合理的创作建议。`;
 
-    if (apiKey) {
-      try {
-        return await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      return await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
 
     // 延迟模拟网络请求
@@ -764,12 +774,8 @@ export const ai = {
 
     const prompt = `【小说设定与长期记忆】:\n${memory.contextText}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
 
-    if (apiKey) {
-      try {
-        return await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
-      } catch (error) {
-        console.error('Gemini autoWriteChapter failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      return await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
 
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -823,13 +829,9 @@ export const ai = {
   ]
 }`;
 
-    if (apiKey) {
-      try {
-        const jsonStr = await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-        return JSON.parse(jsonStr);
-      } catch (error) {
-        console.error('Gemini generateInspirations failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      const jsonStr = await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      return JSON.parse(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -863,13 +865,9 @@ export const ai = {
   "worldSetting": "自动生成的背景世界观设定描述"
 }`;
 
-    if (apiKey) {
-      try {
-        const jsonStr = await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-        return JSON.parse(jsonStr);
-      } catch (error) {
-        console.error('Gemini autoPlanBook failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      const jsonStr = await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      return JSON.parse(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -890,12 +888,8 @@ export const ai = {
 
     const prompt = `【小说上下文设定】:\n${memory.contextText}\n\n【作者当前已写的正文末尾】:\n\"\"\"\n${currentText}\n\"\"\"\n\n${instruction ? `【作者的特殊写作指令】: ${instruction}\n` : ''}\n请接着上面正文自然续写约300-500字。`;
 
-    if (apiKey) {
-      try {
-        return await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      return await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -914,12 +908,8 @@ export const ai = {
 
     const prompt = `【待润色的文本】:\n\"\"\"\n${currentText}\n\"\"\"\n\n【润色要求/风格选项】: ${instruction || '提升文学美感，加强环境烘托与心理描写'}\n\n请输出润色后的结果：`;
 
-    if (apiKey) {
-      try {
-        return await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      return await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -946,12 +936,8 @@ ${memory.contextText}
 4. 情绪起伏/人物心理状态变化
 5. 预计字数与节奏。`;
 
-    if (apiKey) {
-      try {
-        return await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      return await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -998,13 +984,9 @@ ${memory.contextText}
   ]
 }`;
 
-    if (apiKey) {
-      try {
-        const jsonStr = await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-        return JSON.parse(jsonStr) as AICheckResult;
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      const jsonStr = await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      return JSON.parse(jsonStr) as AICheckResult;
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1028,13 +1010,9 @@ ${memory.contextText}
   "timelineEvents": ["本章内发生的关键时间线事件，格式为 '时间 + 地点 + 事件'，如：第三日夜，陆青禾在藏书阁看到密信"]
 }`;
 
-    if (apiKey) {
-      try {
-        const jsonStr = await callGemini(apiKey, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-        return JSON.parse(jsonStr) as AISummaryResult;
-      } catch (error) {
-        console.error('Gemini call failed, falling back to mock:', error);
-      }
+    if (hasUsableKey(apiKey)) {
+      const jsonStr = await callGemini(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      return JSON.parse(jsonStr) as AISummaryResult;
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));

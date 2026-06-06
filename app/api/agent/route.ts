@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
+import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120; // 2 分钟超时
@@ -18,6 +19,12 @@ export async function POST(request: NextRequest) {
 
   if (!projectId || !message) {
     return new Response(JSON.stringify({ error: '缺少 projectId 或 message' }), { status: 400 });
+  }
+
+  // 校验项目存在，避免对不存在的项目空跑整个 Agent 图
+  const project = await db.getProject(projectId);
+  if (!project) {
+    return new Response(JSON.stringify({ error: '项目不存在' }), { status: 404 });
   }
 
   // 打包 API 配置
@@ -109,8 +116,8 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // 工具调用
-          if (eventType === 'on_tool_start') {
+          // 工具调用（delegate_* 委托类工具不展示为普通工具调用，改由 delegate 事件呈现）
+          if (eventType === 'on_tool_start' && !(typeof name === 'string' && name.startsWith('delegate_'))) {
             send('tool_call', {
               agent: lastAgent,
               toolName: name,
