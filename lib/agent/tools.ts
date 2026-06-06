@@ -1,22 +1,16 @@
 import { tool } from '@langchain/core/tools';
+import { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { db, type Chapter } from '../db';
 import { searchMemory } from '../memory';
 import { ai } from '../ai';
 
 // ─── 构建 callAIApi 参数（从 agent 环境变量注入） ────────────────────────────
-let _apiConfig: string = '';
-let _modelName: string = 'gemini-2.5-flash';
 
-export function setAgentApiConfig(packed: string, model: string) {
-  _apiConfig = packed;
-  _modelName = model;
-}
-
-function getAgentConfig(agentRole: string): string {
-  if (_apiConfig && _apiConfig.trim().startsWith('{') && _apiConfig.trim().endsWith('}')) {
+function getAgentConfig(agentRole: string, apiConfig: string): string {
+  if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
     try {
-      const parsed = JSON.parse(_apiConfig);
+      const parsed = JSON.parse(apiConfig);
       if (Array.isArray(parsed.models) && parsed.agentModelBindings) {
         const modelId = parsed.agentModelBindings[agentRole];
         const model = parsed.models.find((m: any) => m.id === modelId) || parsed.models[0];
@@ -25,23 +19,23 @@ function getAgentConfig(agentRole: string): string {
           return JSON.stringify({
             apiKey: model.apiKey,
             apiProvider: model.provider,
-            apiBaseUrl: model.baseUrl || '',
+            apiBaseUrl: model.baseUrl || model.apiBaseUrl || '',
             temperature: overrides.temperature !== undefined ? overrides.temperature : model.temperature,
             maxTokens: overrides.maxTokens !== undefined ? overrides.maxTokens : model.maxTokens,
-            systemInstruction: '',
+            systemInstruction: parsed.systemInstruction || '',
             reasoningEnabled: model.reasoningEnabled === true
           });
         }
       }
     } catch (_) { /* ignore */ }
   }
-  return _apiConfig;
+  return apiConfig;
 }
 
-function getAgentModelName(agentRole: string): string {
-  if (_apiConfig && _apiConfig.trim().startsWith('{') && _apiConfig.trim().endsWith('}')) {
+function getAgentModelName(agentRole: string, apiConfig: string, defaultModelName: string): string {
+  if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
     try {
-      const parsed = JSON.parse(_apiConfig);
+      const parsed = JSON.parse(apiConfig);
       if (Array.isArray(parsed.models) && parsed.agentModelBindings) {
         const modelId = parsed.agentModelBindings[agentRole];
         const model = parsed.models.find((m: any) => m.id === modelId) || parsed.models[0];
@@ -51,13 +45,13 @@ function getAgentModelName(agentRole: string): string {
       }
     } catch (_) { /* ignore */ }
   }
-  return _modelName;
+  return defaultModelName;
 }
 
 // 判断当前是否注入了「可用」的 API Key（兼容原始字符串与打包 JSON）。
 // 用于决定是否自动生成章节摘要——无 Key 时正文走 mock，不应再用 mock 摘要污染记忆。
-function agentHasKey(agentRole: string): boolean {
-  const configStr = getAgentConfig(agentRole);
+function agentHasKey(agentRole: string, apiConfig: string): boolean {
+  const configStr = getAgentConfig(agentRole, apiConfig);
   const t = (configStr || '').trim();
   if (!t) return false;
   if (t.startsWith('{') && t.endsWith('}')) {
@@ -122,12 +116,14 @@ export const getProjectOverviewTool = tool(
 
 // ─── 3. 生成章节大纲 ──────────────────────────────────────────────────────────
 export const generateOutlineTool = tool(
-  async ({ projectId, numChapters }) => {
+  async ({ projectId, numChapters }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
-    const config = getAgentConfig('planner');
+    const configStr = getAgentConfig('planner', apiConfig);
     const outline = await ai.generateOutline(
-      projectId, project.title, project.description, numChapters, config, getAgentModelName('planner')
+      projectId, project.title, project.description, numChapters, configStr, getAgentModelName('planner', apiConfig, modelName)
     );
     // 持久化到项目大纲字段，避免「只生成不保存」
     await db.updateProject(projectId, { outlineFull: outline });
@@ -145,9 +141,11 @@ export const generateOutlineTool = tool(
 
 // ─── 4. 一键规划书籍核心设定 ──────────────────────────────────────────────────
 export const autoPlanBookTool = tool(
-  async ({ projectId, genre, tone, tags }) => {
-    const config = getAgentConfig('planner');
-    const result = await ai.autoPlanBook(genre, tone, tags, config, getAgentModelName('planner'));
+  async ({ projectId, genre, tone, tags }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const configStr = getAgentConfig('planner', apiConfig);
+    const result = await ai.autoPlanBook(genre, tone, tags, configStr, getAgentModelName('planner', apiConfig, modelName));
     // 同时更新项目设定
     if (projectId && result) {
       const r = result as Record<string, unknown>;
@@ -179,11 +177,13 @@ export const autoPlanBookTool = tool(
 
 // ─── 5. 生成内核设定 ──────────────────────────────────────────────────────────
 export const generateKernelTool = tool(
-  async ({ projectId, genre, tone }) => {
+  async ({ projectId, genre, tone }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
-    const config = getAgentConfig('planner');
-    const result = await ai.generateKernelSettings(project.title, genre, tone, config, getAgentModelName('planner'));
+    const configStr = getAgentConfig('planner', apiConfig);
+    const result = await ai.generateKernelSettings(project.title, genre, tone, configStr, getAgentModelName('planner', apiConfig, modelName));
     // 保存到项目
     const updates: Record<string, unknown> = {};
     if (result.powerSystem) updates.powerSystem = result.powerSystem;
@@ -311,11 +311,13 @@ export const createChapterTool = tool(
 
 // ─── 10. 自动写作章节内容 ────────────────────────────────────────────────────
 export const autoWriteChapterTool = tool(
-  async ({ projectId, chapterTitle, chapterId, instruction }) => {
-    const config = getAgentConfig('writer');
-    const modelName = getAgentModelName('writer');
+  async ({ projectId, chapterTitle, chapterId, instruction }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const defaultModel = config.configurable?.modelName || 'gemini-2.5-flash';
+    const configStr = getAgentConfig('writer', apiConfig);
+    const modelName = getAgentModelName('writer', apiConfig, defaultModel);
     const text = await ai.autoWriteChapter(
-      projectId, chapterTitle, config, modelName, instruction || ''
+      projectId, chapterTitle, configStr, modelName, instruction || ''
     );
 
     // 定位目标章节：优先 chapterId，其次按标题匹配，最后新建；确保正文真正落库
@@ -345,9 +347,9 @@ export const autoWriteChapterTool = tool(
     // 写入记忆：自动提取摘要、人物状态、伏笔与时间线（仅在配置了真实 Key 时，
     // 避免用 mock 摘要污染长期记忆）。摘要失败不影响正文已保存的事实。
     let memoryNote = '';
-    if (agentHasKey('writer')) {
+    if (agentHasKey('writer', apiConfig)) {
       try {
-        const s = await ai.summarizeChapter(text, config, modelName);
+        const s = await ai.summarizeChapter(text, configStr, modelName);
         await db.updateChapter(target.id, {
           summary: s.summary,
           characterChanges: s.characterChanges,
@@ -377,9 +379,11 @@ export const autoWriteChapterTool = tool(
 
 // ─── 11. 润色文本 ─────────────────────────────────────────────────────────────
 export const polishTextTool = tool(
-  async ({ text, instruction }) => {
-    const config = getAgentConfig('editor');
-    const result = await ai.polish(text, instruction || '', config, getAgentModelName('editor'));
+  async ({ text, instruction }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const configStr = getAgentConfig('editor', apiConfig);
+    const result = await ai.polish(text, instruction || '', configStr, getAgentModelName('editor', apiConfig, modelName));
     return result;
   },
   {
@@ -387,16 +391,18 @@ export const polishTextTool = tool(
     description: '对提供的文本进行润色修改，可指定润色方向（如：加强环境描写、改为古风文笔、增加节奏感等）。',
     schema: z.object({
       text: z.string().describe('需要润色的原文'),
-      instruction: z.string().optional().describe('润色方向和要求'),
+      instruction: z.string().optional().describe('润色方向 and 要求'),
     }),
   }
 );
 
 // ─── 12. 逻辑自检 ────────────────────────────────────────────────────────────
 export const checkConsistencyTool = tool(
-  async ({ projectId, text }) => {
-    const config = getAgentConfig('editor');
-    const result = await ai.checkConsistency(projectId, text, config, getAgentModelName('editor'));
+  async ({ projectId, text }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const configStr = getAgentConfig('editor', apiConfig);
+    const result = await ai.checkConsistency(projectId, text, configStr, getAgentModelName('editor', apiConfig, modelName));
     return JSON.stringify(result, null, 2);
   },
   {
@@ -411,8 +417,10 @@ export const checkConsistencyTool = tool(
 
 // ─── 13. 章节复盘：摘要与状态写入记忆 ─────────────────────────────────────────
 export const summarizeChapterTool = tool(
-  async ({ projectId, chapterId, text }) => {
+  async ({ projectId, chapterId, text }, config) => {
     void projectId;
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
     let content = text || '';
     let target: Chapter | undefined;
     if (chapterId) {
@@ -422,8 +430,8 @@ export const summarizeChapterTool = tool(
     if (!content || !content.trim()) {
       return '没有可供摘要的正文内容（请提供 text，或提供含正文的有效 chapterId）。';
     }
-    const config = getAgentConfig('editor');
-    const s = await ai.summarizeChapter(content, config, getAgentModelName('editor'));
+    const configStr = getAgentConfig('editor', apiConfig);
+    const s = await ai.summarizeChapter(content, configStr, getAgentModelName('editor', apiConfig, modelName));
     if (target) {
       await db.updateChapter(target.id, {
         summary: s.summary,
@@ -470,9 +478,11 @@ export const addAntiAiRuleTool = tool(
 
 // ─── 14. 生成角色/设定灵感 ────────────────────────────────────────────────────
 export const generateInspirationsTool = tool(
-  async ({ projectId }) => {
-    const config = getAgentConfig('lore_builder');
-    const data = await ai.generateInspirations(projectId, config, getAgentModelName('lore_builder'));
+  async ({ projectId }, config) => {
+    const apiConfig = config.configurable?.apiConfig || '';
+    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const configStr = getAgentConfig('lore_builder', apiConfig);
+    const data = await ai.generateInspirations(projectId, configStr, getAgentModelName('lore_builder', apiConfig, modelName));
     return JSON.stringify(data, null, 2);
   },
   {

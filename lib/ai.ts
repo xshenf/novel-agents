@@ -95,6 +95,12 @@ async function callGemini(apiKey: string, modelName: string, systemInstruction: 
       }
     };
 
+    if (config.reasoningEnabled) {
+      body.thinkingConfig = {
+        thinkingBudget: 2048
+      };
+    }
+
     if (finalSystemInstruction) {
       body.systemInstruction = {
         parts: [{ text: finalSystemInstruction }]

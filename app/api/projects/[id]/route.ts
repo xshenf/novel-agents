@@ -32,6 +32,7 @@ export async function PUT(
     }
     return NextResponse.json(updated);
   } catch (error: unknown) {
+    console.error('API Error updating project:', error);
     const msg = error instanceof Error ? error.message : '更新项目失败';
     return NextResponse.json({ error: msg }, { status: 500 });
   }

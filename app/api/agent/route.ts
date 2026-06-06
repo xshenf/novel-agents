@@ -5,7 +5,7 @@ import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120; // 2 分钟超时
+export const maxDuration = 300; // 5 分钟超时
 
 export async function POST(request: NextRequest) {
   let body: any;
@@ -79,6 +79,10 @@ export async function POST(request: NextRequest) {
           {
             version: 'v2',
             recursionLimit: 50,
+            configurable: {
+              apiConfig: packedApiKey,
+              modelName: modelName || 'gemini-2.5-flash',
+            }
           }
         );
 
@@ -174,7 +178,10 @@ export async function POST(request: NextRequest) {
         send('done', { message: '任务完成' });
       } catch (err: any) {
         console.error('Agent error:', err);
-        send('error', { message: err.message || 'Agent 执行失败' });
+        send('error', { 
+          message: err.message || 'Agent 执行失败',
+          tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送“请继续刚才未完成的工作”来续跑。'
+        });
       } finally {
         controller.close();
       }

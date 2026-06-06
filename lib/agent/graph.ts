@@ -13,7 +13,6 @@ import {
   EDITOR_TOOLS,
   queryMemoryTool,
   getProjectOverviewTool,
-  setAgentApiConfig,
 } from './tools';
 import { AGENT_PROMPTS, AgentRole } from './prompts';
 
@@ -46,6 +45,7 @@ function buildLLMFromConfig(config: {
   apiBaseUrl?: string;
   temperature?: number;
   maxTokens?: number;
+  reasoningEnabled?: boolean;
 }) {
   const provider = config.provider || 'gemini';
   const model = config.name || 'gemini-2.5-flash';
@@ -53,12 +53,19 @@ function buildLLMFromConfig(config: {
   const maxTokens = config.maxTokens ?? 3000;
 
   if (provider === 'gemini') {
+    const additionalParams: Record<string, any> = {};
+    if (config.reasoningEnabled) {
+      additionalParams.thinkingConfig = {
+        thinkingBudget: 2048,
+      };
+    }
     return new ChatGoogleGenerativeAI({
       apiKey: config.apiKey,
       model,
       temperature,
       maxOutputTokens: maxTokens,
       ...(config.apiBaseUrl ? { baseUrl: config.apiBaseUrl } : {}),
+      ...additionalParams,
     });
   }
 
@@ -83,6 +90,7 @@ function buildLLM(apiConfig: string, modelName: string) {
     apiBaseUrl: '',
     temperature: 0.7,
     maxTokens: 4000,
+    reasoningEnabled: false,
   };
 
   if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
@@ -95,6 +103,7 @@ function buildLLM(apiConfig: string, modelName: string) {
       config.apiBaseUrl = parsed.apiBaseUrl || config.apiBaseUrl;
       config.temperature = parsed.temperature !== undefined ? parsed.temperature : config.temperature;
       config.maxTokens = parsed.maxTokens !== undefined ? parsed.maxTokens : config.maxTokens;
+      config.reasoningEnabled = parsed.reasoningEnabled === true;
     } catch (_) { /* ignore */ }
   }
 
@@ -153,13 +162,17 @@ const ORCHESTRATOR_SUMMARY_TOOLS = [queryMemoryTool, getProjectOverviewTool];
 const MAX_DELEGATIONS = 5;
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
-function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string) {
+function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string, globalSystemInstruction: string) {
   const bound = llm.bindTools(tools);
   const systemPrompt = AGENT_PROMPTS[role];
 
   return async (state: typeof AgentState.State) => {
     const contextNote = `\n\n当前项目ID: ${projectId}（调用工具时必须传入此ID）`;
-    const sysMsg = new SystemMessage(systemPrompt + contextNote);
+    let finalPrompt = systemPrompt + contextNote;
+    if (globalSystemInstruction && globalSystemInstruction.trim()) {
+      finalPrompt += `\n\n用户全局系统指令（你必须严格遵守）：\n${globalSystemInstruction}`;
+    }
+    const sysMsg = new SystemMessage(finalPrompt);
     const response = await bound.invoke([sysMsg, ...state.messages]);
     return { messages: [response], currentAgent: role };
   };
@@ -168,7 +181,7 @@ function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: str
 // Orchestrator 节点：根据已委托次数动态切换「调度模式 / 汇总模式」。
 // 一旦有专家完成（delegationCount > 0），就引导其综合成果做最终汇报；
 // 达到上限后绑定无 delegate 工具的工具集，从机制上强制收尾。
-function createOrchestratorNode(llm: any, projectId: string) {
+function createOrchestratorNode(llm: any, projectId: string, globalSystemInstruction: string) {
   const boundFull = llm.bindTools(ORCHESTRATOR_TOOLS);
   const boundSummary = llm.bindTools(ORCHESTRATOR_SUMMARY_TOOLS);
   const base = AGENT_PROMPTS['orchestrator'];
@@ -177,6 +190,9 @@ function createOrchestratorNode(llm: any, projectId: string) {
     const force = state.delegationCount >= MAX_DELEGATIONS;
     const bound = force ? boundSummary : boundFull;
     let sys = base + `\n\n当前项目ID: ${projectId}（调用工具时必须传入此ID）`;
+    if (globalSystemInstruction && globalSystemInstruction.trim()) {
+      sys += `\n\n用户全局系统指令（你必须严格遵守）：\n${globalSystemInstruction}`;
+    }
     if (state.delegationCount > 0) {
       sys += force
         ? '\n\n【收尾阶段】已多次委托专家，请立即综合现有所有成果，用简洁专业的语言给用户最终汇报，不要再委托任何任务。'
@@ -194,16 +210,16 @@ const afterSpecialistNode = async (state: typeof AgentState.State) => ({
 
 // ─── 构建 Graph ────────────────────────────────────────────────────────────────
 export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string) {
-  setAgentApiConfig(apiConfig, modelName);
-
   let models: any[] = [];
   let bindings: Record<string, string> = {};
   let overrides: Record<string, any> = {};
   let isMultiModel = false;
+  let globalSystemInstruction = '';
 
   if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
     try {
       const parsed = JSON.parse(apiConfig);
+      globalSystemInstruction = parsed.systemInstruction || '';
       if (Array.isArray(parsed.models) && parsed.agentModelBindings) {
         models = parsed.models;
         bindings = parsed.agentModelBindings;
@@ -223,9 +239,10 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
           apiKey: modelConfig.apiKey,
           provider: modelConfig.provider,
           name: modelConfig.name,
-          apiBaseUrl: modelConfig.baseUrl,
+          apiBaseUrl: modelConfig.baseUrl || modelConfig.apiBaseUrl || '',
           temperature: agentOverride.temperature !== undefined ? agentOverride.temperature : modelConfig.temperature,
           maxTokens: agentOverride.maxTokens !== undefined ? agentOverride.maxTokens : modelConfig.maxTokens,
+          reasoningEnabled: modelConfig.reasoningEnabled === true,
         };
         return buildLLMFromConfig(mergedConfig);
       }
@@ -239,11 +256,11 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
   const writerLlm       = getLLMForAgent('writer');
   const editorLlm       = getLLMForAgent('editor');
 
-  const orchestratorNode = createOrchestratorNode(orchestratorLlm, projectId);
-  const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      plannerLlm, projectId);
-  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId);
-  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId);
-  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId);
+  const orchestratorNode = createOrchestratorNode(orchestratorLlm, projectId, globalSystemInstruction);
+  const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      plannerLlm, projectId, globalSystemInstruction);
+  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId, globalSystemInstruction);
+  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId, globalSystemInstruction);
+  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId, globalSystemInstruction);
 
   const orchestratorToolNode  = new ToolNode(ORCHESTRATOR_TOOLS);
   const plannerToolNode       = new ToolNode(PLANNER_TOOLS);

@@ -441,7 +441,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updates),
         });
-        if (!res.ok) throw new Error('更新项目失败');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || '更新项目失败');
+        }
         const updated = await res.json();
         set(state => ({
           projects: state.projects.map(p => p.id === id ? updated : p),
