@@ -605,7 +605,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
                         <Activity size={13} style={{ color: 'var(--accent)' }} />
                         <span style={{ fontWeight: '500' }}>小说节奏与情绪张力曲线</span>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '450px' }}>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '350px', flexShrink: 0 }}>
                         {hoveredPoint !== null ? (
                           <span>
                             {points[hoveredPoint].title} | 情绪强度: {points[hoveredPoint].val}%
