@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2
+  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers
 } from 'lucide-react';
 
 export type OutlineSubTab = 'kernel' | 'volume' | 'chapter' | 'assets';
@@ -13,8 +13,10 @@ export interface MaterialItem {
   color: string;
 }
 
-// 18 宫格世界素材磁贴的固定清单（章节列表/大纲设定统一由最左侧 WorkspaceSidebar 承载）
+// 世界素材磁贴清单。「分卷大纲」承载分卷/章节大纲的查看、编辑与（AI/手动）管理；
+// 左侧 WorkspaceSidebar 仅做分卷-章节的浏览与跳转。
 export const MATERIALS_LIST: MaterialItem[] = [
+  { id: 'outline', label: '分卷大纲', icon: Layers, color: '#6366f1' },
   { id: 'worldSetting', label: '世界观设定', icon: Compass, color: '#38bdf8' },
   { id: 'coreConflict', label: '故事核心', icon: Activity, color: '#f43f5e' },
   { id: 'location', label: '地理地图', icon: BookOpen, color: '#10b981' },
@@ -48,6 +50,12 @@ export function useMaterialTabs() {
 
   // 选择素材磁贴时统一控制跳转
   const handleSelectMaterial = useCallback((material: string) => {
+    if (material === 'outline') {
+      // 分卷大纲：进入大纲树视图，默认显示「分卷大纲」子页
+      setActiveMaterial('outline');
+      setOutlineSubTab('volume');
+      return;
+    }
     if (ASSET_MATERIAL_IDS.has(material)) {
       setActiveMaterial(material);
       setOutlineSubTab('assets');
