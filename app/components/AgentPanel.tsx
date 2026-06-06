@@ -10,6 +10,7 @@ export function AgentPanel() {
   const {
     chatInput, setChatInput, agentMessages, setAgentMessages,
     isAgentLoading, agentBottomRef, handleSendAgentMessage,
+    pendingConfirm, resolveConfirm,
   } = agent;
 
   return (
@@ -175,6 +176,12 @@ export function AgentPanel() {
                         </div>
                       </div>
                     );
+                  case 'confirm':
+                    return (
+                      <div key={msg.id} className="agent-bubble" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: 'var(--accent-warning)', fontSize: '12px', lineHeight: 1.5 }}>
+                        {msg.content}
+                      </div>
+                    );
                   case 'error':
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-error">
@@ -199,6 +206,34 @@ export function AgentPanel() {
             </div>
           )}
 
+          {pendingConfirm && (
+            <div style={{ margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--accent-warning)', marginBottom: '8px', lineHeight: 1.5 }}>
+                {pendingConfirm.payload.action || '操作'}「{pendingConfirm.payload.target || ''}」属于已锁定项，确认要继续吗？
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                  disabled={isAgentLoading}
+                  onClick={() => resolveConfirm('confirm')}
+                >
+                  确认继续
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                  disabled={isAgentLoading}
+                  onClick={() => resolveConfirm('cancel')}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSendAgentMessage} className="chat-input-area">
             <input
               type="text"
@@ -206,9 +241,9 @@ export function AgentPanel() {
               placeholder="向创作智能体下达指令..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              disabled={isAgentLoading}
+              disabled={isAgentLoading || !!pendingConfirm}
             />
-            <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAgentLoading}>
+            <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAgentLoading || !!pendingConfirm}>
               {isAgentLoading ? <Loader2 className="animate-spin" size={14} /> : '发送'}
             </button>
           </form>
