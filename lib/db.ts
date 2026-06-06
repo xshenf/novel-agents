@@ -3,7 +3,8 @@ import {
   NovelProject as PrismaProject, 
   Character as PrismaCharacter, 
   Chapter as PrismaChapter, 
-  AgentMessage as PrismaMessage 
+  AgentMessage as PrismaMessage,
+  WorldState as PrismaWorldState
 } from '@prisma/client';
 
 const prismaClientSingleton = () => {
@@ -68,6 +69,18 @@ export interface WorldRule {
   type: 'location' | 'faction' | 'rule' | 'item' | 'other';
   name: string;
   description: string;
+}
+
+export interface WorldState {
+  id: string;
+  projectId: string;
+  category: string;
+  name: string;
+  content: string;
+  pinned: boolean;
+  source: 'ai' | 'manual';
+  updatedAtChapter: string;
+  updatedAt: string;
 }
 
 export interface CharacterChange {
@@ -395,6 +408,81 @@ export const db = {
       return true;
     } catch {
       return false;
+    }
+  },
+
+  // --- 世界状态 (WorldState) ---
+  async getWorldStates(projectId: string): Promise<WorldState[]> {
+    const list = await prisma.worldState.findMany({
+      where: { projectId },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return list.map(s => ({
+      ...s,
+      source: s.source as 'ai' | 'manual',
+      updatedAt: s.updatedAt.toISOString(),
+    }));
+  },
+
+  async getWorldState(id: string): Promise<WorldState | undefined> {
+    const item = await prisma.worldState.findUnique({ where: { id } });
+    return item ? { ...item, source: item.source as 'ai' | 'manual', updatedAt: item.updatedAt.toISOString() } : undefined;
+  },
+
+  async createWorldState(state: Omit<WorldState, 'id' | 'updatedAt'>): Promise<WorldState> {
+    const id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const created = await prisma.worldState.create({
+      data: {
+        id,
+        projectId: state.projectId,
+        category: state.category,
+        name: state.name,
+        content: state.content,
+        pinned: state.pinned ?? false,
+        source: state.source || 'ai',
+        updatedAtChapter: state.updatedAtChapter || '',
+      },
+    });
+    return { ...created, source: created.source as 'ai' | 'manual', updatedAt: created.updatedAt.toISOString() };
+  },
+
+  async updateWorldState(id: string, updates: Partial<Omit<WorldState, 'id' | 'projectId'>>): Promise<WorldState | undefined> {
+    const updated = await prisma.worldState.update({
+      where: { id },
+      data: updates,
+    });
+    return updated ? { ...updated, source: updated.source as 'ai' | 'manual', updatedAt: updated.updatedAt.toISOString() } : undefined;
+  },
+
+  async deleteWorldState(id: string): Promise<boolean> {
+    try {
+      await prisma.worldState.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async replaceAutoWorldStates(projectId: string, items: Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>): Promise<void> {
+    // 删除该项目所有非锁定且来源为 ai 的条目
+    await prisma.worldState.deleteMany({
+      where: { projectId, pinned: false, source: 'ai' },
+    });
+    // 批量插入 AI 输出的新条目
+    for (const item of items) {
+      const id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await prisma.worldState.create({
+        data: {
+          id,
+          projectId,
+          category: item.category,
+          name: item.name,
+          content: item.content,
+          pinned: false,
+          source: 'ai',
+          updatedAtChapter: item.updatedAtChapter || '',
+        },
+      });
     }
   },
 

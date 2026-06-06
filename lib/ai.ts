@@ -1107,6 +1107,68 @@ ${memory.contextText}
     const merged = isBootstrap ? material : `${prev}\n${material}`;
     return merged.length > 1200 ? merged.slice(-1200) : merged;
   },
+
+  /**
+   * 维护世界状态台账：读取现有台账 + 滚动概要 + 最近章节摘要，让 AI 输出更新后的非锁定条目。
+   * 返回条目数组（调用方负责落库 via db.replaceAutoWorldStates）。
+   */
+  async updateWorldState(projectId: string, apiKey?: string, modelName?: string): Promise<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>> {
+    const [project, chapters, existingStates] = await Promise.all([
+      db.getProject(projectId),
+      db.getChapters(projectId),
+      db.getWorldStates(projectId),
+    ]);
+
+    const rolling = (project?.rollingSynopsis || '').trim();
+    const summarized = chapters.filter(c => c.summary && c.summary.trim() !== '');
+    const recentSummaries = summarized.slice(-5).map(c => `${c.title}：${c.summary}`).join('\n');
+
+    // 标记哪些条目已锁定，AI 不得修改
+    const lockedInfo = existingStates.filter(s => s.pinned).map(s => `[${s.category}] ${s.name}（已锁定，不可修改）`).join('\n');
+    const unlockedInfo = existingStates.filter(s => !s.pinned).map(s => `[${s.category}] ${s.name}：${s.content}`).join('\n');
+
+    const systemInstruction = `你是小说连续性管理员，负责维护一份「世界当前状态台账」。这份台账记录随剧情演化的动态世界信息，会在 AI 写作后续章节时作为长期记忆注入，必须准确反映当前剧情进展。`;
+    const prompt = `【现有世界状态台账（非锁定条目，可更新）】：
+${unlockedInfo || '（暂无）'}
+
+【已锁定条目（人工校对过，不可修改/删除）】：
+${lockedInfo || '（无）'}
+
+【全书滚动概要】：
+${rolling || '（暂无）'}
+
+【最近章节摘要】：
+${recentSummaries || '（暂无）'}
+
+请输出更新后的世界状态条目数组 JSON。维度限定为以下 6 类：
+- 势力格局：各势力当前态势、关系变化
+- 主角境界：主角当前修为/实力等级
+- 当前所在地：主角/核心角色当前所在位置
+- 时间进度：故事当前时间节点
+- 关键物品：重要物品当前归属
+- 其他：不属于以上类别但重要的动态世界信息
+
+输出格式（纯 JSON 数组，不要 markdown 代码块）：
+[{"category":"势力格局","name":"天澜宗","content":"当前态势描述...","updatedAtChapter":"第X章"}]
+
+要求：
+1. 基于滚动概要和最近章节摘要，更新已有条目的 content，补充新增条目。
+2. 已锁定条目不要出现在输出中（它们会被保留）。
+3. 每条 content 控制在 100 字以内，简明扼要。
+4. 只输出 JSON 数组，不要任何解释。`;
+
+    if (hasUsableKey(apiKey)) {
+      const raw = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      const parsed = safeParseJSON<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>>(raw, []);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      // 解析失败时返回现有非锁定条目不变
+      return existingStates.filter(s => !s.pinned).map(s => ({ category: s.category, name: s.name, content: s.content, updatedAtChapter: s.updatedAtChapter }));
+    }
+
+    // 无可用模型时的兜底：返回现有台账不变
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return existingStates.filter(s => !s.pinned).map(s => ({ category: s.category, name: s.name, content: s.content, updatedAtChapter: s.updatedAtChapter }));
+  },
 };
 
 const genreToCategory: Record<string, string> = {

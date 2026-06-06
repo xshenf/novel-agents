@@ -8,6 +8,7 @@ import { createVersionSnapshot } from '@/lib/versionSnapshot';
 import { KernelDimensionsPanel } from './KernelDimensionsPanel';
 import { CharacterManagementView } from './CharacterManagementView';
 import { WorldRuleCard, AddWorldRuleCard } from './AssetCards';
+import { WorldStateView } from './WorldStateView';
 import { useMaterialTabs, MATERIALS_LIST } from '../hooks/useMaterialTabs';
 import { OutlineSidebar } from './OutlineSidebar';
 
@@ -146,6 +147,11 @@ export function OutlineTab() {
         {/* 4. 角色管理视图 (character) */}
         {activeMaterial === 'character' && (
           <CharacterManagementView store={store} isAddingChar={kernel.isAddingChar} setIsAddingChar={kernel.setIsAddingChar} createVersionSnapshot={createVersionSnapshot} />
+        )}
+
+        {/* 4.5. 世界状态视图 (worldState) */}
+        {activeMaterial === 'worldState' && (
+          <WorldStateView store={store} />
         )}
 
         {/* 5. 扩展设定与世界设定资产库 (location, faction, item, currency, skillSystem, relation, foreshadow, plot, subPlot, timeline, events) */}

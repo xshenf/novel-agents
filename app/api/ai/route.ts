@@ -151,6 +151,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ rollingSynopsis });
       }
 
+      case 'foldWorldState': {
+        // 章节完成后更新世界状态台账并落库。
+        if (!projectId) {
+          return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
+        }
+        const items = await ai.updateWorldState(projectId, apiKey, modelName);
+        await db.replaceAutoWorldStates(projectId, items);
+        return NextResponse.json({ worldStates: items });
+      }
+
       case 'generateKernel': {
         const { genre, tone } = body;
         if (!projectTitle || !genre || !tone) {

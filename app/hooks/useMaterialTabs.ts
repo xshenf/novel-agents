@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers
+  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers, Globe
 } from 'lucide-react';
 
 export type OutlineSubTab = 'kernel' | 'volume' | 'chapter' | 'assets';
@@ -31,13 +31,14 @@ export const MATERIALS_LIST: MaterialItem[] = [
   { id: 'plot', label: '情节脉络', icon: Trophy, color: '#ef4444' },
   { id: 'subPlot', label: '支线故事', icon: Compass, color: '#8b5cf6' },
   { id: 'timeline', label: '时间线', icon: Activity, color: '#06b6d4' },
-  { id: 'events', label: '已经历事件', icon: CheckCircle2, color: '#22c55e' }
+  { id: 'events', label: '已经历事件', icon: CheckCircle2, color: '#22c55e' },
+  { id: 'worldState', label: '世界状态', icon: Globe, color: '#22d3ee' }
 ];
 
 const ASSET_MATERIAL_IDS = new Set([
   'character', 'location', 'faction', 'item', 'currency',
   'skillSystem', 'relation', 'foreshadow', 'plot', 'subPlot',
-  'timeline', 'events'
+  'timeline', 'events', 'worldState'
 ]);
 
 // 管理素材磁贴选中态、当前子 Tab 与大纲搜索

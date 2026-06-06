@@ -29,6 +29,7 @@ model NovelProject {
   updatedAt        DateTime       @updatedAt
   characters       Character[]
   worldRules       WorldRule[]
+  worldStates      WorldState[]
   chapters         Chapter[]
   agentMessages    AgentMessage[]
   versionSnapshots VersionSnapshot[]
@@ -56,6 +57,19 @@ model WorldRule {
   type        String
   name        String
   description String
+}
+
+model WorldState {
+  id               String       @id
+  projectId        String
+  project          NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category         String
+  name             String
+  content          String
+  pinned           Boolean      @default(false)
+  source           String       @default("ai")
+  updatedAtChapter String       @default("")
+  updatedAt        DateTime     @updatedAt
 }
 
 model Chapter {

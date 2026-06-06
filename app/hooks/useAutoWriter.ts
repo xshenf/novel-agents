@@ -201,6 +201,14 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
             } catch (e) {
               console.error('更新全书滚动概要失败:', e);
             }
+
+            // 刷新世界状态台账（供动态世界信息随剧情更新）
+            try {
+              await callAIApi({ action: 'foldWorldState', projectId: store.currentProject.id });
+            } catch (e) {
+              console.error('更新世界状态台账失败:', e);
+            }
+            await store.fetchWorldStates(store.currentProject.id);
           }
 
           completed++;

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { NovelProject, Chapter, Character, WorldRule } from './db';
+import { NovelProject, Chapter, Character, WorldRule, WorldState } from './db';
 
 export interface ModelConfig {
   id: string;
@@ -20,6 +20,7 @@ export interface NovelStore {
   currentChapter: Chapter | null;
   characters: Character[];
   worldRules: WorldRule[];
+  worldStates: WorldState[];
   apiKey: string;
   modelName: string;
   apiProvider: string;
@@ -72,6 +73,11 @@ export interface NovelStore {
   createWorldRule: (rule: Omit<WorldRule, 'id'>) => Promise<WorldRule>;
   updateWorldRule: (id: string, updates: Partial<Omit<WorldRule, 'id' | 'projectId'>>) => Promise<void>;
   deleteWorldRule: (id: string) => Promise<void>;
+
+  fetchWorldStates: (projectId: string) => Promise<void>;
+  createWorldState: (state: Omit<WorldState, 'id' | 'updatedAt'>) => Promise<WorldState>;
+  updateWorldState: (id: string, updates: Partial<Omit<WorldState, 'id' | 'projectId'>>) => Promise<void>;
+  deleteWorldState: (id: string) => Promise<void>;
 
   globalModal: { title?: string; message: string; type: 'alert' | 'confirm'; onConfirm?: () => void; onCancel?: () => void } | null;
   showAlert: (message: string, title?: string) => void;
@@ -146,6 +152,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     currentChapter: null,
     characters: [],
     worldRules: [],
+    worldStates: [],
     apiKey: initialApiKey,
     modelName: initialModel,
     apiProvider: initialProvider,
@@ -469,6 +476,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         get().fetchChapters(project.id);
         get().fetchCharacters(project.id);
         get().fetchWorldRules(project.id);
+        get().fetchWorldStates(project.id);
 
         // 如果项目数据库中有模型配置且不为空
         if (project.modelsConfig && project.modelsConfig.length > 0) {
@@ -698,6 +706,61 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         const res = await fetch(`/api/world-rules/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('删除设定失败');
         set(state => ({ worldRules: state.worldRules.filter(w => w.id !== id) }));
+      } catch (err: any) {
+        set({ error: err.message });
+      }
+    },
+
+    fetchWorldStates: async (projectId: string) => {
+      try {
+        const res = await fetch(`/api/world-states?projectId=${projectId}`);
+        if (!res.ok) throw new Error('获取世界状态失败');
+        const data = await res.json();
+        set({ worldStates: data });
+      } catch (err: any) {
+        set({ error: err.message });
+      }
+    },
+
+    createWorldState: async (state: Omit<WorldState, 'id' | 'updatedAt'>) => {
+      try {
+        const res = await fetch('/api/world-states', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state),
+        });
+        if (!res.ok) throw new Error('创建世界状态失败');
+        const newState = await res.json();
+        set(state => ({ worldStates: [...state.worldStates, newState] }));
+        return newState;
+      } catch (err: any) {
+        set({ error: err.message });
+        throw err;
+      }
+    },
+
+    updateWorldState: async (id: string, updates: Partial<Omit<WorldState, 'id' | 'projectId'>>) => {
+      try {
+        const res = await fetch(`/api/world-states/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error('更新世界状态失败');
+        const updated = await res.json();
+        set(state => ({
+          worldStates: state.worldStates.map(w => w.id === id ? updated : w),
+        }));
+      } catch (err: any) {
+        set({ error: err.message });
+      }
+    },
+
+    deleteWorldState: async (id: string) => {
+      try {
+        const res = await fetch(`/api/world-states/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('删除世界状态失败');
+        set(state => ({ worldStates: state.worldStates.filter(w => w.id !== id) }));
       } catch (err: any) {
         set({ error: err.message });
       }

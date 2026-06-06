@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { NovelStore } from '@/lib/store';
-import type { Character } from '@/lib/db';
+import type { Character, WorldState } from '@/lib/db';
 import type { CallAIApi } from './useAiClient';
 
 export interface SynopsisItem { id: string; title: string; summary: string; }
@@ -67,6 +67,41 @@ export function useChapterMemory({ store, callAIApi }: Deps) {
     [store],
   );
 
+  // ── 世界状态（动态快照）──
+  const worldStatesByCategory = useMemo(() => {
+    const grouped: Record<string, WorldState[]> = {};
+    store.worldStates.forEach(s => {
+      const cat = s.category || '其他';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(s);
+    });
+    return grouped;
+  }, [store.worldStates]);
+
+  const saveWorldState = useCallback(
+    (id: string, content: string) => store.updateWorldState(id, { content }),
+    [store],
+  );
+  const toggleWorldStatePinned = useCallback(
+    (id: string, pinned: boolean) => store.updateWorldState(id, { pinned }),
+    [store],
+  );
+  const addWorldState = useCallback(
+    (item: Omit<WorldState, 'id' | 'updatedAt'>) => store.createWorldState(item),
+    [store],
+  );
+  const removeWorldState = useCallback(
+    (id: string) => store.deleteWorldState(id),
+    [store],
+  );
+  const refreshWorldState = useCallback(async () => {
+    if (!store.currentProject) return;
+    try {
+      await callAIApi({ action: 'foldWorldState', projectId: store.currentProject.id });
+    } catch { /* ignore */ }
+    await store.fetchWorldStates(store.currentProject.id);
+  }, [store, callAIApi]);
+
   // ── AI 实际检索到的记忆上下文（忠实暴露 top-3 截断，作跑偏预警）──
   const [preview, setPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -91,6 +126,12 @@ export function useChapterMemory({ store, callAIApi }: Deps) {
     timeline,
     saveCharacterState,
     saveChapterSummary,
+    worldStatesByCategory,
+    saveWorldState,
+    toggleWorldStatePinned,
+    addWorldState,
+    removeWorldState,
+    refreshWorldState,
     preview,
     previewLoading,
     fetchPreview,

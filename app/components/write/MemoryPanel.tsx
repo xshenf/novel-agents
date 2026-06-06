@@ -1,6 +1,6 @@
 'use client';
 
-import { Brain, ChevronDown, ChevronUp, Pencil, Check, X, Users, Flag, Clock, Eye, Loader2, ScrollText } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, Pencil, Check, X, Users, Flag, Clock, Eye, Loader2, ScrollText, Globe, Lock, Unlock, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useWorkspace } from '../../workspace-context';
 
@@ -60,9 +60,10 @@ const boxStyle: React.CSSProperties = {
 // 写作页「AI 记忆」面板：让 AI 当前记得什么可见，并允许人工校对（改记忆比改正文更能阻断跑偏）。
 export function MemoryPanel() {
   const { store, chapterMemory } = useWorkspace();
-  const { synopsis, activeCharacters, openForeshadowing, timeline, saveCharacterState, saveChapterSummary, preview, previewLoading, fetchPreview } = chapterMemory;
+  const { synopsis, activeCharacters, openForeshadowing, timeline, saveCharacterState, saveChapterSummary, worldStatesByCategory, saveWorldState, toggleWorldStatePinned, refreshWorldState, preview, previewLoading, fetchPreview } = chapterMemory;
   const [open, setOpen] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [refreshingWorldState, setRefreshingWorldState] = useState(false);
 
   if (!store.currentChapter) return null;
 
@@ -103,6 +104,46 @@ export function MemoryPanel() {
                 <div key={i} style={{ marginBottom: '4px', color: '#d1d5db' }}>
                   · {f.text}
                   <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: '6px' }}>（{f.from}）</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 世界当前状态（动态快照） */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <SectionLabel icon={<Globe size={11} />}>世界当前状态</SectionLabel>
+              <button
+                onClick={async () => { setRefreshingWorldState(true); await refreshWorldState(); setRefreshingWorldState(false); }}
+                disabled={refreshingWorldState}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 6px', background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)', color: '#22d3ee', borderRadius: '4px', cursor: 'pointer' }}
+                title="让 AI 复盘世界状态"
+              >
+                {refreshingWorldState ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                AI 复盘
+              </button>
+            </div>
+            <div style={boxStyle}>
+              {Object.keys(worldStatesByCategory).length === 0 ? (
+                <span style={{ color: 'var(--text-muted)' }}>暂无世界状态，写完章节后 AI 会自动维护</span>
+              ) : Object.entries(worldStatesByCategory).map(([cat, items]) => (
+                <div key={cat} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#22d3ee', marginBottom: '4px', fontWeight: 600 }}>[{cat}]</div>
+                  {items.map(s => (
+                    <div key={s.id} style={{ marginBottom: '6px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ color: '#a5b4fc', fontSize: '11px', fontWeight: 600 }}>{s.name}</span>
+                        <EditableText value={s.content} placeholder="（空）" onSave={(v) => saveWorldState(s.id, v)} />
+                      </div>
+                      <button
+                        onClick={() => toggleWorldStatePinned(s.id, !s.pinned)}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: s.pinned ? '#f59e0b' : 'var(--text-muted)', flexShrink: 0 }}
+                        title={s.pinned ? '已锁定，AI 不会覆盖' : '未锁定，AI 可更新'}
+                      >
+                        {s.pinned ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { db, Chapter, Character, WorldRule, NovelProject } from './db';
+import { db, Chapter, Character, WorldRule, WorldState, NovelProject } from './db';
 import { parseStructureOutline } from './outlineParser';
 
 export interface MemorySearchResult {
@@ -6,6 +6,7 @@ export interface MemorySearchResult {
   chapters: Chapter[];
   characters: Character[];
   worldRules: WorldRule[];
+  worldStates: WorldState[];
 }
 
 // 转义正则中的特殊字符，避免用 token 构造 RegExp 时报错
@@ -89,10 +90,11 @@ function scoreRelevantChapters(chapters: Chapter[], queryTokens: string[]): Chap
 // 检索小说记忆：始终注入「故事圣经 + 全书逐章摘要」，并补充最近/相关章节的关键状态变化。
 // 这从根本上避免了「只给最近/命中的 top-3 章」导致的长篇跑偏。
 export async function searchMemory(projectId: string, query: string, chapterTitle?: string): Promise<MemorySearchResult> {
-  const [chapters, characters, worldRules, project] = await Promise.all([
+  const [chapters, characters, worldRules, worldStates, project] = await Promise.all([
     db.getChapters(projectId),
     db.getCharacters(projectId),
     db.getWorldRules(projectId),
+    db.getWorldStates(projectId),
     db.getProject(projectId),
   ]);
 
@@ -138,13 +140,14 @@ export async function searchMemory(projectId: string, query: string, chapterTitl
   const detailIds = new Set([...recent, ...relevant].map(c => c.id));
   const detailChapters = chapters.filter(c => detailIds.has(c.id));
 
-  const contextText = formatContext(project, chapters, characters, worldRules, detailChapters, currentChapterOutline);
+  const contextText = formatContext(project, chapters, characters, worldRules, worldStates, detailChapters, currentChapterOutline);
 
   return {
     contextText,
     chapters: detailChapters,
     characters,
     worldRules,
+    worldStates,
   };
 }
 
@@ -158,6 +161,7 @@ function formatContext(
   allChapters: Chapter[],
   characters: Character[],
   rules: WorldRule[],
+  worldStates: WorldState[],
   detailChapters: Chapter[],
   currentChapterOutline?: string,
 ): string {
@@ -209,6 +213,24 @@ function formatContext(
       ruleText += `\n- [${RULE_TYPE_MAP[r.type] || r.type}] ${r.name}：${r.description}`;
     });
     parts.push(ruleText);
+  }
+
+  // ── 3.5. 世界当前状态（动态快照，随剧情演化）──
+  if (worldStates.length > 0) {
+    // 按 category 分组
+    const grouped: Record<string, WorldState[]> = {};
+    worldStates.forEach(s => {
+      const cat = s.category || '其他';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(s);
+    });
+    let stateText = `【世界当前状态（随剧情演化，以下为最新快照，须以此为准）】：`;
+    for (const [cat, items] of Object.entries(grouped)) {
+      items.forEach(s => {
+        stateText += `\n- [${cat}] ${s.name}：${s.content}`;
+      });
+    }
+    parts.push(stateText);
   }
 
   // ── 4. 未回收伏笔台账（始终注入）──
