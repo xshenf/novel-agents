@@ -99,9 +99,6 @@ export function WriteTab() {
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-dark)', gap: '15px' }}>
           <BookOpen size={48} style={{ opacity: 0.3 }} />
           <span>请在左侧侧边栏创建或选择一个章节进行创作</span>
-          <button className="btn btn-primary" onClick={() => setShowNewChapModal(true)}>
-            <Plus size={16} /> 新建第一章
-          </button>
         </div>
       )}
     </div>

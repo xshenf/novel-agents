@@ -79,9 +79,6 @@ export function WorkspaceSidebar() {
                   <button className="btn-icon" onClick={() => setSidebarCollapsed(true)} title="收起章节列表">
                     <ChevronLeft size={16} />
                   </button>
-                  <button className="btn-icon" onClick={() => setShowNewChapModal(true)} title="新建章节">
-                    <Plus size={16} />
-                  </button>
                 </div>
               </div>
 
