@@ -34,6 +34,11 @@ export interface NovelProject {
   coreConflict?: string;
   factionsMap?: string;
   sellingPoints?: string;
+  skillSystem?: string;
+  location?: string;
+  faction?: string;
+  currency?: string;
+  item?: string;
   outlineFull?: string;
   rollingSynopsis?: string;
   antiAiStyleRules?: string[];

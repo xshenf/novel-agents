@@ -390,13 +390,12 @@ export const ai = {
     });
 
     // 并发执行，按 concurrency 控制并发数
-    const taskResults = await runWithConcurrency(tasks, concurrency, (completed, total) => {
+    const taskResults = await runWithConcurrency(tasks, concurrency, (completed) => {
       if (onProgress && completed <= dimensions.length) {
-        const r = taskResults as Array<{ key: string; label: string; options: any[] } | undefined>;
-        const lastResult = r[completed - 1];
-        const dimKey = lastResult?.key || dimensions[completed - 1]?.key || '';
-        const dimLabel = lastResult?.label || dimensions[completed - 1]?.label || '';
-        onProgress(dimKey, dimLabel, completed, total);
+        const dim = dimensions[completed - 1];
+        if (dim) {
+          onProgress(dim.key, dim.label, completed, dimensions.length);
+        }
       }
     });
 

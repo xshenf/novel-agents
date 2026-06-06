@@ -22,6 +22,16 @@ interface KernelDimensionsPanelProps {
   setTempStyleSetting: (v: string) => void;
   tempSellingPoints: string;
   setTempSellingPoints: (v: string) => void;
+  tempSkillSystem: string;
+  setTempSkillSystem: (v: string) => void;
+  tempLocation: string;
+  setTempLocation: (v: string) => void;
+  tempFaction: string;
+  setTempFaction: (v: string) => void;
+  tempCurrency: string;
+  setTempCurrency: (v: string) => void;
+  tempItem: string;
+  setTempItem: (v: string) => void;
   // 反 AI 规则折叠控制
   expandedKernelCard: string | null;
   setExpandedKernelCard: (v: string | null) => void;
@@ -45,44 +55,25 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     tempGoldFinger, setTempGoldFinger,
     tempStyleSetting, setTempStyleSetting,
     tempSellingPoints, setTempSellingPoints,
+    tempSkillSystem, setTempSkillSystem,
+    tempLocation, setTempLocation,
+    tempFaction, setTempFaction,
+    tempCurrency, setTempCurrency,
+    tempItem, setTempItem,
     expandedKernelCard, setExpandedKernelCard,
     currentProject, updateProject,
   } = props;
-
-  const kernelOptions = kernel.kernelOptions;
-
-  // 维度 key -> 对应的 temp setter
-  const fieldSetters: Record<string, (v: string) => void> = {
-    worldSetting: setTempWorldSetting,
-    coreConflict: setTempCoreConflict,
-    sellingPoints: setTempSellingPoints,
-    powerSystem: setTempPowerSystem,
-    skillSystem: setTempPowerSystem, // skillSystem 复用 powerSystem setter
-    goldFinger: setTempGoldFinger,
-    styleSetting: setTempStyleSetting,
-    location: setTempWorldSetting,   // location 复用 worldSetting setter
-    faction: setTempWorldSetting,    // faction 复用 worldSetting setter
-    currency: setTempWorldSetting,   // currency 复用 worldSetting setter
-    item: setTempWorldSetting,       // item 复用 worldSetting setter
-  };
-
-  // 获取当前维度的 AI 备选方案
-  const currentOptions = kernelOptions?.[activeMaterial] as Array<{ name: string; description: string }> | undefined;
-
-  const handleSelectKernelOption = async (description: string) => {
-    const setter = fieldSetters[activeMaterial];
-    if (!setter || !currentProject) return;
-    setter(description);
-    try {
-      await store.updateProject(currentProject.id, { [activeMaterial]: description });
-    } catch { /* ignore */ }
-  };
 
   const subtitle =
     activeMaterial === 'worldSetting' ? '定义小说主舞台的大陆疆域、宏观规则、历史背景与社会法则'
     : activeMaterial === 'coreConflict' ? '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机'
     : activeMaterial === 'sellingPoints' ? '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计'
     : activeMaterial === 'powerSystem' ? '定义主角及世界的修炼境界、超自然等级，以及主角的特殊外挂金手指设定'
+    : activeMaterial === 'skillSystem' ? '定义世界的功法、技能、神通体系与修炼路径'
+    : activeMaterial === 'location' ? '定义世界中的地理区域、城市、秘境与地标'
+    : activeMaterial === 'faction' ? '定义世界中的势力组织、宗门、家族与阵营关系'
+    : activeMaterial === 'currency' ? '定义世界的货币、交易体系与资源流通方式'
+    : activeMaterial === 'item' ? '定义世界中的法宝、丹药、材料与特殊物品'
     : activeMaterial === 'styleSetting' ? '定义小说的体裁定位、情感色调与写作偏好'
     : activeMaterial === 'specialSetting' ? '小说的体裁定位、情感基调偏好，以及绑定写作模型时的反 AI 底层约束'
     : '';
@@ -170,6 +161,71 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
           <StyleSettingPanel
             tempStyleSetting={tempStyleSetting}
             setTempStyleSetting={setTempStyleSetting}
+          />
+        )}
+
+        {activeMaterial === 'skillSystem' && (
+          <KernelDimensionCard
+            cardKey="skillSystem"
+            title="功法与技能体系"
+            subtitle="定义世界的功法、技能、神通体系与修炼路径"
+            value={tempSkillSystem}
+            setValue={setTempSkillSystem}
+            cardType="skillSystem"
+            placeholder="例如：剑道三十六式、天罡七十二变、九转玄功..."
+            alwaysExpanded={true}
+          />
+        )}
+
+        {activeMaterial === 'location' && (
+          <KernelDimensionCard
+            cardKey="location"
+            title="地理与地图设定"
+            subtitle="定义世界中的地理区域、城市、秘境与地标"
+            value={tempLocation}
+            setValue={setTempLocation}
+            cardType="location"
+            placeholder="例如：东荒大陆、天剑城、万妖山脉、幽冥深渊..."
+            alwaysExpanded={true}
+          />
+        )}
+
+        {activeMaterial === 'faction' && (
+          <KernelDimensionCard
+            cardKey="faction"
+            title="势力与阵营设定"
+            subtitle="定义世界中的势力组织、宗门、家族与阵营关系"
+            value={tempFaction}
+            setValue={setTempFaction}
+            cardType="faction"
+            placeholder="例如：天剑宗、万妖殿、散修联盟、暗影商会..."
+            alwaysExpanded={true}
+          />
+        )}
+
+        {activeMaterial === 'currency' && (
+          <KernelDimensionCard
+            cardKey="currency"
+            title="货币与交易体系"
+            subtitle="定义世界的货币、交易体系与资源流通方式"
+            value={tempCurrency}
+            setValue={setTempCurrency}
+            cardType="currency"
+            placeholder="例如：灵石为通用货币，上品灵石=100中品灵石，仙晶为高阶硬通货..."
+            alwaysExpanded={true}
+          />
+        )}
+
+        {activeMaterial === 'item' && (
+          <KernelDimensionCard
+            cardKey="item"
+            title="物品与道具设定"
+            subtitle="定义世界中的法宝、丹药、材料与特殊物品"
+            value={tempItem}
+            setValue={setTempItem}
+            cardType="item"
+            placeholder="例如：天罡剑（仙器）、九转金丹、龙血草、虚空令..."
+            alwaysExpanded={true}
           />
         )}
 
@@ -313,70 +369,6 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
           </>
         )}
       </div>
-
-      {/* 全量推演备选方案 */}
-      {currentOptions && currentOptions.length > 0 && (
-        <div style={{
-          padding: '16px',
-          background: 'rgba(0,0,0,0.15)',
-          borderRadius: '10px',
-          border: '1px dashed var(--border-light)',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>
-              全量推演备选方案 (点击选用)
-            </span>
-            <button
-              type="button"
-              onClick={() => kernel.setKernelOptions(null)}
-              style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-            >
-              清除全部方案
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {currentOptions.map((opt, idx) => (
-              <div
-                key={idx}
-                style={{
-                  padding: '10px 12px',
-                  background: 'rgba(255,255,255,0.01)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff' }}>
-                    方案 {idx + 1}：{opt.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectKernelOption(opt.description)}
-                    style={{
-                      fontSize: '10px',
-                      padding: '2px 8px',
-                      background: 'rgba(99, 102, 241, 0.1)',
-                      border: '1px solid var(--accent)',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    选用
-                  </button>
-                </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                  {opt.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

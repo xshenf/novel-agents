@@ -22,6 +22,11 @@ export function OutlineTab() {
     tempCoreConflict, setTempCoreConflict,
     tempFactionsMap, setTempFactionsMap,
     tempSellingPoints, setTempSellingPoints,
+    tempSkillSystem, setTempSkillSystem,
+    tempLocation, setTempLocation,
+    tempFaction, setTempFaction,
+    tempCurrency, setTempCurrency,
+    tempItem, setTempItem,
     isAddingRule, setIsAddingRule,
     expandedKernelCard, setExpandedKernelCard,
   } = kernel;
@@ -122,7 +127,7 @@ export function OutlineTab() {
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'specialSetting'].includes(activeMaterial) && (
+        {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'skillSystem', 'location', 'faction', 'currency', 'item', 'specialSetting'].includes(activeMaterial) && (
           <KernelDimensionsPanel
             activeMaterial={activeMaterial}
             tempWorldSetting={tempWorldSetting}
@@ -137,6 +142,16 @@ export function OutlineTab() {
             setTempStyleSetting={setTempStyleSetting}
             tempSellingPoints={tempSellingPoints}
             setTempSellingPoints={setTempSellingPoints}
+            tempSkillSystem={tempSkillSystem}
+            setTempSkillSystem={setTempSkillSystem}
+            tempLocation={tempLocation}
+            setTempLocation={setTempLocation}
+            tempFaction={tempFaction}
+            setTempFaction={setTempFaction}
+            tempCurrency={tempCurrency}
+            setTempCurrency={setTempCurrency}
+            tempItem={tempItem}
+            setTempItem={setTempItem}
             expandedKernelCard={expandedKernelCard}
             setExpandedKernelCard={setExpandedKernelCard}
             currentProject={store.currentProject}

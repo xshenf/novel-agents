@@ -32,6 +32,11 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [tempOutlineFull, setTempOutlineFull] = useState('');
   const [tempStyleSetting, setTempStyleSetting] = useState('');
   const [tempWorldSetting, setTempWorldSetting] = useState('');
+  const [tempSkillSystem, setTempSkillSystem] = useState('');
+  const [tempLocation, setTempLocation] = useState('');
+  const [tempFaction, setTempFaction] = useState('');
+  const [tempCurrency, setTempCurrency] = useState('');
+  const [tempItem, setTempItem] = useState('');
 
   // 完善新书设定 Modal
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
@@ -58,6 +63,11 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setTempOutlineFull(store.currentProject.outlineFull || '');
       setTempStyleSetting(store.currentProject.styleSetting || '');
       setTempWorldSetting(store.currentProject.worldSetting || '');
+      setTempSkillSystem(store.currentProject.skillSystem || '');
+      setTempLocation(store.currentProject.location || '');
+      setTempFaction(store.currentProject.faction || '');
+      setTempCurrency(store.currentProject.currency || '');
+      setTempItem(store.currentProject.item || '');
 
       // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
@@ -139,13 +149,74 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         }
 
         if (finalResult) {
-          setKernelOptions(finalResult);
+          // 直接应用每个维度的第一个方案，自动保存
+          const updates: Record<string, string> = {};
+          for (const [dimKey, options] of Object.entries(finalResult)) {
+            const opts = options as Array<{ name: string; description: string }>;
+            if (opts && opts.length > 0 && opts[0].description) {
+              updates[dimKey] = opts[0].description;
+            }
+          }
+          if (Object.keys(updates).length > 0 && store.currentProject) {
+            try {
+              await store.updateProject(store.currentProject.id, updates);
+              // 同步更新 temp 状态
+              const tempSetters: Record<string, (v: string) => void> = {
+                worldSetting: setTempWorldSetting,
+                coreConflict: setTempCoreConflict,
+                sellingPoints: setTempSellingPoints,
+                powerSystem: setTempPowerSystem,
+                goldFinger: setTempGoldFinger,
+                styleSetting: setTempStyleSetting,
+                skillSystem: setTempSkillSystem,
+                location: setTempLocation,
+                faction: setTempFaction,
+                currency: setTempCurrency,
+                item: setTempItem,
+              };
+              for (const [key, setter] of Object.entries(tempSetters)) {
+                if (updates[key]) setter(updates[key]);
+              }
+            } catch (e) {
+              console.error('Failed to auto-apply kernel options', e);
+            }
+          }
         }
       } else {
         // 降级为普通 JSON 响应
         const data = await response.json();
         if (data.error) throw new Error(data.error);
-        setKernelOptions(data);
+        // 直接应用每个维度的第一个方案，自动保存
+        const updates: Record<string, string> = {};
+        for (const [dimKey, options] of Object.entries(data)) {
+          const opts = options as Array<{ name: string; description: string }>;
+          if (opts && opts.length > 0 && opts[0].description) {
+            updates[dimKey] = opts[0].description;
+          }
+        }
+        if (Object.keys(updates).length > 0 && store.currentProject) {
+          try {
+            await store.updateProject(store.currentProject.id, updates);
+            const tempSetters: Record<string, (v: string) => void> = {
+              worldSetting: setTempWorldSetting,
+              coreConflict: setTempCoreConflict,
+              sellingPoints: setTempSellingPoints,
+              powerSystem: setTempPowerSystem,
+              goldFinger: setTempGoldFinger,
+              styleSetting: setTempStyleSetting,
+              skillSystem: setTempSkillSystem,
+              location: setTempLocation,
+              faction: setTempFaction,
+              currency: setTempCurrency,
+              item: setTempItem,
+            };
+            for (const [key, setter] of Object.entries(tempSetters)) {
+              if (updates[key]) setter(updates[key]);
+            }
+          } catch (e) {
+            console.error('Failed to auto-apply kernel options', e);
+          }
+        }
       }
     } catch (err: any) {
       alert('AI 设定推演失败: ' + err.message);
@@ -315,6 +386,16 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     setTempStyleSetting,
     tempWorldSetting,
     setTempWorldSetting,
+    tempSkillSystem,
+    setTempSkillSystem,
+    tempLocation,
+    setTempLocation,
+    tempFaction,
+    setTempFaction,
+    tempCurrency,
+    setTempCurrency,
+    tempItem,
+    setTempItem,
     showEditProjectModal,
     setShowEditProjectModal,
     editProjTitle,
