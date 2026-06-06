@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ai } from '@/lib/ai';
+import { db } from '@/lib/db';
 import { searchMemory } from '@/lib/memory';
 
 export async function POST(request: Request) {
@@ -137,6 +138,16 @@ export async function POST(request: Request) {
           characterCount: result.characters.length,
           worldRuleCount: result.worldRules.length,
         });
+      }
+
+      case 'foldSynopsis': {
+        // 章节完成后更新全书滚动概要并落库（供长篇有界注入）。
+        if (!projectId) {
+          return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
+        }
+        const rollingSynopsis = await ai.updateRollingSynopsis(projectId, apiKey, modelName);
+        await db.updateProject(projectId, { rollingSynopsis });
+        return NextResponse.json({ rollingSynopsis });
       }
 
       case 'generateKernel': {

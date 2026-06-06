@@ -34,6 +34,7 @@ export interface NovelProject {
   factionsMap?: string;
   sellingPoints?: string;
   outlineFull?: string;
+  rollingSynopsis?: string;
   antiAiStyleRules?: string[];
   modelsConfig?: any[];
   agentBindings?: Record<string, string>;

@@ -17,7 +17,7 @@ export function useAiClient(): CallAIApi {
       agentRole = 'lore_builder';
     } else if (action === 'autoWrite' || action === 'continue') {
       agentRole = 'writer';
-    } else if (action === 'polish' || action === 'selfCheck' || action === 'summarize') {
+    } else if (action === 'polish' || action === 'selfCheck' || action === 'summarize' || action === 'foldSynopsis') {
       agentRole = 'editor';
     }
 

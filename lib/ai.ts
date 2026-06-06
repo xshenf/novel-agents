@@ -1068,7 +1068,45 @@ ${memory.contextText}
 
     await new Promise(resolve => setTimeout(resolve, 1000));
     return mockEngine.summarize(currentText);
+    },
+
+  /**
+   * 维护全书滚动概要：prev 为空时从全部章节摘要 bootstrap，否则在 prev 基础上折叠最新一章摘要。
+   * 返回压缩后的新概要（调用方负责落库）。用于在长篇里以「有界的滚动概要」替代「逐章全量摘要」注入。
+   */
+  async updateRollingSynopsis(projectId: string, apiKey?: string, modelName?: string): Promise<string> {
+    const [project, chapters] = await Promise.all([
+      db.getProject(projectId),
+      db.getChapters(projectId),
+    ]);
+    const prev = (project?.rollingSynopsis || '').trim();
+    const summarized = chapters.filter(c => c.summary && c.summary.trim() !== '');
+    if (summarized.length === 0) return prev;
+
+    // prev 为空 → 从全部章节摘要重建；否则只折叠最新一章，保证 LLM 输入有界
+    const isBootstrap = !prev;
+    const last = summarized[summarized.length - 1];
+    const material = isBootstrap
+      ? summarized.map(c => `${c.title}：${c.summary}`).join('\n')
+      : `${last.title}：${last.summary}`;
+
+    const systemInstruction = `你是小说连续性管理员，负责维护一份贯穿全书的「滚动剧情概要」。这份概要会在 AI 写作后续章节时作为长期记忆注入，必须准确、连贯、不遗漏关键转折。`;
+    const prompt = `【现有滚动概要】：\n${prev || '（暂无，请基于下方章节摘要新建）'}\n\n【${isBootstrap ? '全部章节摘要（按顺序）' : '新增章节摘要'}】：\n${material}\n\n请输出更新后的全书滚动概要：
+要求：
+1. 用不超过 600 字的连贯叙述，按时间顺序概括从开篇到目前的主线脉络与关键转折。
+2. 保留：核心冲突进展、主要人物当前处境与关系变化、尚未解决的悬念/伏笔。
+3. 合并重复信息，略去无关紧要的细节与对白。
+4. 只输出概要正文本身，不要标题、解释或分点编号。`;
+
+    if (hasUsableKey(apiKey)) {
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
     }
+
+    // 无可用模型时的兜底：拼接并保留尾部，保证字段有值且有界
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const merged = isBootstrap ? material : `${prev}\n${material}`;
+    return merged.length > 1200 ? merged.slice(-1200) : merged;
+  },
 };
 
 const genreToCategory: Record<string, string> = {

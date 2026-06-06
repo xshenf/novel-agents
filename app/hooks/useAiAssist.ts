@@ -87,6 +87,12 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
           resolvedForeshadowing: data.resolvedForeshadowing || [],
           timelineEvents: data.timelineEvents || []
         });
+        // 摘要落库后刷新全书滚动概要
+        if (store.currentProject) {
+          try {
+            await callAIApi({ action: 'foldSynopsis', projectId: store.currentProject.id });
+          } catch { /* 概要更新失败不阻断摘要流程 */ }
+        }
         setSummarizeMsg(`已重算本章记忆：${data.summary}`);
       } else {
         setSummarizeMsg('自动提取摘要失败，请重试');

@@ -20,6 +20,7 @@ model NovelProject {
   factionsMap      String         @default("")
   sellingPoints    String         @default("")
   outlineFull      String         @default("")
+  rollingSynopsis  String         @default("")
   antiAiStyleRules String         @default("[]")
   modelsConfig     String         @default("[]")
   agentBindings    String         @default("{}")

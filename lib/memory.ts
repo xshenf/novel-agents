@@ -174,9 +174,16 @@ function formatContext(
     parts.push(`【尚未回收的伏笔（需推进或避免遗忘）】：\n${openForeshadow.map(f => `- ${f}`).join('\n')}`);
   }
 
-  // ── 5. 全书剧情脉络：逐章摘要（始终注入，取代「只给 top-3」）──
+  // ── 5. 全书剧情脉络：优先用 AI 维护的滚动概要（有界，适配长篇）；否则回退逐章全量摘要 ──
+  const rolling = (project?.rollingSynopsis || '').trim();
   const withSummary = allChapters.filter(c => c.summary && c.summary.trim() !== '');
-  if (withSummary.length > 0) {
+  if (rolling) {
+    parts.push(`【全书剧情脉络（滚动概要）】：\n${rolling}`);
+    const recentSummaries = withSummary.slice(-RECENT_DETAIL_N);
+    if (recentSummaries.length > 0) {
+      parts.push(`【最近章节摘要（精确）】：\n${recentSummaries.map(c => `- ${c.title}：${c.summary}`).join('\n')}`);
+    }
+  } else if (withSummary.length > 0) {
     parts.push(`【全书剧情脉络（按章节顺序的摘要，保持连续性）】：\n${withSummary.map(c => `- ${c.title}：${c.summary}`).join('\n')}`);
   }
 

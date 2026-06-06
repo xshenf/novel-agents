@@ -190,6 +190,13 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
               // 重新加载角色设定
               await store.fetchCharacters(store.currentProject.id);
             }
+
+            // 章节摘要落库后，刷新全书滚动概要（供长期记忆有界注入，长篇不跑偏）
+            try {
+              await callAIApi({ action: 'foldSynopsis', projectId: store.currentProject.id });
+            } catch (e) {
+              console.error('更新全书滚动概要失败:', e);
+            }
           }
 
           completed++;
