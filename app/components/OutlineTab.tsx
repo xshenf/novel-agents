@@ -244,7 +244,9 @@ export function OutlineTab() {
     if (material === 'outline') {
       setOutlineSubTab('volume');
     } else if (material === 'chapter') {
+      setActiveMaterial('outline');
       setOutlineSubTab('chapter');
+      return;
     } else if ([
       'character', 'location', 'faction', 'item', 'currency', 
       'skillSystem', 'relation', 'foreshadow', 'plot', 'subPlot', 
@@ -1363,7 +1365,49 @@ ${userHintSection}
               </div>
             </div>
 
-            {/* 功能操作工具行 */}
+            {/* 子 Tab 切换栏：分卷大纲 / 章节细纲 */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: '10px',
+              padding: '4px',
+              flexShrink: 0,
+              alignSelf: 'flex-start'
+            }}>
+              {[
+                { key: 'volume', label: '分卷大纲' },
+                { key: 'chapter', label: '章节细纲' }
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setOutlineSubTab(tab.key as 'volume' | 'chapter')}
+                  style={{
+                    padding: '6px 18px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    background: outlineSubTab === tab.key
+                      ? 'rgba(99,102,241,0.18)'
+                      : 'transparent',
+                    color: outlineSubTab === tab.key ? '#fff' : 'var(--text-muted)',
+                    fontSize: '13px',
+                    fontWeight: outlineSubTab === tab.key ? '600' : 'normal',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s',
+                    boxShadow: outlineSubTab === tab.key
+                      ? '0 0 0 1px rgba(99,102,241,0.35)'
+                      : 'none'
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 功能操作工具行（仅分卷大纲模式显示） */}
+            {outlineSubTab === 'volume' && (<>
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -1490,8 +1534,11 @@ ${userHintSection}
                 )}
               </div>
             </div>
+            </>)}
 
-            {/* 大纲卷章核心树状列表 */}
+            {/* ===== 分卷大纲树状看板 ===== */}
+            {outlineSubTab === 'volume' && (
+            <>{/* 大纲卷章核心树状列表 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flexGrow: 1, paddingRight: '4px' }}>
               {(() => {
                 // 执行搜索过滤
@@ -2166,21 +2213,13 @@ ${userHintSection}
                 });
               })()}
             </div>
-          </div>
-        )}
+            </>)}
 
-        {/* 3. 章节细纲视图 (chapter) */}
-        {activeMaterial === 'chapter' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
-            {/* 顶栏控制组 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>章节细纲</h4>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>可视化分析各章细纲内容及情感起伏节奏</span>
-                </div>
+            {/* ===== 章节细纲子 Tab ===== */}
+            {outlineSubTab === 'chapter' && (
+            <><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 {localSections.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginLeft: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷筛选:</span>
                     <button
                       type="button"
@@ -2220,7 +2259,6 @@ ${userHintSection}
                   </div>
                 )}
               </div>
-            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, flexGrow: 1 }}>
               {/* 情绪曲线图 */}
@@ -2507,6 +2545,8 @@ ${userHintSection}
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         )}
 
