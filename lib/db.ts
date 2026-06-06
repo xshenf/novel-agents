@@ -463,4 +463,35 @@ export const db = {
       return false;
     }
   },
+
+  // --- 版本快照 (VersionSnapshot) ---
+  async getVersionSnapshots(projectId: string, type?: string): Promise<any[]> {
+    const where: any = { projectId };
+    if (type) where.type = type;
+    const list = await prisma.versionSnapshot.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return list;
+  },
+
+  async createVersionSnapshot(params: { projectId: string; type: string; key: string; label: string; data: string; source: string }): Promise<any> {
+    return prisma.versionSnapshot.create({ data: params });
+  },
+
+  async deleteVersionSnapshot(id: string): Promise<boolean> {
+    try {
+      await prisma.versionSnapshot.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async findRecentVersionSnapshot(projectId: string, key: string, source: string, since: Date): Promise<any | null> {
+    return prisma.versionSnapshot.findFirst({
+      where: { projectId, key, source, createdAt: { gte: since } },
+    });
+  },
 };

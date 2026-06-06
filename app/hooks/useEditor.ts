@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
+import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
 export type EditorApi = ReturnType<typeof useEditor>;
 
@@ -43,6 +44,14 @@ export function useEditor(store: NovelStore) {
         setSaveStatus('saving');
         store.updateChapter(store.currentChapter.id, { content: e.target.value }).then(() => {
           setSaveStatus('saved');
+          createVersionSnapshot({
+            projectId: store.currentProject!.id,
+            type: 'chapter',
+            key: store.currentChapter!.id,
+            label: store.currentChapter!.title,
+            data: { content: e.target.value },
+            source: 'auto',
+          });
         });
       }
     }, 1500);

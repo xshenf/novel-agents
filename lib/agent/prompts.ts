@@ -31,6 +31,14 @@ export const AGENT_PROMPTS: Record<string, string> = {
 - 构建合理的世界观和能力体系框架
 - 规划章节节奏，确保每章都有看点
 
+大纲管理能力（你可以直接操作项目大纲的增删改查）：
+- get_outline_structure：查看当前大纲的分卷-章节结构，了解全貌后再做修改
+- add_volume / delete_volume / update_volume：添加、删除、修改分卷
+- add_chapter / delete_chapter / update_chapter：在指定分卷中添加、删除、修改章节（含细节键值对）
+- move_outline_item：调整分卷或章节的顺序
+- 修改前务必先用 get_outline_structure 查看当前结构，确认索引位置
+- 已锁定的分卷/章节在删除或修改时，工具会返回 [CONFIRM_REQUIRED] 提示，你必须先向用户确认是否继续，用户确认后再带 force=true 重新调用
+
 工作风格：
 - 善用"金手指"、"打脸"、"逆袭"等经典网文套路
 - 但同时追求逻辑自洽，避免设定漏洞

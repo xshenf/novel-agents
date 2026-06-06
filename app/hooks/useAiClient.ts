@@ -1,17 +1,17 @@
 import { useNovelStore } from '@/lib/store';
 
-export type CallAIApi = (bodyParams: Record<string, any>) => Promise<Response>;
+export type CallAIApi = (bodyParams: Record<string, any>, signal?: AbortSignal) => Promise<Response>;
 
 // 统一的 AI 接口调用：根据 action 映射到对应职能智能体，并解析其绑定模型与微调参数
 export function useAiClient(): CallAIApi {
   const store = useNovelStore();
 
-  const callAIApi: CallAIApi = async (bodyParams) => {
+  const callAIApi: CallAIApi = async (bodyParams, signal) => {
     const action = bodyParams.action;
 
     // 动作与智能体职能角色的映射
     let agentRole = 'orchestrator';
-    if (action === 'autoPlanBook' || action === 'outline' || action === 'generateKernel') {
+    if (action === 'autoPlanBook' || action === 'outline' || action === 'generateKernel' || action === 'chat') {
       agentRole = 'planner';
     } else if (action === 'generateInspirations') {
       agentRole = 'lore_builder';
@@ -63,6 +63,7 @@ export function useAiClient(): CallAIApi {
         modelName: modelNameParam,
         ...bodyParams,
       }),
+      signal,
     });
   };
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useNovelStore, type NovelStore } from '@/lib/store';
 
-export type WorkspaceTab = 'write' | 'outline' | 'settings';
+export type WorkspaceTab = 'write' | 'outline' | 'settings' | 'versions';
 export type RoutingApi = ReturnType<typeof useWorkspaceRouting>;
 
 export function useWorkspaceRouting(store: NovelStore) {
@@ -139,7 +139,7 @@ export function useWorkspaceRouting(store: NovelStore) {
   // 从 URL 恢复 tab 和 chapter 选中状态
   useEffect(() => {
     if (!store.currentProject) return;
-    if (urlTab && ['write', 'outline', 'settings'].includes(urlTab)) {
+    if (urlTab && ['write', 'outline', 'settings', 'versions'].includes(urlTab)) {
       setActiveWorkspaceTab(urlTab as WorkspaceTab);
     }
     if (urlChapterId && store.chapters.length > 0) {

@@ -30,6 +30,7 @@ model NovelProject {
   worldRules       WorldRule[]
   chapters         Chapter[]
   agentMessages    AgentMessage[]
+  versionSnapshots VersionSnapshot[]
 }
 
 model Character {
@@ -87,4 +88,16 @@ model AgentMessage {
   to        String?
   toLabel   String?
   createdAt DateTime     @default(now())
+}
+
+model VersionSnapshot {
+  id        String   @id @default(cuid())
+  projectId String
+  project   NovelProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String   // outline | macro | chapter | character | worldRule
+  key       String   // 具体标识：如 "outlineFull", "macro", chapterId, characterId, worldRuleId
+  label     String   // 人类可读标签：如 "分卷主线大纲", "世界观设定", "第一章 xxx"
+  data      String   // JSON 序列化的快照内容
+  source    String   @default("manual") // manual | auto | ai
+  createdAt DateTime @default(now())
 }

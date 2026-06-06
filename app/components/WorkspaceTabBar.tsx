@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, Clock } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 
 export function WorkspaceTabBar() {
@@ -37,6 +37,14 @@ export function WorkspaceTabBar() {
           {isSettingsMissing && (
             <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
           )}
+        </button>
+        <button
+          className={`btn ${activeWorkspaceTab === 'versions' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => { setActiveWorkspaceTab('versions'); router.push(buildWorkspaceUrl(store.currentProject!.id, 'versions')); }}
+          style={{ borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'versions' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'versions' ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <Clock size={12} />
+          历史版本
         </button>
       </div>
 

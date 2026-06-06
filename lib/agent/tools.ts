@@ -510,6 +510,372 @@ export const generateInspirationsTool = tool(
   }
 );
 
+// ─── 16. 获取大纲结构 ────────────────────────────────────────────────────────
+export const getOutlineStructureTool = tool(
+  async ({ projectId }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const outlineFull = project.outlineFull || '';
+    if (!outlineFull.trim()) return '当前项目还没有大纲。';
+
+    const volumes = parseOutlineMarkdown(outlineFull);
+    if (volumes.length === 0) return '当前项目还没有大纲。';
+
+    const result = volumes.map((vol, vi) => {
+      const chapters = vol.chapters.map((ch, ci) => {
+        const details = ch.details.map(d => `${d.key}: ${d.value}`).join('; ');
+        return `  章节${ci + 1}: ${ch.title}${ch.isLocked ? ' [已锁定]' : ''}${ch.content ? ' - ' + ch.content.slice(0, 80) : ''}${details ? ' | ' + details : ''}`;
+      }).join('\n');
+      return `分卷${vi + 1}: ${vol.title}${vol.isLocked ? ' [已锁定]' : ''}${vol.content ? '\n  概要: ' + vol.content.slice(0, 120) : ''}${chapters ? '\n' + chapters : ''}`;
+    }).join('\n\n');
+
+    return result;
+  },
+  {
+    name: 'get_outline_structure',
+    description: '获取当前小说项目的结构化大纲，以分卷-章节树形结构返回，包含标题、概要、锁定状态等。用于了解当前大纲全貌后再做增删改操作。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+    }),
+  }
+);
+
+// ─── 17. 添加分卷 ────────────────────────────────────────────────────────────
+export const addVolumeTool = tool(
+  async ({ projectId, title, content, position }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    const newVol: OutlineVolume = { title, content: content || '', chapters: [], isLocked: false };
+    if (position !== undefined && position >= 0 && position <= volumes.length) {
+      volumes.splice(position, 0, newVol);
+    } else {
+      volumes.push(newVol);
+    }
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `分卷「${title}」已添加${position !== undefined ? `到第${position + 1}位` : '到末尾'}，当前共${volumes.length}个分卷。`;
+  },
+  {
+    name: 'add_volume',
+    description: '在大纲中添加一个新的分卷。可指定插入位置，不指定则添加到末尾。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      title: z.string().describe('分卷标题，如：第二卷：风云际会'),
+      content: z.string().optional().describe('分卷概要描述'),
+      position: z.number().int().optional().describe('插入位置（从0开始），不指定则添加到末尾'),
+    }),
+  }
+);
+
+// ─── 18. 删除分卷 ────────────────────────────────────────────────────────────
+export const deleteVolumeTool = tool(
+  async ({ projectId, volumeIndex, force }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    if (volumeIndex < 0 || volumeIndex >= volumes.length) {
+      return `分卷索引${volumeIndex}越界，当前共${volumes.length}个分卷（索引0~${volumes.length - 1}）。`;
+    }
+    if (volumes[volumeIndex].isLocked && !force) {
+      return `[CONFIRM_REQUIRED] 分卷「${volumes[volumeIndex].title}」已锁定，删除将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    }
+    const removed = volumes.splice(volumeIndex, 1)[0];
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `分卷「${removed.title}」已删除${removed.isLocked ? '（已忽略锁定）' : ''}，剩余${volumes.length}个分卷。`;
+  },
+  {
+    name: 'delete_volume',
+    description: '删除大纲中的指定分卷（及其下所有章节）。已锁定的分卷需用户确认后才能删除（force=true）。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      volumeIndex: z.number().int().describe('要删除的分卷索引（从0开始），可先用 get_outline_structure 查看'),
+      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定分卷必须先向用户确认，确认后设为 true'),
+    }),
+  }
+);
+
+// ─── 19. 更新分卷 ────────────────────────────────────────────────────────────
+export const updateVolumeTool = tool(
+  async ({ projectId, volumeIndex, title, content, force }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    if (volumeIndex < 0 || volumeIndex >= volumes.length) {
+      return `分卷索引${volumeIndex}越界，当前共${volumes.length}个分卷。`;
+    }
+    if (volumes[volumeIndex].isLocked && !force) {
+      return `[CONFIRM_REQUIRED] 分卷「${volumes[volumeIndex].title}」已锁定，修改将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    }
+    if (title !== undefined) volumes[volumeIndex].title = title;
+    if (content !== undefined) volumes[volumeIndex].content = content;
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `分卷「${volumes[volumeIndex].title}」已更新${volumes[volumeIndex].isLocked ? '（已忽略锁定）' : ''}。`;
+  },
+  {
+    name: 'update_volume',
+    description: '修改指定分卷的标题或概要内容。已锁定的分卷需用户确认后才能修改（force=true）。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
+      title: z.string().optional().describe('新的分卷标题'),
+      content: z.string().optional().describe('新的分卷概要描述'),
+      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定分卷必须先向用户确认，确认后设为 true'),
+    }),
+  }
+);
+
+// ─── 20. 添加章节 ────────────────────────────────────────────────────────────
+export const addChapterTool = tool(
+  async ({ projectId, volumeIndex, title, content, details, position }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    if (volumeIndex < 0 || volumeIndex >= volumes.length) {
+      return `分卷索引${volumeIndex}越界，当前共${volumes.length}个分卷。`;
+    }
+    const newChapter: OutlineChapter = {
+      title,
+      content: content || '',
+      details: (details || []).map(d => ({ key: d.key, value: d.value })),
+      isLocked: false,
+    };
+    const chapters = volumes[volumeIndex].chapters;
+    if (position !== undefined && position >= 0 && position <= chapters.length) {
+      chapters.splice(position, 0, newChapter);
+    } else {
+      chapters.push(newChapter);
+    }
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `章节「${title}」已添加到分卷「${volumes[volumeIndex].title}」${position !== undefined ? `第${position + 1}位` : '末尾'}，该分卷现有${chapters.length}个章节。`;
+  },
+  {
+    name: 'add_chapter',
+    description: '在指定分卷中添加一个新章节。可指定插入位置，不指定则添加到该分卷末尾。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      volumeIndex: z.number().int().describe('目标分卷索引（从0开始）'),
+      title: z.string().describe('章节标题，如：第一章 初入修真界'),
+      content: z.string().optional().describe('章节概要描述'),
+      details: z.array(z.object({ key: z.string(), value: z.string() })).optional().describe('章节细节键值对，如 [{key:"核心冲突",value:"主角遭遇背叛"}]'),
+      position: z.number().int().optional().describe('插入位置（从0开始），不指定则添加到该分卷末尾'),
+    }),
+  }
+);
+
+// ─── 21. 删除章节 ────────────────────────────────────────────────────────────
+export const deleteChapterTool = tool(
+  async ({ projectId, volumeIndex, chapterIndex, force }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    if (volumeIndex < 0 || volumeIndex >= volumes.length) {
+      return `分卷索引${volumeIndex}越界。`;
+    }
+    const chapters = volumes[volumeIndex].chapters;
+    if (chapterIndex < 0 || chapterIndex >= chapters.length) {
+      return `章节索引${chapterIndex}越界，该分卷共${chapters.length}个章节。`;
+    }
+    if (chapters[chapterIndex].isLocked && !force) {
+      return `[CONFIRM_REQUIRED] 章节「${chapters[chapterIndex].title}」已锁定，删除将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    }
+    const removed = chapters.splice(chapterIndex, 1)[0];
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `章节「${removed.title}」已从分卷「${volumes[volumeIndex].title}」中删除${removed.isLocked ? '（已忽略锁定）' : ''}，剩余${chapters.length}个章节。`;
+  },
+  {
+    name: 'delete_chapter',
+    description: '删除指定分卷中的指定章节。已锁定的章节需用户确认后才能删除（force=true）。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
+      chapterIndex: z.number().int().describe('章节索引（从0开始）'),
+      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定章节必须先向用户确认，确认后设为 true'),
+    }),
+  }
+);
+
+// ─── 22. 更新章节 ────────────────────────────────────────────────────────────
+export const updateChapterTool = tool(
+  async ({ projectId, volumeIndex, chapterIndex, title, content, details, force }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+    if (volumeIndex < 0 || volumeIndex >= volumes.length) {
+      return `分卷索引${volumeIndex}越界。`;
+    }
+    const chapters = volumes[volumeIndex].chapters;
+    if (chapterIndex < 0 || chapterIndex >= chapters.length) {
+      return `章节索引${chapterIndex}越界。`;
+    }
+    if (chapters[chapterIndex].isLocked && !force) {
+      return `[CONFIRM_REQUIRED] 章节「${chapters[chapterIndex].title}」已锁定，修改将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    }
+    if (title !== undefined) chapters[chapterIndex].title = title;
+    if (content !== undefined) chapters[chapterIndex].content = content;
+    if (details !== undefined) {
+      chapters[chapterIndex].details = details.map(d => ({ key: d.key, value: d.value }));
+    }
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `章节「${chapters[chapterIndex].title}」已更新${chapters[chapterIndex].isLocked ? '（已忽略锁定）' : ''}。`;
+  },
+  {
+    name: 'update_chapter',
+    description: '修改指定章节的标题、概要内容或细节键值对。已锁定的章节需用户确认后才能修改（force=true）。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
+      chapterIndex: z.number().int().describe('章节索引（从0开始）'),
+      title: z.string().optional().describe('新的章节标题'),
+      content: z.string().optional().describe('新的章节概要描述'),
+      details: z.array(z.object({ key: z.string(), value: z.string() })).optional().describe('新的章节细节键值对（会整体替换）'),
+      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定章节必须先向用户确认，确认后设为 true'),
+    }),
+  }
+);
+
+// ─── 23. 移动分卷/章节顺序 ───────────────────────────────────────────────────
+export const moveOutlineItemTool = tool(
+  async ({ projectId, type, fromIndex, toIndex, volumeIndex }) => {
+    const project = await db.getProject(projectId);
+    if (!project) return '未找到该项目。';
+    const volumes = parseOutlineMarkdown(project.outlineFull || '');
+
+    if (type === 'volume') {
+      if (fromIndex < 0 || fromIndex >= volumes.length || toIndex < 0 || toIndex >= volumes.length) {
+        return `索引越界，当前共${volumes.length}个分卷。`;
+      }
+      const [moved] = volumes.splice(fromIndex, 1);
+      volumes.splice(toIndex, 0, moved);
+    } else if (type === 'chapter') {
+      if (volumeIndex === undefined || volumeIndex < 0 || volumeIndex >= volumes.length) {
+        return `分卷索引越界。`;
+      }
+      const chapters = volumes[volumeIndex].chapters;
+      if (fromIndex < 0 || fromIndex >= chapters.length || toIndex < 0 || toIndex >= chapters.length) {
+        return `章节索引越界，该分卷共${chapters.length}个章节。`;
+      }
+      const [moved] = chapters.splice(fromIndex, 1);
+      chapters.splice(toIndex, 0, moved);
+    } else {
+      return `type 必须是 "volume" 或 "chapter"。`;
+    }
+
+    const md = serializeOutlineMarkdown(volumes);
+    await db.updateProject(projectId, { outlineFull: md });
+    return `${type === 'volume' ? '分卷' : '章节'}已从位置${fromIndex}移动到位置${toIndex}。`;
+  },
+  {
+    name: 'move_outline_item',
+    description: '调整分卷或章节的顺序。支持在同一层级内移动位置。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+      type: z.enum(['volume', 'chapter']).describe('移动类型：volume=分卷, chapter=章节'),
+      fromIndex: z.number().int().describe('原位置索引（从0开始）'),
+      toIndex: z.number().int().describe('目标位置索引（从0开始）'),
+      volumeIndex: z.number().int().optional().describe('当type=chapter时，指定所在分卷索引（从0开始）'),
+    }),
+  }
+);
+
+// ─── 大纲 Markdown 解析/序列化（与前端 OutlineTab 保持一致） ──────────────────
+interface OutlineChapter {
+  title: string;
+  content: string;
+  details: { key: string; value: string }[];
+  isLocked?: boolean;
+}
+
+interface OutlineVolume {
+  title: string;
+  content: string;
+  chapters: OutlineChapter[];
+  isLocked?: boolean;
+}
+
+function parseOutlineMarkdown(text: string): OutlineVolume[] {
+  if (!text) return [];
+  const volumes: OutlineVolume[] = [];
+  let currentVolume: OutlineVolume | null = null;
+  let currentChapter: OutlineChapter | null = null;
+
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (/^#[^#]/.test(trimmed)) {
+      let titleText = trimmed.replace(/^#\s+/, '').trim();
+      let isLocked = false;
+      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
+        isLocked = true;
+        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
+      }
+      currentVolume = { title: titleText || '新分卷', content: '', chapters: [], isLocked };
+      volumes.push(currentVolume);
+      currentChapter = null;
+    } else if (trimmed.startsWith('##')) {
+      let titleText = trimmed.replace(/^##\s+/, '').trim();
+      let isLocked = false;
+      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
+        isLocked = true;
+        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
+      }
+      currentChapter = { title: titleText || '新章节', content: '', details: [], isLocked };
+      if (!currentVolume) {
+        currentVolume = { title: '第一卷：正文', content: '全局默认分卷', chapters: [] };
+        volumes.push(currentVolume);
+      }
+      currentVolume.chapters.push(currentChapter);
+    } else {
+      if (currentChapter) {
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          const kvMatch = trimmed.match(/^[\-\*]\s+(?:\*\*(.*?)\*\*|([^：:]+))[：:](.*)$/);
+          if (kvMatch) {
+            currentChapter.details.push({ key: (kvMatch[1] || kvMatch[2]).trim(), value: kvMatch[3].trim() });
+          } else {
+            currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed.replace(/^[\-\*]\s+/, '');
+          }
+        } else {
+          currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed;
+        }
+      } else if (currentVolume) {
+        currentVolume.content += (currentVolume.content ? '\n' : '') + trimmed;
+      }
+    }
+  }
+
+  if (volumes.length === 0) {
+    volumes.push({ title: '第一卷：正文', content: '全局默认分卷', chapters: [] });
+  }
+  return volumes;
+}
+
+function serializeOutlineMarkdown(volumes: OutlineVolume[]): string {
+  return volumes.map(vol => {
+    let part = `# ${vol.title}${vol.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
+    if (vol.content && vol.content.trim()) {
+      part += `${vol.content.trim()}\n`;
+    }
+    vol.chapters.forEach(sec => {
+      part += `\n## ${sec.title}${sec.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
+      if (sec.content && sec.content.trim()) {
+        part += `${sec.content.trim()}\n`;
+      }
+      sec.details.forEach(det => {
+        if (det.key.trim() && det.value.trim()) {
+          part += `- **${det.key.trim()}**：${det.value.trim()}\n`;
+        }
+      });
+    });
+    return part;
+  }).join('\n\n');
+}
+
 // ─── 工具集合（按角色分组） ────────────────────────────────────────────────────
 export const PLANNER_TOOLS = [
   getProjectOverviewTool,
@@ -518,6 +884,14 @@ export const PLANNER_TOOLS = [
   generateKernelTool,
   updateProjectFieldTool,
   addAntiAiRuleTool,
+  getOutlineStructureTool,
+  addVolumeTool,
+  deleteVolumeTool,
+  updateVolumeTool,
+  addChapterTool,
+  deleteChapterTool,
+  updateChapterTool,
+  moveOutlineItemTool,
 ];
 
 export const LORE_BUILDER_TOOLS = [

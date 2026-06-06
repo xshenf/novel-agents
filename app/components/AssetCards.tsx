@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Character, WorldRule } from '@/lib/db';
 
-export const CharacterCard = ({ 
-  character, 
-  onSave, 
-  onDelete 
-}: { 
-  character: Character; 
-  onSave: (id: string, updates: any) => Promise<void>; 
-  onDelete: (id: string) => Promise<void>; 
+export const CharacterCard = ({
+  character,
+  onSave,
+  onDelete
+}: {
+  character: Character;
+  onSave: (id: string, updates: any) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) => {
   const [name, setName] = useState(character.name);
   const [role, setRole] = useState(character.role);
@@ -22,11 +22,34 @@ export const CharacterCard = ({
   const [forbidden, setForbidden] = useState(character.forbidden.join(', '));
   const [isSaving, setIsSaving] = useState(false);
 
+  // 自动保存：任一字段变化时 debounce 2s
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevRef = useRef({ name, role, age, identity, personality, goals, currentState, forbidden });
+  useEffect(() => {
+    const curr = { name, role, age, identity, personality, goals, currentState, forbidden };
+    if (JSON.stringify(prevRef.current) === JSON.stringify(curr)) return;
+    prevRef.current = curr;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (!name.trim()) return;
+      try {
+        await onSave(character.id, {
+          name,
+          role,
+          age,
+          identity,
+          personality: personality.split(',').map(s => s.trim()).filter(Boolean),
+          goals: goals.split(',').map(s => s.trim()).filter(Boolean),
+          currentState,
+          forbidden: forbidden.split(',').map(s => s.trim()).filter(Boolean),
+        });
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [name, role, age, identity, personality, goals, currentState, forbidden]);
+
   const handleSave = async () => {
-    if (!name.trim()) {
-      alert('姓名不能为空');
-      return;
-    }
+    if (!name.trim()) return;
     setIsSaving(true);
     try {
       await onSave(character.id, {
@@ -193,25 +216,39 @@ export const AddCharacterCard = ({
   );
 };
 
-export const WorldRuleCard = ({ 
-  rule, 
-  onSave, 
-  onDelete 
-}: { 
-  rule: WorldRule; 
-  onSave: (id: string, updates: any) => Promise<void>; 
-  onDelete: (id: string) => Promise<void>; 
+export const WorldRuleCard = ({
+  rule,
+  onSave,
+  onDelete
+}: {
+  rule: WorldRule;
+  onSave: (id: string, updates: any) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) => {
   const [name, setName] = useState(rule.name);
   const [type, setType] = useState(rule.type);
   const [description, setDescription] = useState(rule.description);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 自动保存：任一字段变化时 debounce 2s
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevRef = useRef({ name, type, description });
+  useEffect(() => {
+    const curr = { name, type, description };
+    if (JSON.stringify(prevRef.current) === JSON.stringify(curr)) return;
+    prevRef.current = curr;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (!name.trim() || !description.trim()) return;
+      try {
+        await onSave(rule.id, { name, type, description });
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [name, type, description]);
+
   const handleSave = async () => {
-    if (!name.trim() || !description.trim()) {
-      alert('名称和描述不能为空');
-      return;
-    }
+    if (!name.trim() || !description.trim()) return;
     setIsSaving(true);
     try {
       await onSave(rule.id, { name, type, description });
