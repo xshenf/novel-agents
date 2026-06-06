@@ -4,7 +4,6 @@ import { useRef, useState, useEffect } from 'react';
 import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { countChineseChars } from '@/lib/textStats';
-import { ChapterContextBar } from './write/ChapterContextBar';
 import { MemoryPanel } from './write/MemoryPanel';
 import { DriftCheckPanel } from './write/DriftCheckPanel';
 import { VolumeManagementView } from './write/VolumeManagementView';
@@ -96,24 +95,10 @@ export function WriteTab() {
 
           {store.currentChapter ? (
             <>
-              <ChapterContextBar />
               <MemoryPanel />
               <DriftCheckPanel />
 
-              <div className="editor-header">
-                <input
-                  type="text"
-                  className="editor-title-input"
-                  value={editorTitle}
-                  onChange={handleTitleChange}
-                  onBlur={() => {
-                    if (editorTitle.trim()) {
-                      handleRenameChapter(editorTitle.trim());
-                    }
-                  }}
-                  placeholder="请输入章节标题..."
-                  disabled={locked}
-                />
+              <div className="editor-header" style={{ justifyContent: 'flex-end' }}>
                 <div className="editor-toolbar">
                   {/* 内联 AI：仅做编辑/修改辅助，正文以 AI 生成为主 */}
                   <button className="btn btn-secondary" onClick={continueWriting} style={inlineBtn} disabled={locked} title="在全文末尾续写">
