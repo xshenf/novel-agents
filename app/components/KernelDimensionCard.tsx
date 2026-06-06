@@ -27,7 +27,15 @@ export function KernelDimensionCard({
   alwaysExpanded = false,
 }: KernelDimensionCardProps) {
   const { store, kernel } = useWorkspace();
-  const { expandedKernelCard, setExpandedKernelCard, isKernelLoading, kernelOptions } = kernel;
+  const {
+    expandedKernelCard,
+    setExpandedKernelCard,
+    deductingField,
+    setDeductingField,
+    deductionOptions,
+    setDeductionOptions,
+    isDeducting,
+  } = kernel;
   const isExpanded = alwaysExpanded || expandedKernelCard === cardKey;
 
   // 自动保存：value 变化时 debounce 2s 保存
@@ -59,6 +67,27 @@ export function KernelDimensionCard({
     try {
       await store.updateProject(store.currentProject.id, { [cardType]: value });
     } catch { /* ignore */ }
+  };
+
+  const handleSelectOption = async (content: string) => {
+    setValue(content);
+    if (store.currentProject) {
+      try {
+        await store.updateProject(store.currentProject.id, { [cardType]: content });
+        createVersionSnapshot({
+          projectId: store.currentProject.id,
+          type: 'macro',
+          key: cardType,
+          label: title,
+          data: content,
+          source: 'auto',
+        });
+      } catch (e) {
+        console.error('Failed to auto-save selected deduction option', e);
+      }
+    }
+    setDeductingField(null);
+    setDeductionOptions([]);
   };
 
   return (
@@ -163,6 +192,64 @@ export function KernelDimensionCard({
                 borderRadius: '8px',
               }}
             />
+
+            {/* AI 推演 Loading 状态展示 */}
+            {deductingField === cardType && isDeducting && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', gap: '8px', background: 'rgba(0,0,0,0.12)', borderRadius: '8px', marginTop: '10px' }}>
+                <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>正在推演 3 个备选方案...</span>
+              </div>
+            )}
+
+            {/* AI 推演 3 备选选项列表展示 */}
+            {deductingField === cardType && !isDeducting && deductionOptions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', border: '1px dashed var(--border-light)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>AI 推演备选推荐 (一键选用)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeductingField(null);
+                      setDeductionOptions([]);
+                    }}
+                    style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  >
+                    收起
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {deductionOptions.map((opt: any, idx: number) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '10px 12px',
+                        background: 'rgba(255,255,255,0.01)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff' }}>方案 {idx + 1}：{opt.title}</span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleSelectOption(opt.content)}
+                          style={{ fontSize: '10px', padding: '2px 8px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid var(--accent)' }}
+                        >
+                          选用
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                        {opt.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

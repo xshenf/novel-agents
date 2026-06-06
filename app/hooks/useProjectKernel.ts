@@ -44,7 +44,6 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [deductingField, setDeductingField] = useState<string | null>(null);
   const [deductingFieldLabel, setDeductingFieldLabel] = useState<string>('');
   const [deductionOptions, setDeductionOptions] = useState<{ title: string; content: string }[]>([]);
-  const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [isDeducting, setIsDeducting] = useState(false);
 
   // 切换项目时同步设定状态
@@ -158,7 +157,6 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const handleAiDeduceField = async (fieldKey: string, fieldLabel: string) => {
     if (!store.currentProject) return;
     setIsDeducting(true);
-    setShowDeductionModal(true);
     setDeductingField(fieldKey);
     setDeductingFieldLabel(fieldLabel);
     setDeductionOptions([]);
@@ -219,35 +217,6 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     }
   };
 
-  const handleSelectDeductionOption = async (content: string) => {
-    if (!store.currentProject || !deductingField) return;
-    
-    if (deductingField === 'styleSetting') setTempStyleSetting(content);
-    else if (deductingField === 'worldSetting') setTempWorldSetting(content);
-    else if (deductingField === 'powerSystem') setTempPowerSystem(content);
-    else if (deductingField === 'goldFinger') setTempGoldFinger(content);
-    else if (deductingField === 'coreConflict') setTempCoreConflict(content);
-    else if (deductingField === 'factionsMap') setTempFactionsMap(content);
-    else if (deductingField === 'sellingPoints') setTempSellingPoints(content);
-
-    try {
-      await store.updateProject(store.currentProject.id, { [deductingField]: content });
-      createVersionSnapshot({
-        projectId: store.currentProject.id,
-        type: 'macro',
-        key: deductingField,
-        label: deductingFieldLabel,
-        data: content,
-        source: 'auto',
-      });
-    } catch (e) {
-      console.error('Failed to auto-save deduced field', e);
-    }
-    
-    setShowDeductionModal(false);
-    setDeductingField(null);
-  };
-
   return {
     kernelOptions,
     setKernelOptions,
@@ -297,13 +266,12 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     isOutlineMissing,
     isSettingsMissing,
     deductingField,
+    setDeductingField,
     deductingFieldLabel,
     deductionOptions,
-    showDeductionModal,
-    setShowDeductionModal,
+    setDeductionOptions,
     isDeducting,
     handleAiDeduceField,
-    handleSelectDeductionOption,
   };
 }
 
