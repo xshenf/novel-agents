@@ -21,6 +21,9 @@ model NovelProject {
   sellingPoints    String         @default("")
   outlineFull      String         @default("")
   antiAiStyleRules String         @default("[]")
+  modelsConfig     String         @default("[]")
+  agentBindings    String         @default("{}")
+  agentOverrides   String         @default("{}")
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   characters       Character[]

@@ -35,6 +35,9 @@ export interface NovelProject {
   sellingPoints?: string;
   outlineFull?: string;
   antiAiStyleRules?: string[];
+  modelsConfig?: any[];
+  agentBindings?: Record<string, string>;
+  agentOverrides?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }
@@ -107,6 +110,9 @@ function formatProject(p: PrismaProject): NovelProject {
   return {
     ...p,
     antiAiStyleRules: p.antiAiStyleRules ? JSON.parse(p.antiAiStyleRules) as string[] : [],
+    modelsConfig: (p as any).modelsConfig ? JSON.parse((p as any).modelsConfig) as any[] : [],
+    agentBindings: (p as any).agentBindings ? JSON.parse((p as any).agentBindings) as Record<string, string> : {},
+    agentOverrides: (p as any).agentOverrides ? JSON.parse((p as any).agentOverrides) as Record<string, any> : {},
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -181,7 +187,10 @@ export const db = {
         sellingPoints: project.sellingPoints || '',
         outlineFull: project.outlineFull || '',
         antiAiStyleRules: JSON.stringify(project.antiAiStyleRules || []),
-      },
+        modelsConfig: JSON.stringify(project.modelsConfig || []),
+        agentBindings: JSON.stringify(project.agentBindings || {}),
+        agentOverrides: JSON.stringify(project.agentOverrides || {}),
+      } as any,
     });
     return formatProject(created);
   },
@@ -191,9 +200,18 @@ export const db = {
     if (updates.antiAiStyleRules !== undefined) {
       data.antiAiStyleRules = JSON.stringify(updates.antiAiStyleRules);
     }
+    if (updates.modelsConfig !== undefined) {
+      data.modelsConfig = JSON.stringify(updates.modelsConfig);
+    }
+    if (updates.agentBindings !== undefined) {
+      data.agentBindings = JSON.stringify(updates.agentBindings);
+    }
+    if (updates.agentOverrides !== undefined) {
+      data.agentOverrides = JSON.stringify(updates.agentOverrides);
+    }
     const updated = await prisma.novelProject.update({
       where: { id },
-      data,
+      data: data as any,
     });
     return updated ? formatProject(updated) : undefined;
   },

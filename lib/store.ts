@@ -250,6 +250,14 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_models', JSON.stringify(nextModels));
       }
       set({ models: nextModels });
+
+      const currentProj = get().currentProject;
+      if (currentProj) {
+        get().updateProject(currentProj.id, {
+          modelsConfig: nextModels
+        }).catch(err => console.error('Failed to sync addModel to backend', err));
+      }
+
       return newId;
     },
 
@@ -285,6 +293,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
           }
         }
       }
+
+      const currentProj = get().currentProject;
+      if (currentProj) {
+        get().updateProject(currentProj.id, {
+          modelsConfig: nextModels
+        }).catch(err => console.error('Failed to sync updateModel to backend', err));
+      }
     },
 
     deleteModel: (id) => {
@@ -308,6 +323,14 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         }
       }
       set({ models: nextModels, agentModelBindings: nextBindings });
+
+      const currentProj = get().currentProject;
+      if (currentProj) {
+        get().updateProject(currentProj.id, {
+          modelsConfig: nextModels,
+          agentBindings: nextBindings
+        }).catch(err => console.error('Failed to sync deleteModel to backend', err));
+      }
     },
 
     bindAgentModel: (agent, modelId) => {
@@ -331,6 +354,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
           });
         }
       }
+
+      const currentProj = get().currentProject;
+      if (currentProj) {
+        get().updateProject(currentProj.id, {
+          agentBindings: nextBindings
+        }).catch(err => console.error('Failed to sync bindAgentModel to backend', err));
+      }
     },
 
     updateAgentOverride: (agent, overrides) => {
@@ -344,6 +374,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_agent_overrides', JSON.stringify(nextOverrides));
       }
       set({ agentOverrides: nextOverrides });
+
+      const currentProj = get().currentProject;
+      if (currentProj) {
+        get().updateProject(currentProj.id, {
+          agentOverrides: nextOverrides
+        }).catch(err => console.error('Failed to sync updateAgentOverride to backend', err));
+      }
     },
 
     fetchProjects: async () => {
@@ -424,6 +461,61 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         get().fetchChapters(project.id);
         get().fetchCharacters(project.id);
         get().fetchWorldRules(project.id);
+
+        // 如果项目数据库中有模型配置且不为空
+        if (project.modelsConfig && project.modelsConfig.length > 0) {
+          const nextModels = project.modelsConfig;
+          const nextBindings = project.agentBindings || {};
+          const nextOverrides = project.agentOverrides || {};
+
+          set({
+            models: nextModels,
+            agentModelBindings: nextBindings,
+            agentOverrides: nextOverrides,
+          });
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('novel_models', JSON.stringify(nextModels));
+            localStorage.setItem('novel_agent_bindings', JSON.stringify(nextBindings));
+            localStorage.setItem('novel_agent_overrides', JSON.stringify(nextOverrides));
+
+            const orchestratorModelId = nextBindings['orchestrator'];
+            if (orchestratorModelId) {
+              const model = nextModels.find((m: any) => m.id === orchestratorModelId);
+              if (model) {
+                set({
+                  apiKey: model.apiKey,
+                  modelName: model.name,
+                  apiProvider: model.provider,
+                  apiBaseUrl: model.apiBaseUrl,
+                  temperature: model.temperature,
+                  maxTokens: model.maxTokens,
+                  reasoningEnabled: model.reasoningEnabled,
+                });
+                localStorage.setItem('novel_api_key', model.apiKey);
+                localStorage.setItem('novel_model_name', model.name);
+                localStorage.setItem('novel_api_provider', model.provider);
+                localStorage.setItem('novel_api_base_url', model.apiBaseUrl);
+                localStorage.setItem('novel_temperature', String(model.temperature));
+                localStorage.setItem('novel_max_tokens', String(model.maxTokens));
+                localStorage.setItem('novel_reasoning_enabled', String(model.reasoningEnabled));
+              }
+            }
+          }
+        } else {
+          // 如果项目没有配置大模型列表，则将浏览器当前的配置保存到该项目中
+          const currentModels = get().models;
+          const currentBindings = get().agentModelBindings;
+          const currentOverrides = get().agentOverrides;
+
+          get().updateProject(project.id, {
+            modelsConfig: currentModels,
+            agentBindings: currentBindings,
+            agentOverrides: currentOverrides,
+          }).catch(err => {
+            console.error('Failed to sync initial model configurations to project database', err);
+          });
+        }
       }
     },
 
