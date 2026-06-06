@@ -87,10 +87,11 @@ export async function POST(request: Request) {
       }
 
       case 'continue': {
+        const { chapterTitle } = body;
         if (!projectId || currentText === undefined) {
           return NextResponse.json({ error: '缺少 projectId 或 currentText' }, { status: 400 });
         }
-        const text = await ai.continueWriting(projectId, currentText, instruction, apiKey, modelName);
+        const text = await ai.continueWriting(projectId, currentText, instruction, apiKey, modelName, chapterTitle);
         return NextResponse.json({ text });
       }
 

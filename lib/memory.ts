@@ -1,4 +1,5 @@
 import { db, Chapter, Character, WorldRule, NovelProject } from './db';
+import { parseStructureOutline } from './outlineParser';
 
 export interface MemorySearchResult {
   contextText: string;
@@ -87,7 +88,7 @@ function scoreRelevantChapters(chapters: Chapter[], queryTokens: string[]): Chap
 
 // 检索小说记忆：始终注入「故事圣经 + 全书逐章摘要」，并补充最近/相关章节的关键状态变化。
 // 这从根本上避免了「只给最近/命中的 top-3 章」导致的长篇跑偏。
-export async function searchMemory(projectId: string, query: string): Promise<MemorySearchResult> {
+export async function searchMemory(projectId: string, query: string, chapterTitle?: string): Promise<MemorySearchResult> {
   const [chapters, characters, worldRules, project] = await Promise.all([
     db.getChapters(projectId),
     db.getCharacters(projectId),
@@ -95,13 +96,49 @@ export async function searchMemory(projectId: string, query: string): Promise<Me
     db.getProject(projectId),
   ]);
 
+  // 查找匹配的章节大纲
+  let currentChapterOutline = '';
+  if (chapterTitle && project?.outlineFull) {
+    try {
+      const volumes = parseStructureOutline(project.outlineFull);
+      const flatChapters = volumes.map(v => v.chapters || []).flat();
+      const cleanTitle = (t: string) => t.replace(/^(第[一二三四五六七八九十百\d]+章[：:\s\-]*)/, '').trim();
+      
+      const targetClean = cleanTitle(chapterTitle);
+      const matched = flatChapters.find(ch => {
+        const t1 = ch.title.trim();
+        const t2 = chapterTitle.trim();
+        if (t1 === t2) return true;
+        // 模糊匹配干净的标题
+        const c1 = cleanTitle(t1);
+        const c2 = cleanTitle(t2);
+        return c1 && c2 && (c1.includes(c2) || c2.includes(c1));
+      });
+      
+      if (matched) {
+        let text = `【本章大纲走向（当前正在创作此章节，务必严格围绕此大纲剧情和冲突撰写，不得偏离）】：\n`;
+        text += `- 章节标题：${matched.title}\n`;
+        text += `- 剧情推进与走向：${matched.content || '暂无详细走向描述，请合理发挥'}\n`;
+        if (matched.details && matched.details.length > 0) {
+          text += `- 关键设计指标：\n`;
+          matched.details.forEach(d => {
+            text += `  * ${d.key}：${d.value}\n`;
+          });
+        }
+        currentChapterOutline = text.trim();
+      }
+    } catch (e) {
+      console.error('解析大纲放入提示词出错:', e);
+    }
+  }
+
   // 细节层 = 最近 N 章 ∪ 关键词相关旧章节（按章节自然顺序输出）
   const relevant = scoreRelevantChapters(chapters, tokenize(query));
   const recent = chapters.slice(-RECENT_DETAIL_N);
   const detailIds = new Set([...recent, ...relevant].map(c => c.id));
   const detailChapters = chapters.filter(c => detailIds.has(c.id));
 
-  const contextText = formatContext(project, chapters, characters, worldRules, detailChapters);
+  const contextText = formatContext(project, chapters, characters, worldRules, detailChapters, currentChapterOutline);
 
   return {
     contextText,
@@ -122,6 +159,7 @@ function formatContext(
   characters: Character[],
   rules: WorldRule[],
   detailChapters: Chapter[],
+  currentChapterOutline?: string,
 ): string {
   const parts: string[] = [];
 
@@ -141,6 +179,11 @@ function formatContext(
   let bible = `【小说项目】：${project?.title || ''}`;
   if (kernel.length > 0) bible += `\n\n【本书核心设定（贯穿全书，不得自相矛盾）】：\n${kernel.join('\n')}`;
   parts.push(bible);
+
+  // ── 1.5. 当前章节大纲走向（如有） ──
+  if (currentChapterOutline) {
+    parts.push(currentChapterOutline);
+  }
 
   // ── 2. 全部登场人物 · 当前状态（始终注入：人物状态最易跑偏）──
   if (characters.length > 0) {

@@ -20,7 +20,7 @@ export function WriteTab() {
     editorTitle, editorContent,
     saveStatus, handleEditorChange, handleTitleChange, forceSave, exportFile,
   } = editor;
-  const { isAutoWriting } = autoWriter;
+  const { isAutoWriting, startAutoWriting, pauseAutoWriting } = autoWriter;
   const { busy: inlineBusy, continueWriting, transformSelection } = inlineAi;
   const { handleOpenEditProject } = kernel;
 
@@ -147,6 +147,18 @@ export function WriteTab() {
                     {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} style={{ color: '#34d399' }} />}
                     <span>重算本章记忆</span>
                   </button>
+                  {/* AI生成本章 / 停止生成 */}
+                  {isAutoWriting ? (
+                    <button className="btn btn-secondary" onClick={pauseAutoWriting} style={{ ...inlineBtn, color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)' }} title="停止当前的 AI 正文写作">
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>停止生成</span>
+                    </button>
+                  ) : (
+                    <button className="btn btn-secondary" onClick={() => startAutoWriting({ count: 1 })} style={{ ...inlineBtn, background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8' }} disabled={locked || busy} title="让 AI 依据大纲走向一键生成本章完整正文">
+                      <Sparkles size={13} style={{ color: '#38bdf8' }} />
+                      <span>AI生成本章</span>
+                    </button>
+                  )}
                   {/* 内联 AI：仅做编辑/修改辅助，正文以 AI 生成为主 */}
                   <button className="btn btn-secondary" onClick={continueWriting} style={inlineBtn} disabled={locked} title="在全文末尾续写">
                     {inlineBusy === 'continue' ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}

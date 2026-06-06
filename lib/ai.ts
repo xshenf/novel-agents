@@ -792,7 +792,7 @@ export const ai = {
    * AI 自动写小说章节正文
    */
   async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string): Promise<string> {
-    const memory = await searchMemory(projectId, chapterTitle);
+    const memory = await searchMemory(projectId, chapterTitle, chapterTitle);
     
     // 获取当前项目的文风设定与反 AI 规则配置
     const project = await db.getProject(projectId);
@@ -928,8 +928,8 @@ export const ai = {
   /**
    * AI 正文续写
    */
-  async continueWriting(projectId: string, currentText: string, instruction?: string, apiKey?: string, modelName?: string): Promise<string> {
-    const memory = await searchMemory(projectId, instruction || currentText);
+  async continueWriting(projectId: string, currentText: string, instruction?: string, apiKey?: string, modelName?: string, chapterTitle?: string): Promise<string> {
+    const memory = await searchMemory(projectId, instruction || currentText, chapterTitle);
     const systemInstruction = `你是一个职业网络小说作家。你将基于提供的小说世界观、人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
 要求：
 1. 风格、文笔、口吻要与已有内容高度一致。

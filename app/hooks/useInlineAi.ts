@@ -38,6 +38,7 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
       const res = await callAIApi({
         action: 'continue',
         projectId: store.currentProject.id,
+        chapterTitle: store.currentChapter?.title || '',
         currentText: editorContent,
         instruction: '',
       });
