@@ -264,6 +264,24 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
 }
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
+// 委托目标专家集合（与 delegate_to_* 工具一一对应）
+export const SPECIALISTS = ['planner', 'lore_builder', 'writer', 'editor'] as const;
+
+// 从消息尾部连续的工具结果中解析委托目标专家。
+// 编导调用 delegate_to_X 工具后，ToolNode 产出形如 "[DELEGATE:role] task" 的结果，
+// 这里回溯末尾连续的 ToolMessage 提取目标；无委托信号返回 null（普通工具调用，应回 orchestrator）。
+// 抽成单一纯函数供 orchestrator_tools 与 reset_specialist 两条路由复用，避免正则逻辑重复。
+export function resolveDelegateTarget(messages: BaseMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m._getType() !== 'tool') break; // 只检查末尾连续的工具结果
+    const content = typeof m.content === 'string' ? m.content : '';
+    const match = content.match(/^\[DELEGATE:(\w+)\]/);
+    if (match && (SPECIALISTS as readonly string[]).includes(match[1])) return match[1];
+  }
+  return null;
+}
+
 function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string, globalSystemInstruction: string, injectStyleContext = false) {
   const bound = llm.bindTools(tools);
   const systemPrompt = AGENT_PROMPTS[role];
@@ -409,21 +427,6 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
     return (last.tool_calls && last.tool_calls.length > 0) ? 'orchestrator_tools' : END;
   };
 
-  const SPECIALISTS = ['planner', 'lore_builder', 'writer', 'editor'];
-
-  // 工具执行后：扫描本轮新产生的 ToolMessage，若有 DELEGATE 信号则路由到对应专家，否则回 orchestrator
-  const routeAfterOrchestratorTools = (state: typeof AgentState.State) => {
-    const msgs = state.messages;
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      const m = msgs[i];
-      if (m._getType() !== 'tool') break; // 只检查末尾连续的工具结果
-      const content = typeof m.content === 'string' ? m.content : '';
-      const match = content.match(/^\[DELEGATE:(\w+)\]/);
-      if (match && SPECIALISTS.includes(match[1])) return match[1];
-    }
-    return 'orchestrator'; // 普通工具调用（query_memory / get_project_overview）后回 orchestrator 继续
-  };
-
   // 进入专家前重置工具调用计数
   const resetSpecialistCountNode = async () => ({
     specialistToolCalls: 0,
@@ -451,25 +454,15 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
 
     // Orchestrator 根据 tool_call 路由：有工具调用 -> 执行工具；否则结束
     .addConditionalEdges('orchestrator', routeAfterOrchestrator)
-    // 工具执行后：delegate 信号路由到 reset_specialist（重置计数后进入专家），否则回 orchestrator
-    .addConditionalEdges('orchestrator_tools', (state: typeof AgentState.State) => {
-      const result = routeAfterOrchestratorTools(state);
-      return result === 'orchestrator' ? 'orchestrator' : 'reset_specialist';
-    })
+    // 工具执行后：有 delegate 信号则去 reset_specialist（重置计数后进入专家），否则回 orchestrator
+    .addConditionalEdges('orchestrator_tools', (state: typeof AgentState.State) =>
+      resolveDelegateTarget(state.messages) ? 'reset_specialist' : 'orchestrator'
+    )
 
-    // 重置计数后路由到对应的专家节点
-    .addConditionalEdges('reset_specialist', (state: typeof AgentState.State) => {
-      // 回溯最近的 DELEGATE 信号确定目标专家
-      const msgs = state.messages;
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const m = msgs[i];
-        if (m._getType() !== 'tool') break;
-        const content = typeof m.content === 'string' ? m.content : '';
-        const match = content.match(/^\[DELEGATE:(\w+)\]/);
-        if (match && SPECIALISTS.includes(match[1])) return match[1];
-      }
-      return 'orchestrator';
-    })
+    // 重置计数后按委托信号路由到对应专家节点
+    .addConditionalEdges('reset_specialist', (state: typeof AgentState.State) =>
+      resolveDelegateTarget(state.messages) ?? 'orchestrator'
+    )
 
     // 专家完成后统一经 after_specialist 累加计数再回 orchestrator 汇总
     .addEdge('after_specialist', 'orchestrator')
