@@ -369,12 +369,12 @@ export function OutlineTab() {
                   gap: '10px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '24px', minHeight: '24px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     <Activity size={13} style={{ color: 'var(--accent)' }} />
                     <span style={{ fontWeight: '500' }}>小说节奏与情绪张力曲线</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '450px' }}>
                     {hoveredPoint !== null ? (
                       <span>
                         {points[hoveredPoint].title} | 情绪强度: {points[hoveredPoint].val}%
@@ -437,7 +437,7 @@ export function OutlineTab() {
                           cx={p.x}
                           cy={p.y}
                           r={14}
-                          fill="transparent"
+                          fill="rgba(0,0,0,0)"
                           style={{ cursor: 'pointer' }}
                           onMouseEnter={() => setHoveredPoint(i)}
                           onMouseLeave={() => setHoveredPoint(null)}
