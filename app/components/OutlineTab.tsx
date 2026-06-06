@@ -1,38 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Save, Loader2, Eye, Edit3, Plus, Trash2, ArrowUp, ArrowDown, User, Activity, Key, BookOpen, Check, X, Tag, Lock, Unlock, Sparkles, Compass, Flame, Zap, Award, Trophy, CheckCircle2, ChevronUp, ChevronDown, ChevronRight, Search, Undo2, Redo2 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { useAiClient } from '../hooks/useAiClient';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
-import { KernelDimensionCard } from './KernelDimensionCard';
-import { CharacterCard, AddCharacterCard, WorldRuleCard, AddWorldRuleCard } from './AssetCards';
-import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
-import {
-  parseStructureOutline,
-  generateMarkdownFromSections,
-  renumberVolumesAndChapters,
-  parseCharacters,
-  parseEmotionValue,
-  type OutlineChapter,
-  type OutlineVolume,
-} from '@/lib/outlineParser';
-import { useAiUndoStack, type AiUndoEntry } from '../hooks/useAiUndoStack';
-import { useAiRegen } from '../hooks/useAiRegen';
-import { useMaterialTabs, MATERIALS_LIST } from '../hooks/useMaterialTabs';
-import { useOutlineSections } from '../hooks/useOutlineSections';
-import { useOutlineAutoSave } from '../hooks/useOutlineAutoSave';
-import { useOutlineHandlers } from '../hooks/useOutlineHandlers';
-import { OutlineSidebar } from './OutlineSidebar';
 import { KernelDimensionsPanel } from './KernelDimensionsPanel';
-import { OutlineTreePanel } from './outlineTree/OutlineTreePanel';
 import { CharacterManagementView } from './CharacterManagementView';
-import { WriteOutlineActions } from './WriteOutlineActions';
+import { WorldRuleCard, AddWorldRuleCard } from './AssetCards';
+import { useMaterialTabs, MATERIALS_LIST } from '../hooks/useMaterialTabs';
+import { OutlineSidebar } from './OutlineSidebar';
 
 export function OutlineTab() {
   const { store, kernel } = useWorkspace();
   const {
-    tempOutlineFull, setTempOutlineFull,
     tempStyleSetting, setTempStyleSetting,
     tempWorldSetting, setTempWorldSetting,
     tempPowerSystem, setTempPowerSystem,
@@ -40,77 +21,17 @@ export function OutlineTab() {
     tempCoreConflict, setTempCoreConflict,
     tempFactionsMap, setTempFactionsMap,
     tempSellingPoints, setTempSellingPoints,
-    kernelOptions, isKernelLoading,
-    isAddingChar, setIsAddingChar,
     isAddingRule, setIsAddingRule,
-    ruleFilter, setRuleFilter,
-    filteredRules,
     expandedKernelCard, setExpandedKernelCard,
   } = kernel;
 
   const callAIApi = useAiClient();
 
-  // 视图模式（保留：未来结构/编辑双视图切换）
-  const [viewMode, setViewMode] = useState<'structure' | 'editor'>('structure');
-
   // 素材磁贴 / 大纲子 Tab 状态
   const {
-    outlineSubTab, setOutlineSubTab,
-    activeMaterial, setActiveMaterial,
-    collapsedVolumes, setCollapsedVolumes,
-    outlineSearchQuery, setOutlineSearchQuery,
+    activeMaterial,
     handleSelectMaterial,
   } = useMaterialTabs();
-
-  // AI 推演撤销历史栈
-  const {
-    stack: aiUndoStack,
-    push: pushAiUndo,
-    undo: undoLastAiRegen,
-    dismiss: dismissLastAiUndo,
-    clear: clearAiUndo,
-  } = useAiUndoStack();
-
-  // 行内编辑控制
-  const [editingVolumeIdx, setEditingVolumeIdx] = useState<number | null>(null);
-  const [editVolumeForm, setEditVolumeForm] = useState<OutlineVolume | null>(null);
-  const [editingChapterPath, setEditingChapterPath] = useState<{ volIdx: number; chapIdx: number } | null>(null);
-  const [editChapterForm, setEditChapterForm] = useState<OutlineChapter | null>(null);
-
-  // AI 推演 / 重写任务的 controller 与定位状态
-  const {
-    abortRef: aiAbortRef,
-    regenIndex: regeningIndex, setRegenIndex: setRegeningIndex,
-    regenVolumeIdx: regeningVolumeIdx, setRegenVolumeIdx: setRegeningVolumeIdx,
-    regenField: regeningField, setRegenField: setRegeningField,
-    cancel: cancelAiRegen,
-  } = useAiRegen();
-
-  // 树状大纲本地编辑态（与 tempOutlineFull 自动同步）
-  const { localSections, setLocalSections } = useOutlineSections({
-    tempOutlineFull,
-    editingVolumeIdx,
-    editingChapterPath,
-    onResetUndoStack: clearAiUndo,
-  });
-
-  // 大纲全文与宏观设定自动保存
-  useOutlineAutoSave({
-    projectId: store.currentProject?.id,
-    tempOutlineFull,
-    macro: {
-      tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger,
-      tempCoreConflict, tempFactionsMap, tempSellingPoints,
-    },
-    updateProject: store.updateProject,
-  });
-
-  // AI 推演用户输入状态
-  const [aiPromptVolIdx, setAiPromptVolIdx] = useState<number | null>(null);
-  const [aiPromptText, setAiPromptText] = useState('');
-
-
-  
 
   const [initingMaterial, setInitingMaterial] = useState<string | null>(null);
 
@@ -162,109 +83,25 @@ export function OutlineTab() {
     }
   };
 
-  
-  
+  // 世界规则筛选映射
+  const getFilteredRules = (material: string) => {
+    if (!store.worldRules) return [];
 
+    if (material === 'location') return store.worldRules.filter((r: any) => r.type === 'location');
+    if (material === 'faction') return store.worldRules.filter((r: any) => r.type === 'faction');
+    if (material === 'item') return store.worldRules.filter((r: any) => r.type === 'item');
 
-  
-  // UI 关联性交互状态
-  const [selectedChar, setSelectedChar] = useState<string | null>(null);
-  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
-  const [selectedVolumeIdx, setSelectedVolumeIdx] = useState<number | null>(null);
+    if (material === 'currency') return store.worldRules.filter((r: any) => r.type === 'rule' && r.name.includes('货币'));
+    if (material === 'skillSystem') return store.worldRules.filter((r: any) => r.type === 'rule' && (r.name.includes('功法') || r.name.includes('技能') || r.name.includes('修炼') || r.name.includes('体系')));
+    if (material === 'timeline') return store.worldRules.filter((r: any) => r.type === 'rule' && r.name.includes('时间线'));
 
+    if (material === 'foreshadow') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('伏笔'));
+    if (material === 'plot') return store.worldRules.filter((r: any) => r.type === 'other' && (r.name.includes('情节') || r.name.includes('脉络')));
+    if (material === 'subPlot') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('支线'));
+    if (material === 'events') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('事件'));
+    if (material === 'relation') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('关系'));
 
-  // 全书所有章节拍平后的扁平章节映射表，用以挂载折线图和角色池（支持分卷过滤）
-  const flatChapters = localSections
-    .map((vol, volIdx) =>
-      vol.chapters.map((chap, chapIdx) => ({
-        ...chap,
-        volIdx,
-        chapIdx
-      }))
-    )
-    .flatMap((chaps, volIdx) => {
-      if (selectedVolumeIdx !== null && selectedVolumeIdx !== volIdx) {
-        return [];
-      }
-      return chaps;
-    });
-
-  // 提取全部登场角色
-  const allCharacters = Array.from(
-    new Set(
-      flatChapters.flatMap(sec => parseCharacters(sec.details))
-    )
-  );
-  // 抽出所有大纲相关 CRUD 与 AI 推演 handler
-  const {
-    handleInsertVolume, handleDeleteVolume, handleMoveVolume,
-    handleInsertChapter, handleDeleteChapter, handleMoveChapter,
-    handleSelectRecommendedOutline,
-    handleAiRegenChapter, handleAiRegenVolume,
-    toggleLockVolume, toggleLockChapter,
-    saveVolumeEditing, saveChapterEditing,
-    totalChapters, completionRate,
-    getFilteredRules,
-  } = useOutlineHandlers({
-    store, callAIApi,
-    localSections, setLocalSections, setTempOutlineFull,
-    editingVolumeIdx, setEditingVolumeIdx, editVolumeForm, setEditVolumeForm,
-    editingChapterPath, setEditingChapterPath, editChapterForm, setEditChapterForm,
-    aiAbortRef, setRegeningIndex, setRegeningVolumeIdx,
-    pushAiUndo, flatChapters,
-    tempWorldSetting, tempCoreConflict, tempPowerSystem,
-  });
-
-  // 将大纲全文保存到当前项目
-  const handleSaveOutlineToProject = async () => {
-    if (!store.currentProject) return;
-    try {
-      await store.updateProject(store.currentProject.id, { outlineFull: tempOutlineFull });
-      alert('小说大纲已成功保存至项目！');
-    } catch (e) {
-      alert('大纲保存失败');
-    }
-  };
-
-  // 大纲树视图的 controller（透传给 OutlineTreePanel / 子视图）
-  const outlineTreeCtrl: import('./outlineTree/types').OutlineTreeController = {
-    outlineSubTab: outlineSubTab as 'volume' | 'chapter',
-    setOutlineSubTab: (v) => setOutlineSubTab(v as typeof outlineSubTab),
-    handleSelectMaterial,
-
-    localSections, setLocalSections,
-    tempOutlineFull, setTempOutlineFull,
-
-    editingVolumeIdx, setEditingVolumeIdx,
-    editVolumeForm, setEditVolumeForm,
-    editingChapterPath, setEditingChapterPath,
-    editChapterForm, setEditChapterForm,
-
-    collapsedVolumes, setCollapsedVolumes,
-    outlineSearchQuery, setOutlineSearchQuery,
-    selectedVolumeIdx, setSelectedVolumeIdx,
-    selectedChar, setSelectedChar,
-    hoveredPoint, setHoveredPoint,
-
-    regeningIndex, regeningVolumeIdx, regeningField,
-    aiAbortRef,
-    aiPromptVolIdx, setAiPromptVolIdx,
-    aiPromptText, setAiPromptText,
-    cancelAiRegen,
-
-    aiUndoStack, undoLastAiRegen, clearAiUndo,
-
-    handleInsertVolume, handleDeleteVolume, handleMoveVolume,
-    toggleLockVolume, saveVolumeEditing,
-    handleInsertChapter, handleDeleteChapter, handleMoveChapter,
-    toggleLockChapter, saveChapterEditing,
-    handleAiRegenChapter, handleAiRegenVolume,
-
-    totalChapters, completionRate,
-    flatChapters, allCharacters,
-
-    store,
-    handleSaveOutlineToProject,
+    return store.worldRules;
   };
 
   return (
@@ -306,17 +143,9 @@ export function OutlineTab() {
           />
         )}
 
-        {/* 2. 大纲设定视图 (outline) */}
-        {activeMaterial === 'outline' && (
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flexGrow: 1, overflow: 'hidden' }}>
-            <WriteOutlineActions />
-            <OutlineTreePanel ctrl={outlineTreeCtrl} />
-          </div>
-        )}
-
         {/* 4. 角色管理视图 (character) */}
         {activeMaterial === 'character' && (
-          <CharacterManagementView store={store} isAddingChar={isAddingChar} setIsAddingChar={setIsAddingChar} createVersionSnapshot={createVersionSnapshot} />
+          <CharacterManagementView store={store} isAddingChar={kernel.isAddingChar} setIsAddingChar={kernel.setIsAddingChar} createVersionSnapshot={createVersionSnapshot} />
         )}
 
         {/* 5. 扩展设定与世界设定资产库 (location, faction, item, currency, skillSystem, relation, foreshadow, plot, subPlot, timeline, events) */}
@@ -447,7 +276,7 @@ export function OutlineTab() {
             );
           })()
         )}
+      </div>
     </div>
-  </div>
-);
+  );
 }
