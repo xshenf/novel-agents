@@ -1,19 +1,19 @@
-import { Annotation, StateGraph, START, END, MemorySaver } from '@langchain/langgraph';
+import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
+import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 import { BaseMessage, SystemMessage, AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 
-// 防止开发环境热重载丢失 Checkpointer 状态
+// 持久化 Checkpointer：落盘到 data/agent-checkpoints.db，进程重启/热重载后对话与断点状态仍可恢复。
+// 用全局单例复用同一个 better-sqlite3 连接，避免开发环境热重载反复打开文件句柄。
 const globalForAgent = globalThis as unknown as {
-  agentCheckpointer: MemorySaver | undefined;
+  agentCheckpointer: SqliteSaver | undefined;
 };
 
-export const checkpointer = globalForAgent.agentCheckpointer ?? new MemorySaver();
-if (process.env.NODE_ENV !== 'production') {
-  globalForAgent.agentCheckpointer = checkpointer;
-}
+export const checkpointer = globalForAgent.agentCheckpointer ?? SqliteSaver.fromConnString('./data/agent-checkpoints.db');
+globalForAgent.agentCheckpointer = checkpointer;
 
 
 import {
@@ -25,6 +25,8 @@ import {
   getProjectOverviewTool,
 } from './tools';
 import { AGENT_PROMPTS, AgentRole } from './prompts';
+import { db } from '../db';
+import { buildStyleContext } from './promptContext';
 
 // ─── 全局状态 ─────────────────────────────────────────────────────────────────
 export const AgentState = Annotation.Root({
@@ -262,13 +264,21 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
 }
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
-function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string, globalSystemInstruction: string) {
+function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string, globalSystemInstruction: string, injectStyleContext = false) {
   const bound = llm.bindTools(tools);
   const systemPrompt = AGENT_PROMPTS[role];
 
   return async (state: typeof AgentState.State) => {
     const contextNote = `\n\n当前项目ID: ${projectId}（调用工具时必须传入此ID）`;
     let finalPrompt = systemPrompt + contextNote;
+    // 写作类角色（writer/editor）注入文风契约与反 AI 规则，使产出在生成阶段即贴合全书风格
+    if (injectStyleContext) {
+      const project = await db.getProject(projectId);
+      if (project) {
+        const styleCtx = buildStyleContext(project);
+        if (styleCtx) finalPrompt += `\n\n${styleCtx}`;
+      }
+    }
     if (globalSystemInstruction && globalSystemInstruction.trim()) {
       finalPrompt += `\n\n用户全局系统指令（你必须严格遵守）：\n${globalSystemInstruction}`;
     }
@@ -371,8 +381,8 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
   const orchestratorNode = createOrchestratorNode(orchestratorLlm, projectId, globalSystemInstruction);
   const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      plannerLlm, projectId, globalSystemInstruction);
   const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId, globalSystemInstruction);
-  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId, globalSystemInstruction);
-  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId, globalSystemInstruction);
+  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId, globalSystemInstruction, true);
+  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId, globalSystemInstruction, true);
 
   const orchestratorToolNode  = new ToolNode(ORCHESTRATOR_TOOLS);
   const plannerToolNode       = new ToolNode(PLANNER_TOOLS);

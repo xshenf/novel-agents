@@ -2,26 +2,8 @@ ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
 onlyBuiltDependencies:
-  - '"'
-  - ','
-  - '-'
-  - '3'
   - '@prisma/client'
   - '@prisma/engines'
-  - '['
-  - ']'
-  - a
-  - b
-  - d
-  - e
+  - better-sqlite3
   - esbuild
-  - h
-  - i
-  - l
-  - p
   - prisma
-  - q
-  - r
-  - s
-  - t
-  - u
