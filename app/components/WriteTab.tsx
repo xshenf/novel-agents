@@ -39,8 +39,10 @@ export function WriteTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflowY: 'auto' }}>
-      {/* AI 生成控制（全 AI 生成的入口） */}
-      <GenerationControl />
+      {/* 仅在非分卷配置（即未选中分卷，或已选中章节）时才渲染 AI 生成控制卡片 */}
+      {!(selectedVolumeIdx !== null && selectedChapterIdx === null) && (
+        <GenerationControl />
+      )}
 
       {/* 新书完善设定 Banner */}
       {store.currentProject && store.currentProject.title === '未命名故事' && (
