@@ -3,31 +3,14 @@
 import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder } from 'lucide-react';
 import { useState } from 'react';
 import { useWorkspace } from '../workspace-context';
+import { findWritten, statusOf, chapterWordCount, collectOrphans, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
 
-// 从章节标题中抽取「第N章/节/回」中的序号，未命中则返回 null
-function extractChapterNumber(title: string): number | null {
-  const m = title.match(/第\s*(\d+)\s*(?:章|节|回|折|卷)/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-// 匹配规则（按优先级）：
-// 1) 标题完全一致；
-// 2) 去掉「第N章：」前缀后一致；
-// 3) 大纲标题为空 / 为「新章节」占位时，按章号匹配。
-// 4) 任意一边能抽出章号且相等。
-function titlesMatch(outlineTitle: string, writtenTitle: string): boolean {
-  if (!outlineTitle || !writtenTitle) return false;
-  if (outlineTitle === writtenTitle) return true;
-  const stripped = outlineTitle.replace(/^第.+(?:章|节|回|折)[：: ]\s*/, '');
-  if (stripped && stripped === writtenTitle) return true;
-  const num1 = extractChapterNumber(outlineTitle);
-  const num2 = extractChapterNumber(writtenTitle);
-  if (num1 !== null && num1 === num2) return true;
-  // 大纲是占位标题（空 / 「新章节」/「新卷」等）时，按章号匹配
-  const isPlaceholder = !outlineTitle.trim() || outlineTitle.trim() === '新章节' || outlineTitle.trim() === '新卷';
-  if (isPlaceholder && num2 !== null) return true;
-  return false;
-}
+// 章节写作状态徽标颜色
+const STATUS_COLOR: Record<ChapterStatus, string> = {
+  unwritten: 'var(--text-dark)',
+  draft: '#fbbf24',
+  done: 'var(--accent-success)',
+};
 
 export function WorkspaceSidebar() {
   const { store, routing, modals, layout, outlineTree, volumeActions } = useWorkspace();
@@ -110,7 +93,9 @@ export function WorkspaceSidebar() {
 
                       {!isCollapsed && vol.chapters.map((chap, cIdx) => {
                         const isActive = selectedVolumeIdx === vIdx && selectedChapterIdx === cIdx;
-                        const writtenMatch = store.chapters.find(c => titlesMatch(chap.title, c.title));
+                        const writtenMatch = findWritten(chap.title, store.chapters);
+                        const status = statusOf(writtenMatch);
+                        const words = chapterWordCount(writtenMatch);
                         return (
                           <div
                             key={`chap-${vIdx}-${cIdx}`}
@@ -118,10 +103,14 @@ export function WorkspaceSidebar() {
                             onClick={() => { handleSelectChapter(vIdx, cIdx); handleEnterWriting(writtenMatch?.id ?? null); }}
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '24px', cursor: 'pointer' }}
                           >
+                            <span
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0, background: STATUS_COLOR[status] }}
+                              title={STATUS_LABEL[status]}
+                            />
                             <FileText size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
                             <span style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '12px' }}>{chap.title || `第 ${cIdx + 1} 章`}</span>
                             {chap.isLocked && <Lock size={9} style={{ flexShrink: 0, opacity: 0.5 }} />}
-                            {writtenMatch && writtenMatch.content.trim() !== '' && <span style={{ fontSize: '10px', color: 'var(--accent-success)' }}>已</span>}
+                            {words > 0 && <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>{words}字</span>}
                           </div>
                         );
                       })}
@@ -148,12 +137,7 @@ export function WorkspaceSidebar() {
 
                 {/* 未编入大纲的自由章节（按章号匹配后仍找不到的） */}
                 {(() => {
-                  const matchedWrittenIds = new Set<string>();
-                  localSections.forEach(vol => vol.chapters.forEach(chap => {
-                    const m = store.chapters.find(c => titlesMatch(chap.title, c.title));
-                    if (m) matchedWrittenIds.add(m.id);
-                  }));
-                  const orphans = store.chapters.filter(c => !matchedWrittenIds.has(c.id));
+                  const orphans = collectOrphans(localSections, store.chapters);
                   if (orphans.length === 0) return null;
                   return (
                     <div>
@@ -161,7 +145,10 @@ export function WorkspaceSidebar() {
                         <BookOpen size={11} />
                         <span>未编入大纲</span>
                       </div>
-                      {orphans.map((chap) => (
+                      {orphans.map((chap) => {
+                        const status = statusOf(chap);
+                        const words = chapterWordCount(chap);
+                        return (
                         <div
                           key={chap.id}
                           className={`sidebar-item ${store.currentChapter?.id === chap.id && selectedVolumeIdx === null ? 'active' : ''}`}
@@ -170,9 +157,13 @@ export function WorkspaceSidebar() {
                           onMouseEnter={() => setHoveredMenuKey(chap.id)}
                           onMouseLeave={() => setHoveredMenuKey(null)}
                         >
+                          <span
+                            style={{ width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0, background: STATUS_COLOR[status] }}
+                            title={STATUS_LABEL[status]}
+                          />
                           <FileText size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
                           <span style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '12px' }}>{chap.title}</span>
-                          {chap.content.trim() !== '' && <span style={{ fontSize: '10px', color: 'var(--accent-success)' }}>已</span>}
+                          {words > 0 && hoveredMenuKey !== chap.id && <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>{words}字</span>}
                           {hoveredMenuKey === chap.id && (
                             <button
                               className="btn-icon"
@@ -189,7 +180,8 @@ export function WorkspaceSidebar() {
                             </button>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}

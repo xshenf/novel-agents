@@ -203,3 +203,9 @@ export function parseEmotionValue(details: { key: string; value: string }[]): nu
   if (val.includes('压抑') || val.includes('绝境') || val.includes('低谷') || val.includes('困难')) return 25;
   return 50;
 }
+
+// 从章节 details 卡片中按关键字查找字段值，未命中返回 null
+export function findDetail(details: { key: string; value: string }[], includes: string[]): string | null {
+  const hit = details.find(d => includes.some(kw => d.key.includes(kw)));
+  return hit ? hit.value.trim() : null;
+}

@@ -23,8 +23,14 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
   const [writeUntilEnd, setWriteUntilEnd] = useState(false);
   const autoWriteStopRef = useRef(false);
 
-  const startAutoWriting = async () => {
+  const startAutoWriting = async (opts?: { count?: number; untilEnd?: boolean }) => {
     if (!store.currentProject) return;
+
+    // 允许调用方按需覆盖生成章数 / 是否写到结尾，避免 setState 竞态
+    const count = opts?.count ?? targetChaptersCount;
+    const untilEnd = opts?.untilEnd ?? writeUntilEnd;
+    setTargetChaptersCount(count);
+    setWriteUntilEnd(untilEnd);
 
     setIsAutoWriting(true);
     autoWriteStopRef.current = false;
@@ -41,7 +47,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
           projectId: store.currentProject.id,
           projectTitle: store.currentProject.title,
           projectDesc: store.currentProject.description,
-          numChapters: targetChaptersCount
+          numChapters: count
         });
         const data = await res.json();
 
@@ -61,7 +67,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
         // 降级防线：如果未成功提取出标题，使用默认命名建立相应数量的章节
         if (titles.length === 0) {
           const chineseNumbers = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十', '二十一', '二十二', '二十三', '二十四', '二十五', '二十六', '二十七', '二十八', '二十九', '三十', '三十一', '三十二', '三十三', '三十四', '三十五', '三十六', '三十七', '三十八', '三十九', '四十', '四十一', '四十二', '四十三', '四十四', '四十五', '四十六', '四十七', '四十八', '四十九', '五十'];
-          for (let i = 1; i <= targetChaptersCount; i++) {
+          for (let i = 1; i <= count; i++) {
             const indexStr = chineseNumbers[i - 1] || String(i);
             titles.push(`第${indexStr}章：新规划章节`);
           }
@@ -121,7 +127,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
       }
 
       // 如果生成的章节数已达到设定上限，停止生成
-      if (!writeUntilEnd && completed >= targetChaptersCount) {
+      if (!untilEnd && completed >= count) {
         break;
       }
 

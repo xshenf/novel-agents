@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ai } from '@/lib/ai';
+import { searchMemory } from '@/lib/memory';
 
 export async function POST(request: Request) {
   try {
@@ -122,6 +123,20 @@ export async function POST(request: Request) {
         }
         const result = await ai.summarizeChapter(currentText, apiKey, modelName);
         return NextResponse.json(result);
+      }
+
+      case 'memoryPreview': {
+        // 纯检索：忠实返回 AI 写作时实际会检索到的记忆上下文（无需调用模型）。
+        if (!projectId) {
+          return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
+        }
+        const result = await searchMemory(projectId, query || '');
+        return NextResponse.json({
+          contextText: result.contextText,
+          chapterCount: result.chapters.length,
+          characterCount: result.characters.length,
+          worldRuleCount: result.worldRules.length,
+        });
       }
 
       case 'generateKernel': {

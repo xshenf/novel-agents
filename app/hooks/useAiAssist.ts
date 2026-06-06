@@ -40,6 +40,7 @@ export type AiAssistApi = ReturnType<typeof useAiAssist>;
 
 export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }: UseAiAssistDeps) {
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  const [summarizeMsg, setSummarizeMsg] = useState<string | null>(null);
 
   const [showInspirationsModal, setShowInspirationsModal] = useState(false);
   const [isInspirationLoading, setIsInspirationLoading] = useState(false);
@@ -61,7 +62,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
       const data = await res.json();
       setCheckResult(data);
     } catch (err) {
-      alert('逻辑自检执行失败');
+      setCheckResult({ passed: false, issues: ['逻辑自检执行失败，请重试'], suggestions: [] });
     } finally {
       setIsAiLoading(false);
     }
@@ -71,6 +72,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
   const handleAutoSummarize = async () => {
     if (!editorContent.trim() || !store.currentChapter) return;
     setIsAiLoading(true);
+    setSummarizeMsg(null);
     try {
       const res = await callAIApi({
         action: 'summarize',
@@ -85,10 +87,12 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
           resolvedForeshadowing: data.resolvedForeshadowing || [],
           timelineEvents: data.timelineEvents || []
         });
-        alert(`章节摘要自动提取成功！\n\n【本章摘要】：${data.summary}\n【时间线事件】：${data.timelineEvents?.join(', ') || '无'}`);
+        setSummarizeMsg(`已重算本章记忆：${data.summary}`);
+      } else {
+        setSummarizeMsg('自动提取摘要失败，请重试');
       }
     } catch (err) {
-      alert('自动提取摘要失败');
+      setSummarizeMsg('自动提取摘要失败，请重试');
     } finally {
       setIsAiLoading(false);
     }
@@ -194,6 +198,8 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
   return {
     checkResult,
     setCheckResult,
+    summarizeMsg,
+    setSummarizeMsg,
     handleConsistencyCheck,
     handleAutoSummarize,
     showInspirationsModal,

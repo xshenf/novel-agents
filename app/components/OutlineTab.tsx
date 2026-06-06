@@ -27,6 +27,7 @@ import { OutlineSidebar } from './OutlineSidebar';
 import { KernelDimensionsPanel } from './KernelDimensionsPanel';
 import { OutlineTreePanel } from './outlineTree/OutlineTreePanel';
 import { CharacterManagementView } from './CharacterManagementView';
+import { WriteOutlineActions } from './WriteOutlineActions';
 
 export function OutlineTab() {
   const { store, kernel } = useWorkspace();
@@ -307,7 +308,10 @@ export function OutlineTab() {
 
         {/* 2. 大纲设定视图 (outline) */}
         {activeMaterial === 'outline' && (
-          <OutlineTreePanel ctrl={outlineTreeCtrl} />
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flexGrow: 1, overflow: 'hidden' }}>
+            <WriteOutlineActions />
+            <OutlineTreePanel ctrl={outlineTreeCtrl} />
+          </div>
         )}
 
         {/* 4. 角色管理视图 (character) */}

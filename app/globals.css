@@ -381,8 +381,6 @@ select.input option {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  overflow-y: auto;
-  max-height: 250px;
 }
 
 .sidebar-item {

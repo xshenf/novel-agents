@@ -15,6 +15,8 @@ import { useCreationModals } from './hooks/useCreationModals';
 import { useResizablePanels } from './hooks/useResizablePanels';
 import { useOutlineTreeState } from './hooks/useOutlineTreeState';
 import { useVolumeActions } from './hooks/useVolumeActions';
+import { useChapterMemory } from './hooks/useChapterMemory';
+import { useInlineAi } from './hooks/useInlineAi';
 import { WorkspaceProvider, type WorkspaceContextValue } from './workspace-context';
 import { TopNav } from './components/TopNav';
 import { Dashboard } from './components/Dashboard';
@@ -50,6 +52,14 @@ export default function Home() {
     getLocalSections: () => outlineTree.localSections,
     setOutlineFull: kernel.setTempOutlineFull,
   });
+  const chapterMemory = useChapterMemory({ store, callAIApi });
+  const inlineAi = useInlineAi({
+    store,
+    callAIApi,
+    editorContent: editor.editorContent,
+    setEditorContent: editor.setEditorContent,
+    setSaveStatus: editor.setSaveStatus,
+  });
 
   const value: WorkspaceContextValue = {
     store,
@@ -66,6 +76,8 @@ export default function Home() {
     layout,
     outlineTree,
     volumeActions,
+    chapterMemory,
+    inlineAi,
   };
 
   if (!mounted) {

@@ -14,6 +14,8 @@ import { useCreationModals } from './hooks/useCreationModals';
 import { useResizablePanels } from './hooks/useResizablePanels';
 import { useOutlineTreeState } from './hooks/useOutlineTreeState';
 import { useVolumeActions } from './hooks/useVolumeActions';
+import { useChapterMemory } from './hooks/useChapterMemory';
+import { useInlineAi } from './hooks/useInlineAi';
 
 // 命名空间化的工作台 Context：各 hook 输出按功能分组，避免大平铺
 export type WorkspaceContextValue = {
@@ -34,6 +36,8 @@ export type WorkspaceContextValue = {
   layout: ReturnType<typeof useResizablePanels>;
   outlineTree: ReturnType<typeof useOutlineTreeState>;
   volumeActions: ReturnType<typeof useVolumeActions>;
+  chapterMemory: ReturnType<typeof useChapterMemory>;
+  inlineAi: ReturnType<typeof useInlineAi>;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
