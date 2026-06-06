@@ -35,7 +35,7 @@ interface KernelDimensionsPanelProps {
  * 以及 specialSetting 下的"反 AI 文风特征过滤器"折叠面板。
  */
 export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
-  const { store } = useWorkspace();
+  const { store, kernel } = useWorkspace();
   const {
     activeMaterial,
     tempWorldSetting, setTempWorldSetting,
@@ -47,6 +47,34 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     expandedKernelCard, setExpandedKernelCard,
     currentProject, updateProject,
   } = props;
+
+  const kernelOptions = kernel.kernelOptions;
+
+  // 维度 key -> 对应的 temp setter
+  const fieldSetters: Record<string, (v: string) => void> = {
+    worldSetting: setTempWorldSetting,
+    coreConflict: setTempCoreConflict,
+    sellingPoints: setTempSellingPoints,
+    powerSystem: setTempPowerSystem,
+    skillSystem: setTempPowerSystem, // skillSystem 复用 powerSystem setter
+    goldFinger: setTempGoldFinger,
+    location: setTempWorldSetting,   // location 复用 worldSetting setter
+    faction: setTempWorldSetting,    // faction 复用 worldSetting setter
+    currency: setTempWorldSetting,   // currency 复用 worldSetting setter
+    item: setTempWorldSetting,       // item 复用 worldSetting setter
+  };
+
+  // 获取当前维度的 AI 备选方案
+  const currentOptions = kernelOptions?.[activeMaterial] as Array<{ name: string; description: string }> | undefined;
+
+  const handleSelectKernelOption = async (description: string) => {
+    const setter = fieldSetters[activeMaterial];
+    if (!setter || !currentProject) return;
+    setter(description);
+    try {
+      await store.updateProject(currentProject.id, { [activeMaterial]: description });
+    } catch { /* ignore */ }
+  };
 
   const subtitle =
     activeMaterial === 'worldSetting' ? '定义小说主舞台的大陆疆域、宏观规则、历史背景与社会法则'
@@ -275,6 +303,70 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
           </>
         )}
       </div>
+
+      {/* 全量推演备选方案 */}
+      {currentOptions && currentOptions.length > 0 && (
+        <div style={{
+          padding: '16px',
+          background: 'rgba(0,0,0,0.15)',
+          borderRadius: '10px',
+          border: '1px dashed var(--border-light)',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>
+              全量推演备选方案 (点击选用)
+            </span>
+            <button
+              type="button"
+              onClick={() => kernel.setKernelOptions(null)}
+              style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              清除全部方案
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {currentOptions.map((opt, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: '10px 12px',
+                  background: 'rgba(255,255,255,0.01)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#fff' }}>
+                    方案 {idx + 1}：{opt.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKernelOption(opt.description)}
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                      background: 'rgba(99, 102, 241, 0.1)',
+                      border: '1px solid var(--accent)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      color: 'var(--accent)',
+                    }}
+                  >
+                    选用
+                  </button>
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                  {opt.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -184,6 +184,78 @@ export function OutlineTab() {
                   )}
                 </div>
 
+                {/* 全量推演备选方案 */}
+                {kernel.kernelOptions?.[activeMaterial] && (
+                  <div style={{
+                    padding: '14px',
+                    background: 'rgba(0,0,0,0.15)',
+                    borderRadius: '10px',
+                    border: '1px dashed var(--border-light)',
+                    flexShrink: 0,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>
+                        全量推演备选方案 (点击选用)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => kernel.setKernelOptions(null)}
+                        style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                      >
+                        清除全部方案
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {(kernel.kernelOptions[activeMaterial] as Array<{ name: string; description: string }>).map((opt, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: '8px 10px',
+                            background: 'rgba(255,255,255,0.01)',
+                            border: '1px solid var(--border-light)',
+                            borderRadius: '6px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#fff' }}>
+                              方案 {idx + 1}：{opt.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!store.currentProject) return;
+                                await store.createWorldRule({
+                                  projectId: store.currentProject.id,
+                                  name: opt.name,
+                                  description: opt.description,
+                                  type: activeMaterial === 'location' ? 'location' : activeMaterial === 'faction' ? 'faction' : activeMaterial === 'item' ? 'item' : 'rule',
+                                });
+                              }}
+                              style={{
+                                fontSize: '10px',
+                                padding: '2px 8px',
+                                background: 'rgba(99, 102, 241, 0.1)',
+                                border: '1px solid var(--accent)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              选用
+                            </button>
+                          </div>
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
+                            {opt.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {isAddingRule && store.currentProject && (
                   <AddWorldRuleCard
                     projectId={store.currentProject.id}
