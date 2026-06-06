@@ -16,5 +16,10 @@ export function buildStyleContext(project: NovelProject): string {
     parts.push(`【反 AI 写作硬规则（生成时即须规避，不可依赖后期润色）】\n${antiAi}`);
   }
 
+  const forbidden = (project.forbiddenSetting || '').trim();
+  if (forbidden) {
+    parts.push(`【注意：写作正文时禁止出现以下情节、字句或设定（自定义负向约束）】\n${forbidden}`);
+  }
+
   return parts.join('\n\n');
 }

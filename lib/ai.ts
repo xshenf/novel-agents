@@ -419,6 +419,10 @@ export const ai = {
     const antiAiInstructions = antiAiLines
       ? `\n请务必严格遵守以下文风控制与反AI写作控制规则（极其重要）：\n` + antiAiLines
       : '';
+    const forbiddenText = (project?.forbiddenSetting || '').trim();
+    const forbiddenInstructions = forbiddenText
+      ? `\n请务必严格遵循以下“禁止出现的设定”负向约束（极其重要，严禁违背）：\n` + forbiddenText
+      : '';
 
     // few-shot：取本书最近一章有实质内容的正文片段作为文风范例（模仿笔触，不照抄情节）
     const allChapters = await db.getChapters(projectId);
@@ -437,7 +441,7 @@ export const ai = {
 1. 章节标题是：“${chapterTitle}”。
 2. 字数在 1000 字左右，结构必须包含：起（环境烘托与引子）、承（角色互动与对话）、转（核心冲突与博弈）、合（悬念留白与下章伏笔）。
 3. 必须绝对遵循人物卡的性格描述、关系背景以及“写作禁忌”。
-4. 行文文风必须与本书既定文风严格一致。${styleBlock}${antiAiInstructions}
+4. 行文文风必须与本书既定文风严格一致。${styleBlock}${antiAiInstructions}${forbiddenInstructions}
 5. 仅输出章节的正文内容，不要包含任何多余的引言、前言或总结。`;
 
     const prompt = `【小说设定与长期记忆】:\n${memory.contextText}${exemplarBlock}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;

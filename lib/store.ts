@@ -54,7 +54,7 @@ export interface NovelStore {
   updateAgentOverride: (agent: string, overrides: { temperature?: number; maxTokens?: number } | null) => void;
   
   fetchProjects: () => Promise<void>;
-  createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string) => Promise<NovelProject>;
+  createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string, forbiddenSetting?: string) => Promise<NovelProject>;
   deleteProject: (id: string) => Promise<void>;
   updateProject: (id: string, updates: Partial<Omit<NovelProject, 'id' | 'createdAt'>>) => Promise<NovelProject>;
   refreshProject: (id: string) => Promise<void>;
@@ -413,13 +413,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
       }
     },
 
-    createProject: async (title: string, description: string, styleSetting = '', worldSetting = '') => {
+    createProject: async (title: string, description: string, styleSetting = '', worldSetting = '', forbiddenSetting = '') => {
       set({ isLoading: true, error: null });
       try {
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description, styleSetting, worldSetting }),
+          body: JSON.stringify({ title, description, styleSetting, worldSetting, forbiddenSetting }),
         });
         if (!res.ok) throw new Error('创建项目失败');
         const newProj = await res.json();

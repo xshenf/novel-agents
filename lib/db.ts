@@ -42,6 +42,7 @@ export interface NovelProject {
   outlineFull?: string;
   rollingSynopsis?: string;
   antiAiStyleRules?: string[];
+  forbiddenSetting?: string;
   modelsConfig?: any[];
   agentBindings?: Record<string, string>;
   agentOverrides?: Record<string, any>;
@@ -206,6 +207,7 @@ export const db = {
         sellingPoints: project.sellingPoints || '',
         outlineFull: project.outlineFull || '',
         antiAiStyleRules: JSON.stringify(project.antiAiStyleRules || []),
+        forbiddenSetting: project.forbiddenSetting || '',
         modelsConfig: JSON.stringify(project.modelsConfig || []),
         agentBindings: JSON.stringify(project.agentBindings || {}),
         agentOverrides: JSON.stringify(project.agentOverrides || {}),

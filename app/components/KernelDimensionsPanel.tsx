@@ -32,6 +32,8 @@ interface KernelDimensionsPanelProps {
   setTempCurrency: (v: string) => void;
   tempItem: string;
   setTempItem: (v: string) => void;
+  tempForbiddenSetting: string;
+  setTempForbiddenSetting: (v: string) => void;
   // 反 AI 规则折叠控制
   expandedKernelCard: string | null;
   setExpandedKernelCard: (v: string | null) => void;
@@ -60,6 +62,7 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     tempFaction, setTempFaction,
     tempCurrency, setTempCurrency,
     tempItem, setTempItem,
+    tempForbiddenSetting, setTempForbiddenSetting,
     expandedKernelCard, setExpandedKernelCard,
     currentProject, updateProject,
   } = props;
@@ -239,6 +242,17 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
               setValue={setTempStyleSetting}
               cardType="styleSetting"
               placeholder="例如：都市超能体裁，快节奏神豪爽文，整体色调轻松幽默，节奏明快..."
+              alwaysExpanded={true}
+            />
+
+            <KernelDimensionCard
+              cardKey="forbiddenSetting"
+              title="禁止出现的设定/桥段"
+              subtitle="自定义负向约束，定义小说正文及大纲生成中严禁出现的毒点、剧情或词汇"
+              value={tempForbiddenSetting}
+              setValue={setTempForbiddenSetting}
+              cardType="forbiddenSetting"
+              placeholder="例如：严禁主角舔狗、送女行为；禁止出现无脑降智反派；禁止出现长篇大论的心理描写..."
               alwaysExpanded={true}
             />
 

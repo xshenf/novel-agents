@@ -27,6 +27,7 @@ export function OutlineTab() {
     tempFaction, setTempFaction,
     tempCurrency, setTempCurrency,
     tempItem, setTempItem,
+    tempForbiddenSetting, setTempForbiddenSetting,
     isAddingRule, setIsAddingRule,
     expandedKernelCard, setExpandedKernelCard,
   } = kernel;
@@ -152,6 +153,8 @@ export function OutlineTab() {
             setTempCurrency={setTempCurrency}
             tempItem={tempItem}
             setTempItem={setTempItem}
+            tempForbiddenSetting={tempForbiddenSetting}
+            setTempForbiddenSetting={setTempForbiddenSetting}
             expandedKernelCard={expandedKernelCard}
             setExpandedKernelCard={setExpandedKernelCard}
             currentProject={store.currentProject}

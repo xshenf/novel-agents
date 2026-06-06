@@ -37,7 +37,8 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [tempFaction, setTempFaction] = useState('');
   const [tempCurrency, setTempCurrency] = useState('');
   const [tempItem, setTempItem] = useState('');
-
+  const [tempForbiddenSetting, setTempForbiddenSetting] = useState('');
+ 
   // 完善新书设定 Modal
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [editProjTitle, setEditProjTitle] = useState('');
@@ -45,13 +46,13 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [editProjWorld, setEditProjWorld] = useState('');
   const [editProjDesc, setEditProjDesc] = useState('');
   const [isEditProjectAiLoading, setIsEditProjectAiLoading] = useState(false);
-
+ 
   // AI 推演单项设定字段（3个备选）状态
   const [deductingField, setDeductingField] = useState<string | null>(null);
   const [deductingFieldLabel, setDeductingFieldLabel] = useState<string>('');
   const [deductionOptions, setDeductionOptions] = useState<{ title: string; content: string }[]>([]);
   const [isDeducting, setIsDeducting] = useState(false);
-
+ 
   // 切换项目时同步设定状态
   useEffect(() => {
     if (store.currentProject) {
@@ -68,8 +69,9 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setTempFaction(store.currentProject.faction || '');
       setTempCurrency(store.currentProject.currency || '');
       setTempItem(store.currentProject.item || '');
-
-      // 切换新项目时清空旧的 AI 推荐，以便于触发新的推演，且重置次级 Tab
+      setTempForbiddenSetting(store.currentProject.forbiddenSetting || '');
+ 
+      // 切换新项目时清空旧 of AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
       setActiveSettingsSubTab('kernel');
       setIsAddingChar(false);
@@ -388,6 +390,8 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     setTempCurrency,
     tempItem,
     setTempItem,
+    tempForbiddenSetting,
+    setTempForbiddenSetting,
     showEditProjectModal,
     setShowEditProjectModal,
     editProjTitle,

@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { title, description, styleSetting, worldSetting } = body;
+    const { title, description, styleSetting, worldSetting, forbiddenSetting } = body;
     
     if (!title) {
       return NextResponse.json({ error: '项目标题不能为空' }, { status: 400 });
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       description: description || '',
       styleSetting: styleSetting || '',
       worldSetting: worldSetting || '',
+      forbiddenSetting: forbiddenSetting || '',
       powerSystem: '',
       goldFinger: '',
       coreConflict: '',

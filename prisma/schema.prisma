@@ -27,6 +27,7 @@ model NovelProject {
   outlineFull      String         @default("")
   rollingSynopsis  String         @default("")
   antiAiStyleRules String         @default("[]")
+  forbiddenSetting String         @default("")
   modelsConfig     String         @default("[]")
   agentBindings    String         @default("{}")
   agentOverrides   String         @default("{}")

@@ -275,7 +275,7 @@ export const updateProjectFieldTool = tool(
     const allowedFields = [
       'title', 'description', 'styleSetting', 'worldSetting',
       'powerSystem', 'goldFinger', 'coreConflict', 'factionsMap',
-      'sellingPoints', 'outlineFull'
+      'sellingPoints', 'outlineFull', 'forbiddenSetting'
     ];
     if (!allowedFields.includes(field)) {
       return `不允许修改字段 "${field}"，可用字段：${allowedFields.join(', ')}`;
@@ -288,7 +288,7 @@ export const updateProjectFieldTool = tool(
     description: '更新小说项目的全局核心设定字段。注意：此处仅用于宏观全局的框架设定，如果需要添加具体的微观设定要素（如具体的门派详情、地名历史、法宝细节），请使用 create_world_rule 工具，不要污染此处的全局宏观字段。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
-      field: z.string().describe('要更新的字段名，可选：title, description, styleSetting, worldSetting, powerSystem, goldFinger, coreConflict, factionsMap, sellingPoints, outlineFull'),
+      field: z.string().describe('要更新的字段名，可选：title, description, styleSetting, worldSetting, powerSystem, goldFinger, coreConflict, factionsMap, sellingPoints, outlineFull, forbiddenSetting'),
       value: z.string().describe('新的字段值；单个设定字段控制在 150-300 字，精炼概括核心信息，避免长篇铺陈'),
     }),
   }
