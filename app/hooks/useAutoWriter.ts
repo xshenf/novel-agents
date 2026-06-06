@@ -20,6 +20,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
   const [targetChaptersCount, setTargetChaptersCount] = useState(3);
   const [finishedChaptersCount, setFinishedChaptersCount] = useState(0);
   const [autoWriteMode, setAutoWriteMode] = useState(true); // 默认开启AI自动写小说模式
+  const [writeUntilEnd, setWriteUntilEnd] = useState(false);
   const autoWriteStopRef = useRef(false);
 
   const startAutoWriting = async () => {
@@ -73,7 +74,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
       }
 
       // 如果生成的章节数已达到设定上限，停止生成
-      if (completed >= targetChaptersCount) {
+      if (!writeUntilEnd && completed >= targetChaptersCount) {
         break;
       }
 
@@ -175,5 +176,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
     setAutoWriteMode,
     startAutoWriting,
     pauseAutoWriting,
+    writeUntilEnd,
+    setWriteUntilEnd,
   };
 }

@@ -14,6 +14,7 @@ export function WriteTab() {
     writeInstruction, setWriteInstruction, isAutoWriting, autoWritingStatus,
     targetChaptersCount, setTargetChaptersCount, finishedChaptersCount,
     autoWriteMode, setAutoWriteMode, startAutoWriting, pauseAutoWriting,
+    writeUntilEnd, setWriteUntilEnd,
   } = autoWriter;
   const { handleConsistencyCheck, handleAutoSummarize } = assist;
   const { setShowNewChapModal } = modals;
@@ -60,35 +61,56 @@ export function WriteTab() {
                   <span style={{ width: '1px', height: '12px', background: 'var(--border-light)' }} />
                 </>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
-                <input
-                  type="number"
-                  className="input"
-                  value={targetChaptersCount}
-                  onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
-                  style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
-                  disabled={isAutoWriting}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>连写章数:</span>
+                  <input
+                    type="number"
+                    className="input"
+                    value={targetChaptersCount}
+                    onChange={(e) => setTargetChaptersCount(Math.max(1, Number(e.target.value)))}
+                    style={{ width: '50px', padding: '4px 6px', fontSize: '12px' }}
+                    disabled={isAutoWriting || writeUntilEnd}
+                  />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={writeUntilEnd}
+                    onChange={(e) => setWriteUntilEnd(e.target.checked)}
+                    disabled={isAutoWriting}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>写到结尾</span>
+                </label>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <div style={{ flexGrow: 1, height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  background: 'var(--accent)',
-                  width: `${(finishedChaptersCount / targetChaptersCount) * 100}%`,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              已生成 {finishedChaptersCount} / {targetChaptersCount} 章
-            </span>
-          </div>
+          {(() => {
+            const totalChaptersToGenerate = writeUntilEnd
+              ? Math.max(1, store.chapters.length)
+              : targetChaptersCount;
+            const progressPercent = Math.min(100, (finishedChaptersCount / totalChaptersToGenerate) * 100);
+
+            return (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ flexGrow: 1, height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      background: 'var(--accent)',
+                      width: `${progressPercent}%`,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  已生成 {finishedChaptersCount} / {writeUntilEnd ? '结尾' : targetChaptersCount} 章
+                </span>
+              </div>
+            );
+          })()}
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
             <input
