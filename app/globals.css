@@ -642,10 +642,10 @@ select.input option {
   position: fixed;
   top: 0;
   right: 0;
-  width: 480px;
-  max-width: 90vw;
+  width: 580px; /* 拓宽以适应多模型与绑定界面 */
+  max-width: 95vw;
   height: 100vh;
-  background: rgba(22, 25, 44, 0.9);
+  background: rgba(16, 19, 36, 0.96);
   backdrop-filter: blur(20px);
   border-left: 1px solid var(--border-light);
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
@@ -658,6 +658,160 @@ select.input option {
 
 .drawer-content.active {
   transform: translateX(0);
+}
+
+/* 新增：模型配置与分配 UI 类 */
+.drawer-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid var(--border-light);
+  padding: 4px 16px;
+  gap: 8px;
+}
+
+.drawer-tab-btn {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.drawer-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.drawer-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.model-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 120px;
+}
+
+.model-card:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+.model-card.active {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.model-card-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10px;
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.model-card-delete-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-dark);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.model-card-delete-btn:hover {
+  color: var(--accent-danger);
+}
+
+.model-card-add {
+  border: 1px dashed var(--border-light);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 120px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.model-card-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.agent-binding-card {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.agent-binding-card:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.agent-binding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.agent-binding-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-override-box {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .drawer-header {

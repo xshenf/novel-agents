@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import { NovelProject, Chapter, Character, WorldRule } from './db';
 
+export interface ModelConfig {
+  id: string;
+  provider: string; // 'gemini' | 'openai' | 'deepseek' | 'claude' | 'custom'
+  name: string;
+  alias: string;
+  apiKey: string;
+  apiBaseUrl: string;
+  temperature: number;
+  maxTokens: number;
+  reasoningEnabled: boolean;
+}
+
 interface NovelStore {
   projects: NovelProject[];
   currentProject: NovelProject | null;
@@ -19,6 +31,11 @@ interface NovelStore {
   isLoading: boolean;
   error: string | null;
 
+  // 多模型与智能体特异配置
+  models: ModelConfig[];
+  agentModelBindings: Record<string, string>;
+  agentOverrides: Record<string, { temperature?: number; maxTokens?: number }>;
+
   setApiKey: (key: string) => void;
   setModelName: (model: string) => void;
   setApiProvider: (provider: string) => void;
@@ -27,6 +44,12 @@ interface NovelStore {
   setMaxTokens: (tokens: number) => void;
   setSystemInstruction: (inst: string) => void;
   setReasoningEnabled: (enabled: boolean) => void;
+
+  addModel: (model: Omit<ModelConfig, 'id'>) => string;
+  updateModel: (id: string, updates: Partial<ModelConfig>) => void;
+  deleteModel: (id: string) => void;
+  bindAgentModel: (agent: string, modelId: string) => void;
+  updateAgentOverride: (agent: string, overrides: { temperature?: number; maxTokens?: number } | null) => void;
   
   fetchProjects: () => Promise<void>;
   createProject: (title: string, description: string, styleSetting?: string, worldSetting?: string) => Promise<NovelProject>;
@@ -62,6 +85,55 @@ export const useNovelStore = create<NovelStore>((set, get) => {
   const initialSystemInst = typeof window !== 'undefined' ? localStorage.getItem('novel_system_instruction') || '' : '';
   const initialReasoning = typeof window !== 'undefined' ? localStorage.getItem('novel_reasoning_enabled') === 'true' : false;
 
+  // 1. 初始化模型池与绑定数据
+  let parsedModels: ModelConfig[] = [];
+  let parsedBindings: Record<string, string> = {};
+  let parsedOverrides: Record<string, { temperature?: number; maxTokens?: number }> = {};
+
+  if (typeof window !== 'undefined') {
+    try {
+      const storedModels = localStorage.getItem('novel_models');
+      if (storedModels) {
+        parsedModels = JSON.parse(storedModels);
+      }
+      const storedBindings = localStorage.getItem('novel_agent_bindings');
+      if (storedBindings) {
+        parsedBindings = JSON.parse(storedBindings);
+      }
+      const storedOverrides = localStorage.getItem('novel_agent_overrides');
+      if (storedOverrides) {
+        parsedOverrides = JSON.parse(storedOverrides);
+      }
+    } catch (e) {
+      console.error('Failed to parse multi-model config', e);
+    }
+  }
+
+  // 2. 平滑升级：若没有配置新模型列表但有旧的配置，将其打包成默认模型
+  if (parsedModels.length === 0) {
+    const fallbackId = 'default-model-id';
+    parsedModels = [
+      {
+        id: fallbackId,
+        provider: initialProvider,
+        name: initialModel,
+        alias: '默认模型',
+        apiKey: initialApiKey,
+        apiBaseUrl: initialBaseUrl,
+        temperature: initialTemp,
+        maxTokens: initialTokens,
+        reasoningEnabled: initialReasoning
+      }
+    ];
+    parsedBindings = {
+      orchestrator: fallbackId,
+      planner: fallbackId,
+      lore_builder: fallbackId,
+      writer: fallbackId,
+      editor: fallbackId
+    };
+  }
+
   return {
     projects: [],
     currentProject: null,
@@ -80,11 +152,21 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     isLoading: false,
     error: null,
 
+    // 多模型配置状态
+    models: parsedModels,
+    agentModelBindings: parsedBindings,
+    agentOverrides: parsedOverrides,
+
     setApiKey: (key: string) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('novel_api_key', key);
       }
       set({ apiKey: key });
+      // 同步更新默认模型
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { apiKey: key });
+      }
     },
 
     setModelName: (model: string) => {
@@ -92,6 +174,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_model_name', model);
       }
       set({ modelName: model });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { name: model });
+      }
     },
 
     setApiProvider: (provider: string) => {
@@ -99,6 +185,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_api_provider', provider);
       }
       set({ apiProvider: provider });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { provider });
+      }
     },
 
     setApiBaseUrl: (url: string) => {
@@ -106,6 +196,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_api_base_url', url);
       }
       set({ apiBaseUrl: url });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { apiBaseUrl: url });
+      }
     },
 
     setTemperature: (temp: number) => {
@@ -113,6 +207,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_temperature', String(temp));
       }
       set({ temperature: temp });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { temperature: temp });
+      }
     },
 
     setMaxTokens: (tokens: number) => {
@@ -120,6 +218,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_max_tokens', String(tokens));
       }
       set({ maxTokens: tokens });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { maxTokens: tokens });
+      }
     },
 
     setSystemInstruction: (inst: string) => {
@@ -134,6 +236,114 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         localStorage.setItem('novel_reasoning_enabled', String(enabled));
       }
       set({ reasoningEnabled: enabled });
+      const defaultModel = get().models.find(m => m.id === 'default-model-id');
+      if (defaultModel) {
+        get().updateModel('default-model-id', { reasoningEnabled: enabled });
+      }
+    },
+
+    addModel: (model) => {
+      const newId = 'model_' + Math.random().toString(36).substring(2, 11);
+      const newModel: ModelConfig = { ...model, id: newId };
+      const nextModels = [...get().models, newModel];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_models', JSON.stringify(nextModels));
+      }
+      set({ models: nextModels });
+      return newId;
+    },
+
+    updateModel: (id, updates) => {
+      const nextModels = get().models.map(m => m.id === id ? { ...m, ...updates } : m);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_models', JSON.stringify(nextModels));
+      }
+      set({ models: nextModels });
+
+      // 如果更新了与旧属性对应的绑定配置，也同步更新旧属性值以保证最大程度兼容
+      const currentBinding = get().agentModelBindings['orchestrator'];
+      if (currentBinding === id) {
+        const updated = nextModels.find(m => m.id === id);
+        if (updated) {
+          set({
+            apiKey: updated.apiKey,
+            modelName: updated.name,
+            apiProvider: updated.provider,
+            apiBaseUrl: updated.apiBaseUrl,
+            temperature: updated.temperature,
+            maxTokens: updated.maxTokens,
+            reasoningEnabled: updated.reasoningEnabled,
+          });
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('novel_api_key', updated.apiKey);
+            localStorage.setItem('novel_model_name', updated.name);
+            localStorage.setItem('novel_api_provider', updated.provider);
+            localStorage.setItem('novel_api_base_url', updated.apiBaseUrl);
+            localStorage.setItem('novel_temperature', String(updated.temperature));
+            localStorage.setItem('novel_max_tokens', String(updated.maxTokens));
+            localStorage.setItem('novel_reasoning_enabled', String(updated.reasoningEnabled));
+          }
+        }
+      }
+    },
+
+    deleteModel: (id) => {
+      if (get().models.length <= 1) return;
+      const nextModels = get().models.filter(m => m.id !== id);
+      const remainingId = nextModels[0].id;
+
+      const nextBindings = { ...get().agentModelBindings };
+      let changed = false;
+      for (const agent in nextBindings) {
+        if (nextBindings[agent] === id) {
+          nextBindings[agent] = remainingId;
+          changed = true;
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_models', JSON.stringify(nextModels));
+        if (changed) {
+          localStorage.setItem('novel_agent_bindings', JSON.stringify(nextBindings));
+        }
+      }
+      set({ models: nextModels, agentModelBindings: nextBindings });
+    },
+
+    bindAgentModel: (agent, modelId) => {
+      const nextBindings = { ...get().agentModelBindings, [agent]: modelId };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_agent_bindings', JSON.stringify(nextBindings));
+      }
+      set({ agentModelBindings: nextBindings });
+
+      if (agent === 'orchestrator') {
+        const model = get().models.find(m => m.id === modelId);
+        if (model) {
+          set({
+            apiKey: model.apiKey,
+            modelName: model.name,
+            apiProvider: model.provider,
+            apiBaseUrl: model.apiBaseUrl,
+            temperature: model.temperature,
+            maxTokens: model.maxTokens,
+            reasoningEnabled: model.reasoningEnabled,
+          });
+        }
+      }
+    },
+
+    updateAgentOverride: (agent, overrides) => {
+      const nextOverrides = { ...get().agentOverrides };
+      if (overrides === null) {
+        delete nextOverrides[agent];
+      } else {
+        nextOverrides[agent] = { ...nextOverrides[agent], ...overrides };
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('novel_agent_overrides', JSON.stringify(nextOverrides));
+      }
+      set({ agentOverrides: nextOverrides });
     },
 
     fetchProjects: async () => {

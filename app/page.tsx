@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useNovelStore } from '@/lib/store';
+import { useNovelStore, ModelConfig } from '@/lib/store';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
   BookOpen, Plus, Trash2, Settings, ChevronLeft, ChevronRight,
@@ -41,17 +41,52 @@ export default function Home() {
   }, []);
   
   const callAIApi = async (bodyParams: Record<string, any>) => {
-    let apiKeyParam = store.apiKey;
-    if (store.apiKey && store.apiProvider) {
+    const action = bodyParams.action;
+    
+    // 动作与智能体职能角色的映射
+    let agentRole = 'orchestrator';
+    if (action === 'autoPlanBook' || action === 'outline' || action === 'generateKernel') {
+      agentRole = 'planner';
+    } else if (action === 'generateInspirations') {
+      agentRole = 'lore_builder';
+    } else if (action === 'autoWrite' || action === 'continue') {
+      agentRole = 'writer';
+    } else if (action === 'polish' || action === 'selfCheck' || action === 'summarize') {
+      agentRole = 'editor';
+    }
+
+    const modelId = store.agentModelBindings[agentRole] || store.models[0]?.id;
+    const model = store.models.find(m => m.id === modelId) || store.models[0];
+    
+    let apiKeyParam = '';
+    let modelNameParam = '';
+    
+    if (model) {
+      modelNameParam = model.name;
+      const overrides = store.agentOverrides[agentRole] || {};
       apiKeyParam = JSON.stringify({
-        apiKey: store.apiKey,
-        apiProvider: store.apiProvider,
-        apiBaseUrl: store.apiBaseUrl,
-        temperature: store.temperature,
-        maxTokens: store.maxTokens,
+        apiKey: model.apiKey,
+        apiProvider: model.provider,
+        apiBaseUrl: model.apiBaseUrl,
+        temperature: overrides.temperature !== undefined ? overrides.temperature : model.temperature,
+        maxTokens: overrides.maxTokens !== undefined ? overrides.maxTokens : model.maxTokens,
         systemInstruction: store.systemInstruction,
-        reasoningEnabled: store.reasoningEnabled
+        reasoningEnabled: model.reasoningEnabled === true
       });
+    } else {
+      apiKeyParam = store.apiKey;
+      if (store.apiKey && store.apiProvider) {
+        apiKeyParam = JSON.stringify({
+          apiKey: store.apiKey,
+          apiProvider: store.apiProvider,
+          apiBaseUrl: store.apiBaseUrl,
+          temperature: store.temperature,
+          maxTokens: store.maxTokens,
+          systemInstruction: store.systemInstruction,
+          reasoningEnabled: store.reasoningEnabled === true
+        });
+      }
+      modelNameParam = store.modelName;
     }
 
     return await fetch('/api/ai', {
@@ -61,23 +96,84 @@ export default function Home() {
       },
       body: JSON.stringify({
         apiKey: apiKeyParam,
-        modelName: store.modelName,
+        modelName: modelNameParam,
         ...bodyParams,
       }),
     });
   };
 
+  const [settingsTab, setSettingsTab] = useState<'models' | 'bindings' | 'prompts'>('models');
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  const [editModelForm, setEditModelForm] = useState({
+    provider: 'gemini',
+    name: 'gemini-2.5-flash',
+    alias: '我的 Gemini',
+    apiKey: '',
+    apiBaseUrl: '',
+    temperature: 0.7,
+    maxTokens: 3000,
+    reasoningEnabled: false
+  });
+
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
-  const handleTestConnection = async () => {
+  const handleTestConnection = async (targetForm?: typeof editModelForm) => {
     setTestStatus('testing');
     setTestMessage('正在尝试连接服务商并探测可用模型...');
     try {
-      const res = await callAIApi({
-        action: 'chat',
-        projectId: store.currentProject?.id || 'test_project_id',
-        query: '你好，这是一次 API 连通性测试。请用极其简短的内容回复（例如“测试成功”），不要多说任何废话。'
+      let apiKeyParam = '';
+      let modelNameParam = '';
+      if (targetForm) {
+        apiKeyParam = JSON.stringify({
+          apiKey: targetForm.apiKey,
+          apiProvider: targetForm.provider,
+          apiBaseUrl: targetForm.apiBaseUrl,
+          temperature: targetForm.temperature,
+          maxTokens: targetForm.maxTokens,
+          systemInstruction: '',
+          reasoningEnabled: targetForm.reasoningEnabled === true
+        });
+        modelNameParam = targetForm.name;
+      } else {
+        const modelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
+        const model = store.models.find(m => m.id === modelId) || store.models[0];
+        if (model) {
+          apiKeyParam = JSON.stringify({
+            apiKey: model.apiKey,
+            apiProvider: model.provider,
+            apiBaseUrl: model.apiBaseUrl,
+            temperature: model.temperature,
+            maxTokens: model.maxTokens,
+            systemInstruction: '',
+            reasoningEnabled: model.reasoningEnabled === true
+          });
+          modelNameParam = model.name;
+        } else {
+          // 降级使用 store 的旧全局属性
+          apiKeyParam = JSON.stringify({
+            apiKey: store.apiKey,
+            apiProvider: store.apiProvider,
+            apiBaseUrl: store.apiBaseUrl,
+            temperature: store.temperature,
+            maxTokens: store.maxTokens,
+            systemInstruction: '',
+            reasoningEnabled: store.reasoningEnabled === true
+          });
+          modelNameParam = store.modelName;
+        }
+      }
+
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'chat',
+          projectId: store.currentProject?.id || 'test_project_id',
+          query: '你好，这是一次 API 连通性测试。请用极其简短的内容回复，不要多说任何废话。',
+          apiKey: apiKeyParam,
+          modelName: modelNameParam
+        })
       });
       const data = await res.json();
       if (data.reply) {
@@ -97,22 +193,74 @@ export default function Home() {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelsError, setFetchModelsError] = useState('');
 
-  const handleFetchModels = async () => {
-    if (!store.apiKey) {
+  const handleFetchModels = async (targetForm?: typeof editModelForm) => {
+    const keyToTest = targetForm ? targetForm.apiKey : store.apiKey;
+    if (!keyToTest) {
       alert('请先输入 API 密钥 (API Key)');
       return;
     }
     setFetchingModels(true);
     setFetchModelsError('');
     try {
-      const res = await callAIApi({
-        action: 'fetchModels'
+      let apiKeyParam = '';
+      let modelNameParam = '';
+      if (targetForm) {
+        apiKeyParam = JSON.stringify({
+          apiKey: targetForm.apiKey,
+          apiProvider: targetForm.provider,
+          apiBaseUrl: targetForm.apiBaseUrl,
+          temperature: targetForm.temperature,
+          maxTokens: targetForm.maxTokens,
+          systemInstruction: '',
+          reasoningEnabled: targetForm.reasoningEnabled === true
+        });
+        modelNameParam = targetForm.name;
+      } else {
+        const modelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
+        const model = store.models.find(m => m.id === modelId) || store.models[0];
+        if (model) {
+          apiKeyParam = JSON.stringify({
+            apiKey: model.apiKey,
+            apiProvider: model.provider,
+            apiBaseUrl: model.apiBaseUrl,
+            temperature: model.temperature,
+            maxTokens: model.maxTokens,
+            systemInstruction: '',
+            reasoningEnabled: model.reasoningEnabled === true
+          });
+          modelNameParam = model.name;
+        } else {
+          apiKeyParam = JSON.stringify({
+            apiKey: store.apiKey,
+            apiProvider: store.apiProvider,
+            apiBaseUrl: store.apiBaseUrl,
+            temperature: store.temperature,
+            maxTokens: store.maxTokens,
+            systemInstruction: '',
+            reasoningEnabled: store.reasoningEnabled === true
+          });
+          modelNameParam = store.modelName;
+        }
+      }
+
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'fetchModels',
+          apiKey: apiKeyParam,
+          modelName: modelNameParam
+        })
       });
       const data = await res.json();
       if (data.models && Array.isArray(data.models)) {
         setFetchedModels(data.models);
         if (data.models.length > 0) {
-          store.setModelName(data.models[0]);
+          if (targetForm) {
+            setEditModelForm(prev => ({ ...prev, name: data.models[0] }));
+          } else {
+            store.setModelName(data.models[0]);
+          }
         }
       } else {
         setFetchModelsError(data.error || '未获取到任何可用模型');
@@ -1251,6 +1399,12 @@ export default function Home() {
       }));
 
     try {
+      const multiModelConfig = JSON.stringify({
+        models: store.models,
+        agentModelBindings: store.agentModelBindings,
+        agentOverrides: store.agentOverrides,
+      });
+
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1258,14 +1412,9 @@ export default function Home() {
           projectId: store.currentProject.id,
           message: userMsg,
           history: chatHistory,
-          apiKey: store.apiKey,
+          apiKey: multiModelConfig,
           modelName: store.modelName,
-          apiProvider: store.apiProvider,
-          apiBaseUrl: store.apiBaseUrl,
-          temperature: store.temperature,
-          maxTokens: store.maxTokens,
           systemInstruction: store.systemInstruction,
-          reasoningEnabled: store.reasoningEnabled,
         }),
       });
 
@@ -2305,12 +2454,80 @@ export default function Home() {
 
   // 渲染设置侧滑抽屉 (替代原本的 Modal)
   const renderSettingsDrawer = () => {
+    const handleAddNewModel = () => {
+      setEditingModelId('new');
+      setEditModelForm({
+        provider: 'gemini',
+        name: 'gemini-2.5-flash',
+        alias: '新大模型',
+        apiKey: '',
+        apiBaseUrl: '',
+        temperature: 0.7,
+        maxTokens: 3000,
+        reasoningEnabled: false
+      });
+      setFetchedModels([]);
+      setTestStatus('idle');
+      setTestMessage('');
+    };
+
+    const handleEditModel = (model: ModelConfig) => {
+      setEditingModelId(model.id);
+      setEditModelForm({
+        provider: model.provider,
+        name: model.name,
+        alias: model.alias,
+        apiKey: model.apiKey,
+        apiBaseUrl: model.apiBaseUrl,
+        temperature: model.temperature,
+        maxTokens: model.maxTokens,
+        reasoningEnabled: model.reasoningEnabled === true
+      });
+      setFetchedModels([]);
+      setTestStatus('idle');
+      setTestMessage('');
+    };
+
+    const handleSaveModel = () => {
+      if (!editModelForm.alias.trim()) {
+        alert('请输入模型别名');
+        return;
+      }
+      if (!editModelForm.name.trim()) {
+        alert('请输入模型名称');
+        return;
+      }
+      if (editingModelId === 'new') {
+        const newId = store.addModel(editModelForm);
+        // 如果是第一个模型，自动绑定为全局默认
+        if (store.models.length === 0) {
+          store.bindAgentModel('orchestrator', newId);
+          store.bindAgentModel('planner', newId);
+          store.bindAgentModel('lore_builder', newId);
+          store.bindAgentModel('writer', newId);
+          store.bindAgentModel('editor', newId);
+        }
+      } else if (editingModelId) {
+        store.updateModel(editingModelId, editModelForm);
+      }
+      setEditingModelId(null);
+    };
+
+    // 智能体清单
+    const agentsList = [
+      { id: 'orchestrator', label: '总控调度智能体 (Orchestrator)', color: 'var(--agent-orchestrator)' },
+      { id: 'planner', label: '大纲企划智能体 (Planner)', color: 'var(--agent-planner)' },
+      { id: 'lore_builder', label: '设定构建智能体 (Lore Builder)', color: 'var(--agent-lore)' },
+      { id: 'writer', label: '正文执笔智能体 (Writer)', color: 'var(--agent-writer)' },
+      { id: 'editor', label: '一致性自检智能体 (Editor)', color: 'var(--agent-editor)' }
+    ];
+
     return (
       <>
         {/* 遮罩层 */}
         <div 
           className={`drawer-overlay ${showSettings ? 'active' : ''}`}
-          onClick={() => setShowSettings(false)}
+          onClick={() => { setShowSettings(false); setEditingModelId(null); }}
         />
         
         {/* 抽屉本体 */}
@@ -2318,265 +2535,456 @@ export default function Home() {
           <div className="drawer-header">
             <div className="drawer-title">
               <Settings size={20} style={{ color: 'var(--accent)' }} />
-              <span>AI 写作模型配置面板</span>
+              <span>智能写作大模型控制台</span>
             </div>
             <button 
               type="button" 
               className="btn-icon" 
-              onClick={() => setShowSettings(false)}
+              onClick={() => { setShowSettings(false); setEditingModelId(null); }}
               style={{ fontSize: '20px', lineHeight: '1' }}
             >
               &times;
             </button>
           </div>
 
+          {/* 抽屉 Tab 导航栏 */}
+          <div className="drawer-tabs">
+            <button 
+              type="button" 
+              className={`drawer-tab-btn ${settingsTab === 'models' ? 'active' : ''}`}
+              onClick={() => { setSettingsTab('models'); setEditingModelId(null); }}
+            >
+              模型池管理
+            </button>
+            <button 
+              type="button" 
+              className={`drawer-tab-btn ${settingsTab === 'bindings' ? 'active' : ''}`}
+              onClick={() => { setSettingsTab('bindings'); setEditingModelId(null); }}
+            >
+              智能体分配
+            </button>
+            <button 
+              type="button" 
+              className={`drawer-tab-btn ${settingsTab === 'prompts' ? 'active' : ''}`}
+              onClick={() => { setSettingsTab('prompts'); setEditingModelId(null); }}
+            >
+              全局写作提示词
+            </button>
+          </div>
+
           <div className="drawer-body">
-            {/* 1. API 厂商与接入信息 */}
-            <div className="drawer-section">
-              <div className="drawer-section-title">接口服务商配置</div>
-              
-              <div className="drawer-field">
-                <label className="drawer-label">服务商 (Provider)</label>
-                <select 
-                  className="input"
-                  value={store.apiProvider}
-                  onChange={(e) => {
-                    const prov = e.target.value;
-                    store.setApiProvider(prov);
-                    // 自动设置对应服务商的默认模型和 BaseURL 占位
-                    if (prov === 'gemini') {
-                      store.setModelName('gemini-2.5-flash');
-                      store.setApiBaseUrl('');
-                    } else if (prov === 'openai') {
-                      store.setModelName('gpt-4o-mini');
-                      store.setApiBaseUrl('https://api.openai.com/v1');
-                    } else if (prov === 'deepseek') {
-                      store.setModelName('deepseek-chat');
-                      store.setApiBaseUrl('https://api.deepseek.com/v1');
-                    } else if (prov === 'claude') {
-                      store.setModelName('claude-3-5-sonnet-20241022');
-                      store.setApiBaseUrl('');
-                    } else {
-                      store.setModelName('gpt-4o-mini');
-                      store.setApiBaseUrl('');
-                    }
-                  }}
-                  style={{ background: 'var(--bg-input)' }}
-                >
-                  <option value="gemini">Google Gemini (默认)</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="deepseek">DeepSeek (深度求索)</option>
-                  <option value="claude">Anthropic Claude</option>
-                  <option value="custom">Custom (OpenAI 兼容中转)</option>
-                </select>
-              </div>
+            {/* TAB 1: 模型池管理 */}
+            {settingsTab === 'models' && (
+              <>
+                {editingModelId === null ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      配置您所拥有的多个 API 模型账号，之后可任意绑定给系统内的专业智能体。
+                    </div>
+                    <div className="model-grid">
+                      {store.models.map((model) => {
+                        const isDefault = store.agentModelBindings['orchestrator'] === model.id;
+                        return (
+                          <div 
+                            key={model.id}
+                            className={`model-card ${isDefault ? 'active' : ''}`}
+                            onClick={() => handleEditModel(model)}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontWeight: '600', color: '#fff', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                                  {model.alias}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', textTransform: 'uppercase' }}>
+                                  {model.provider} / {model.name}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-dark)' }}>
+                                Temp: {model.temperature} | Tokens: {model.maxTokens}
+                              </div>
+                            </div>
+                            {isDefault && <span className="model-card-badge">总控默认</span>}
+                            {store.models.length > 1 && (
+                              <button 
+                                type="button"
+                                className="model-card-delete-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`确定要删除模型「${model.alias}」吗？`)) {
+                                    store.deleteModel(model.id);
+                                  }
+                                }}
+                              >
+                                删除
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="model-card-add" onClick={handleAddNewModel}>
+                        <span>+ 录入新模型</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* 模型编辑与新建表单 */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '600', color: '#fff' }}>
+                        {editingModelId === 'new' ? '录入新模型配置' : `编辑模型: ${editModelForm.alias}`}
+                      </span>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary" 
+                        onClick={() => setEditingModelId(null)}
+                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                      >
+                        返回列表
+                      </button>
+                    </div>
 
-              <div className="drawer-field">
-                <label className="drawer-label">API 密钥 (API Key)</label>
-                <input 
-                  type="password" 
-                  className="input" 
-                  placeholder="输入对应厂商的 API Key (留空使用本地 Mock)" 
-                  value={store.apiKey}
-                  onChange={(e) => store.setApiKey(e.target.value)}
-                />
-              </div>
+                    <div className="drawer-field">
+                      <label className="drawer-label">模型别名 (区分不同模型配置)</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        value={editModelForm.alias}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, alias: e.target.value }))}
+                        placeholder="例如: 智能大纲、备用 Gemini 等"
+                      />
+                    </div>
 
-              <div className="drawer-field">
-                <label className="drawer-label">接口代理地址 (Base URL)</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  placeholder={
-                    store.apiProvider === 'gemini' 
-                      ? '默认: https://generativelanguage.googleapis.com' 
-                      : store.apiProvider === 'deepseek'
-                        ? '默认: https://api.deepseek.com/v1'
-                        : store.apiProvider === 'openai'
-                          ? '默认: https://api.openai.com/v1'
-                          : '请输入自定义的 API 请求地址'
-                  }
-                  value={store.apiBaseUrl}
-                  onChange={(e) => store.setApiBaseUrl(e.target.value)}
-                />
-              </div>
-            </div>
+                    <div className="drawer-field">
+                      <label className="drawer-label">接口服务商 (Provider)</label>
+                      <select 
+                        className="input"
+                        value={editModelForm.provider}
+                        onChange={(e) => {
+                          const prov = e.target.value;
+                          let defaultName = 'gemini-2.5-flash';
+                          let defaultBase = '';
+                          if (prov === 'gemini') {
+                            defaultName = 'gemini-2.5-flash';
+                          } else if (prov === 'openai') {
+                            defaultName = 'gpt-4o-mini';
+                            defaultBase = 'https://api.openai.com/v1';
+                          } else if (prov === 'deepseek') {
+                            defaultName = 'deepseek-chat';
+                            defaultBase = 'https://api.deepseek.com/v1';
+                          } else if (prov === 'claude') {
+                            defaultName = 'claude-3-5-sonnet-20241022';
+                          }
+                          setEditModelForm(prev => ({ 
+                            ...prev, 
+                            provider: prov,
+                            name: defaultName,
+                            apiBaseUrl: defaultBase
+                          }));
+                          setFetchedModels([]);
+                        }}
+                        style={{ background: 'var(--bg-input)' }}
+                      >
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek (深度求索)</option>
+                        <option value="claude">Anthropic Claude</option>
+                        <option value="custom">Custom (OpenAI 兼容中转)</option>
+                      </select>
+                    </div>
 
-            {/* 2. 模型与参数微调 */}
-            <div className="drawer-section">
-              <div className="drawer-section-title">模型与微调参数</div>
+                    <div className="drawer-field">
+                      <label className="drawer-label">API 密钥 (API Key)</label>
+                      <input 
+                        type="password" 
+                        className="input" 
+                        value={editModelForm.apiKey}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                        placeholder="输入 API 密钥 (留空则使用后端默认环境变量或本地 Mock)" 
+                      />
+                    </div>
 
-              <div className="drawer-field">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="drawer-label">推荐模型选择</label>
-                  <button 
-                    type="button"
-                    onClick={handleFetchModels}
-                    disabled={fetchingModels || !store.apiKey}
-                    style={{ 
-                      fontSize: '11px', 
-                      background: 'none', 
-                      border: 'none', 
-                      color: store.apiKey ? 'var(--accent)' : 'var(--text-dark)', 
-                      cursor: store.apiKey ? 'pointer' : 'default',
-                      fontWeight: 500
-                    }}
-                  >
-                    {fetchingModels ? '正在获取...' : '获取最新模型列表'}
-                  </button>
-                </div>
-                {fetchModelsError && (
-                  <div style={{ fontSize: '11px', color: 'var(--accent-danger)', marginTop: '2px' }}>
-                    {fetchModelsError}
+                    <div className="drawer-field">
+                      <label className="drawer-label">自定义代理地址 (Base URL)</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        value={editModelForm.apiBaseUrl}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, apiBaseUrl: e.target.value }))}
+                        placeholder="留空则使用各厂商默认请求网关" 
+                      />
+                    </div>
+
+                    <div className="drawer-field">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label className="drawer-label">模型名称选择 (Model Name)</label>
+                        <button 
+                          type="button"
+                          onClick={() => handleFetchModels(editModelForm)}
+                          disabled={fetchingModels || !editModelForm.apiKey}
+                          style={{ 
+                            fontSize: '11px', 
+                            background: 'none', 
+                            border: 'none', 
+                            color: editModelForm.apiKey ? 'var(--accent)' : 'var(--text-dark)', 
+                            cursor: editModelForm.apiKey ? 'pointer' : 'default',
+                            fontWeight: 500
+                          }}
+                        >
+                          {fetchingModels ? '正在获取...' : '在线获取模型列表'}
+                        </button>
+                      </div>
+                      {fetchModelsError && (
+                        <div style={{ fontSize: '11px', color: 'var(--accent-danger)', marginTop: '2px' }}>
+                          {fetchModelsError}
+                        </div>
+                      )}
+                      <select 
+                        className="input"
+                        value={editModelForm.name}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, name: e.target.value }))}
+                        style={{ background: 'var(--bg-input)' }}
+                      >
+                        {fetchedModels.length > 0 ? (
+                          fetchedModels.map((model) => (
+                            <option key={model} value={model}>{model}</option>
+                          ))
+                        ) : (
+                          <>
+                            {editModelForm.provider === 'gemini' && (
+                              <>
+                                <option value="gemini-2.5-flash">gemini-2.5-flash (快速, 推荐)</option>
+                                <option value="gemini-2.5-pro">gemini-2.5-pro (深度创作)</option>
+                                <option value="gemini-1.5-flash">gemini-1.5-flash (轻量)</option>
+                              </>
+                            )}
+                            {editModelForm.provider === 'openai' && (
+                              <>
+                                <option value="gpt-4o-mini">gpt-4o-mini (经济极速, 推荐)</option>
+                                <option value="gpt-4o">gpt-4o (全能旗舰)</option>
+                                <option value="o3-mini">o3-mini (高级推理)</option>
+                              </>
+                            )}
+                            {editModelForm.provider === 'deepseek' && (
+                              <>
+                                <option value="deepseek-chat">deepseek-chat (V3 极高性价比)</option>
+                                <option value="deepseek-reasoner">deepseek-reasoner (R1 深度推理思考)</option>
+                              </>
+                            )}
+                            {editModelForm.provider === 'claude' && (
+                              <>
+                                <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (文学创作标杆)</option>
+                                <option value="claude-3-5-haiku-20241022">claude-3-5-haiku (高速高能)</option>
+                              </>
+                            )}
+                          </>
+                        )}
+                        <option value={editModelForm.name}>当前输入: {editModelForm.name}</option>
+                      </select>
+                    </div>
+
+                    <div className="drawer-field">
+                      <label className="drawer-label">手动输入其他模型名 (若下拉框中未列出)</label>
+                      <input 
+                        type="text" 
+                        className="input" 
+                        value={editModelForm.name}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="请输入真实模型名称" 
+                      />
+                    </div>
+
+                    <div className="drawer-field">
+                      <label className="drawer-label">默认生成温度 (Temperature): {editModelForm.temperature.toFixed(1)}</label>
+                      <div className="slider-container">
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="2.0" 
+                          step="0.1"
+                          className="slider-input" 
+                          value={editModelForm.temperature}
+                          onChange={(e) => setEditModelForm(prev => ({ ...prev, temperature: Number(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="drawer-field">
+                      <label className="drawer-label">单次最大生成长度 (Max Tokens)</label>
+                      <input 
+                        type="number" 
+                        className="input" 
+                        min="100"
+                        max="16000"
+                        step="100"
+                        value={editModelForm.maxTokens}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, maxTokens: Number(e.target.value) }))}
+                      />
+                    </div>
+
+                    <div className="drawer-field">
+                      <div className="switch-container">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '500', color: '#ffffff' }}>思考模型格式兼容</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>去除 R1 类似思考标记，优化输出格式</span>
+                        </div>
+                        <label className="switch-control">
+                          <input 
+                            type="checkbox" 
+                            checked={editModelForm.reasoningEnabled}
+                            onChange={(e) => setEditModelForm(prev => ({ ...prev, reasoningEnabled: e.target.checked }))}
+                          />
+                          <span className="switch-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>连接状态测试：</span>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary" 
+                          onClick={() => handleTestConnection(editModelForm)}
+                          disabled={testStatus === 'testing' || !editModelForm.apiKey}
+                        >
+                          {testStatus === 'testing' ? '连接探测中...' : '测试此配置连通性'}
+                        </button>
+                      </div>
+                      {testStatus !== 'idle' && (
+                        <div className={`test-result-box ${testStatus === 'success' ? 'success' : testStatus === 'error' ? 'error' : ''}`} style={{ fontSize: '11.5px' }}>
+                          {testMessage}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
+                      <button type="button" className="btn btn-secondary" onClick={() => setEditingModelId(null)}>取消</button>
+                      <button type="button" className="btn btn-primary" onClick={handleSaveModel}>保存此模型</button>
+                    </div>
                   </div>
                 )}
-                <select 
-                  className="input"
-                  value={store.modelName}
-                  onChange={(e) => store.setModelName(e.target.value)}
-                  style={{ background: 'var(--bg-input)' }}
-                >
-                  {fetchedModels.length > 0 ? (
-                    <>
-                      {fetchedModels.map((model) => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      {store.apiProvider === 'gemini' && (
-                        <>
-                          <option value="gemini-2.5-flash">Gemini 2.5 Flash (快速, 推荐)</option>
-                          <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度创意)</option>
-                          <option value="gemini-1.5-flash">Gemini 1.5 Flash (轻量)</option>
-                        </>
-                      )}
-                      {store.apiProvider === 'openai' && (
-                        <>
-                          <option value="gpt-4o-mini">gpt-4o-mini (经济快捷, 推荐)</option>
-                          <option value="gpt-4o">gpt-4o (全能旗舰)</option>
-                          <option value="o3-mini">o3-mini (高级推理)</option>
-                        </>
-                      )}
-                      {store.apiProvider === 'deepseek' && (
-                        <>
-                          <option value="deepseek-chat">deepseek-chat (V3 API, 极高性价比)</option>
-                          <option value="deepseek-reasoner">deepseek-reasoner (R1 深度推理思考)</option>
-                        </>
-                      )}
-                      {store.apiProvider === 'claude' && (
-                        <>
-                          <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet (文学创作天花板)</option>
-                          <option value="claude-3-5-haiku-20241022">claude-3-5-haiku (高速度高能)</option>
-                        </>
-                      )}
-                    </>
-                  )}
-                  <option value={store.modelName}>当前选择: {store.modelName}</option>
-                </select>
-              </div>
+              </>
+            )}
 
-              <div className="drawer-field">
-                <label className="drawer-label">自定义模型名称 (覆盖上面选项)</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  placeholder="手动输入任意模型名称, 如: gpt-4-turbo" 
-                  value={store.modelName}
-                  onChange={(e) => store.setModelName(e.target.value)}
-                />
-              </div>
+            {/* TAB 2: 智能体模型绑定 */}
+            {settingsTab === 'bindings' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  将系统内的 5 大核心专业智能体角色，分别绑定至模型池中不同的模型并个性化微调其生成参数。
+                </div>
+                {agentsList.map(agent => {
+                  const boundModelId = store.agentModelBindings[agent.id] || store.models[0]?.id;
+                  const isOverrideActive = store.agentOverrides[agent.id] !== undefined;
+                  const overrideData = store.agentOverrides[agent.id] || {};
+                  
+                  return (
+                    <div key={agent.id} className="agent-binding-card">
+                      <div className="agent-binding-header">
+                        <div className="agent-binding-title">
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: agent.color }}></span>
+                          <span>{agent.label}</span>
+                        </div>
+                        <select 
+                          className="input"
+                          value={boundModelId}
+                          onChange={(e) => store.bindAgentModel(agent.id, e.target.value)}
+                          style={{ width: '180px', padding: '4px 8px', fontSize: '12px', background: 'var(--bg-input)' }}
+                        >
+                          {store.models.map(m => (
+                            <option key={m.id} value={m.id}>{m.alias} ({m.provider})</option>
+                          ))}
+                        </select>
+                      </div>
 
-              <div className="drawer-field">
-                <label className="drawer-label">生成温度 (Temperature)</label>
-                <div className="slider-container">
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="2.0" 
-                    step="0.1"
-                    className="slider-input" 
-                    value={store.temperature}
-                    onChange={(e) => store.setTemperature(Number(e.target.value))}
+                      {/* 开启特异性参数配置 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                        <input 
+                          type="checkbox"
+                          id={`override-${agent.id}`}
+                          checked={isOverrideActive}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const model = store.models.find(m => m.id === boundModelId) || store.models[0];
+                              store.updateAgentOverride(agent.id, { 
+                                temperature: model ? model.temperature : 0.7, 
+                                maxTokens: model ? model.maxTokens : 3000 
+                              });
+                            } else {
+                              store.updateAgentOverride(agent.id, null);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <label htmlFor={`override-${agent.id}`} style={{ cursor: 'pointer' }}>为该智能体启用独立参数覆盖</label>
+                      </div>
+
+                      {/* 展开特异性参数微调区域 */}
+                      {isOverrideActive && (
+                        <div className="agent-override-box">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>专属生成温度 (Temperature)</span>
+                              <span style={{ color: '#fff', fontWeight: '600' }}>{(overrideData.temperature ?? 0.7).toFixed(1)}</span>
+                            </div>
+                            <div className="slider-container">
+                              <input 
+                                type="range"
+                                min="0"
+                                max="2.0"
+                                step="0.1"
+                                className="slider-input"
+                                value={overrideData.temperature ?? 0.7}
+                                onChange={(e) => store.updateAgentOverride(agent.id, { temperature: Number(e.target.value) })}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>专属最大生成长度 (Max Tokens)</span>
+                              <span style={{ color: '#fff', fontWeight: '600' }}>{overrideData.maxTokens ?? 3000}</span>
+                            </div>
+                            <input 
+                              type="number"
+                              className="input"
+                              min="100"
+                              max="16000"
+                              step="100"
+                              value={overrideData.maxTokens ?? 3000}
+                              onChange={(e) => store.updateAgentOverride(agent.id, { maxTokens: Number(e.target.value) })}
+                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TAB 3: 全局创作提示词 */}
+            {settingsTab === 'prompts' && (
+              <div className="drawer-section" style={{ borderBottom: 'none' }}>
+                <div className="drawer-field">
+                  <label className="drawer-label">全局创作系统提示词前缀 (注入小说大纲前)</label>
+                  <textarea 
+                    className="textarea" 
+                    placeholder="配置对全部 AI 生效的宏观提示，例如：要求行文古色古香、强调悬疑逻辑、人物内心戏细腻等" 
+                    value={store.systemInstruction}
+                    onChange={(e) => store.setSystemInstruction(e.target.value)}
+                    style={{ minHeight: '180px', lineHeight: '1.6' }}
                   />
-                  <span className="slider-value">{store.temperature.toFixed(1)}</span>
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>
-                  较低温度会让文本输出更稳定保守，较高温度能带来更多词汇创意。
-                </span>
-              </div>
-
-              <div className="drawer-field">
-                <label className="drawer-label">单次最大生成长度 (Max Tokens)</label>
-                <input 
-                  type="number" 
-                  className="input" 
-                  min="100"
-                  max="16000"
-                  step="100"
-                  value={store.maxTokens}
-                  onChange={(e) => store.setMaxTokens(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            {/* 3. 系统指令与高级特性 */}
-            <div className="drawer-section">
-              <div className="drawer-section-title">高级指令与功能</div>
-
-              <div className="drawer-field">
-                <label className="drawer-label">全局系统提示词前缀 (注入小说大纲前)</label>
-                <textarea 
-                  className="textarea" 
-                  placeholder="例如: 用华丽委婉的古风词藻描写环境; 严格遵循单女主设定等" 
-                  value={store.systemInstruction}
-                  onChange={(e) => store.setSystemInstruction(e.target.value)}
-                  style={{ minHeight: '80px' }}
-                />
-              </div>
-
-              <div className="drawer-field">
-                <div className="switch-container">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '500', color: '#ffffff' }}>思考模型格式适配</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>针对 DeepSeek R1 等思考过程提供兼容输出</span>
-                  </div>
-                  <label className="switch-control">
-                    <input 
-                      type="checkbox" 
-                      checked={store.reasoningEnabled}
-                      onChange={(e) => store.setReasoningEnabled(e.target.checked)}
-                    />
-                    <span className="switch-slider"></span>
-                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dark)', marginTop: '4px' }}>
+                    本提示词作为系统的全局基调，会自动附加在各智能体的任务提示之前，用以锁定小说整体文风。
+                  </span>
                 </div>
               </div>
-            </div>
-
-            {/* 4. 连通性测试 */}
-            <div className="drawer-section">
-              <div className="drawer-section-title">连接状态探测</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button 
-                  type="button"
-                  className="btn btn-secondary" 
-                  onClick={handleTestConnection}
-                  disabled={testStatus === 'testing' || !store.apiKey}
-                  style={{ alignSelf: 'flex-start' }}
-                >
-                  {testStatus === 'testing' ? '正在探测中...' : '启动连接测试'}
-                </button>
-                {testStatus !== 'idle' && (
-                  <div className={`test-result-box ${testStatus === 'success' ? 'success' : testStatus === 'error' ? 'error' : ''}`}>
-                    {testMessage}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="drawer-footer">
-            <button className="btn btn-primary" onClick={() => setShowSettings(false)}>保存并关闭</button>
+            <button className="btn btn-primary" onClick={() => { setShowSettings(false); setEditingModelId(null); }}>保存配置并关闭</button>
           </div>
         </div>
       </>

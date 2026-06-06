@@ -39,10 +39,47 @@ export const AgentState = Annotation.Root({
 });
 
 // ─── LLM 工厂 ─────────────────────────────────────────────────────────────────
+function buildLLMFromConfig(config: {
+  apiKey: string;
+  provider: string;
+  name: string;
+  apiBaseUrl?: string;
+  temperature?: number;
+  maxTokens?: number;
+}) {
+  const provider = config.provider || 'gemini';
+  const model = config.name || 'gemini-2.5-flash';
+  const temperature = config.temperature ?? 0.7;
+  const maxTokens = config.maxTokens ?? 3000;
+
+  if (provider === 'gemini') {
+    return new ChatGoogleGenerativeAI({
+      apiKey: config.apiKey,
+      model,
+      temperature,
+      maxOutputTokens: maxTokens,
+      ...(config.apiBaseUrl ? { baseUrl: config.apiBaseUrl } : {}),
+    });
+  }
+
+  let baseUrl = 'https://api.openai.com/v1';
+  if (provider === 'deepseek') baseUrl = 'https://api.deepseek.com/v1';
+  else if (config.apiBaseUrl) baseUrl = config.apiBaseUrl;
+
+  return new ChatOpenAI({
+    apiKey: config.apiKey,
+    model,
+    temperature,
+    maxTokens,
+    configuration: { baseURL: baseUrl },
+  });
+}
+
 function buildLLM(apiConfig: string, modelName: string) {
   let config = {
     apiKey: apiConfig,
-    apiProvider: 'gemini',
+    provider: 'gemini',
+    name: 'gemini-2.5-flash',
     apiBaseUrl: '',
     temperature: 0.7,
     maxTokens: 4000,
@@ -50,33 +87,18 @@ function buildLLM(apiConfig: string, modelName: string) {
 
   if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
     try {
-      Object.assign(config, JSON.parse(apiConfig));
+      const parsed = JSON.parse(apiConfig);
+      // 兼容老版本的字段名 apiProvider -> provider 等
+      config.apiKey = parsed.apiKey || config.apiKey;
+      config.provider = parsed.apiProvider || parsed.provider || config.provider;
+      config.name = parsed.modelName || parsed.name || modelName || config.name;
+      config.apiBaseUrl = parsed.apiBaseUrl || config.apiBaseUrl;
+      config.temperature = parsed.temperature !== undefined ? parsed.temperature : config.temperature;
+      config.maxTokens = parsed.maxTokens !== undefined ? parsed.maxTokens : config.maxTokens;
     } catch (_) { /* ignore */ }
   }
 
-  const model = modelName || 'gemini-2.5-flash';
-
-  if (config.apiProvider === 'gemini') {
-    return new ChatGoogleGenerativeAI({
-      apiKey: config.apiKey,
-      model,
-      temperature: config.temperature,
-      maxOutputTokens: config.maxTokens,
-      ...(config.apiBaseUrl ? { baseUrl: config.apiBaseUrl } : {}),
-    });
-  }
-
-  let baseUrl = 'https://api.openai.com/v1';
-  if (config.apiProvider === 'deepseek') baseUrl = 'https://api.deepseek.com/v1';
-  else if (config.apiBaseUrl) baseUrl = config.apiBaseUrl;
-
-  return new ChatOpenAI({
-    apiKey: config.apiKey,
-    model,
-    temperature: config.temperature,
-    maxTokens: config.maxTokens,
-    configuration: { baseURL: baseUrl },
-  });
+  return buildLLMFromConfig(config);
 }
 
 // ─── Delegate 工具（让 Orchestrator 能路由到 specialist）────────────────────
@@ -173,13 +195,55 @@ const afterSpecialistNode = async (state: typeof AgentState.State) => ({
 // ─── 构建 Graph ────────────────────────────────────────────────────────────────
 export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string) {
   setAgentApiConfig(apiConfig, modelName);
-  const llm = buildLLM(apiConfig, modelName);
 
-  const orchestratorNode = createOrchestratorNode(llm, projectId);
-  const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      llm, projectId);
-  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, llm, projectId);
-  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       llm, projectId);
-  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       llm, projectId);
+  let models: any[] = [];
+  let bindings: Record<string, string> = {};
+  let overrides: Record<string, any> = {};
+  let isMultiModel = false;
+
+  if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
+    try {
+      const parsed = JSON.parse(apiConfig);
+      if (Array.isArray(parsed.models) && parsed.agentModelBindings) {
+        models = parsed.models;
+        bindings = parsed.agentModelBindings;
+        overrides = parsed.agentOverrides || {};
+        isMultiModel = true;
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  const getLLMForAgent = (agentRole: string) => {
+    if (isMultiModel) {
+      const modelId = bindings[agentRole];
+      const modelConfig = models.find(m => m.id === modelId) || models[0];
+      if (modelConfig) {
+        const agentOverride = overrides[agentRole] || {};
+        const mergedConfig = {
+          apiKey: modelConfig.apiKey,
+          provider: modelConfig.provider,
+          name: modelConfig.name,
+          apiBaseUrl: modelConfig.baseUrl,
+          temperature: agentOverride.temperature !== undefined ? agentOverride.temperature : modelConfig.temperature,
+          maxTokens: agentOverride.maxTokens !== undefined ? agentOverride.maxTokens : modelConfig.maxTokens,
+        };
+        return buildLLMFromConfig(mergedConfig);
+      }
+    }
+    return buildLLM(apiConfig, modelName);
+  };
+
+  const orchestratorLlm = getLLMForAgent('orchestrator');
+  const plannerLlm      = getLLMForAgent('planner');
+  const loreBuilderLlm  = getLLMForAgent('lore_builder');
+  const writerLlm       = getLLMForAgent('writer');
+  const editorLlm       = getLLMForAgent('editor');
+
+  const orchestratorNode = createOrchestratorNode(orchestratorLlm, projectId);
+  const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      plannerLlm, projectId);
+  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId);
+  const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId);
+  const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId);
 
   const orchestratorToolNode  = new ToolNode(ORCHESTRATOR_TOOLS);
   const plannerToolNode       = new ToolNode(PLANNER_TOOLS);
