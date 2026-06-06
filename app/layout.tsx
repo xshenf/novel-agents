@@ -25,7 +25,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body><Suspense>{children}</Suspense></body>
+      <body>
+        <Suspense fallback={
+          <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0b0f19', color: '#94a3b8' }}>
+            加载中...
+          </div>
+        }>
+          {children}
+        </Suspense>
+      </body>
     </html>
   );
 }

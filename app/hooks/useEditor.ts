@@ -21,6 +21,16 @@ export function useEditor(store: NovelStore) {
     }
   }, [store.currentChapter]);
 
+  // 卸载时清理待执行的自动保存 timer，避免对已切走的旧章节误写
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = null;
+      }
+    };
+  }, []);
+
   // 编辑器自动保存机制 (Debounce 1.5s)
   const handleEditorChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setEditorContent(e.target.value);

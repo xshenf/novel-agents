@@ -148,7 +148,7 @@ export function useWorkspaceRouting(store: NovelStore) {
         store.setCurrentChapter(chapter);
       }
     }
-  }, [store.currentProject?.id, store.chapters.length]);
+  }, [store.currentProject?.id, store.chapters.length, urlTab, urlChapterId]);
 
   return {
     router,

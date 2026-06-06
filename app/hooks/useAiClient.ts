@@ -24,11 +24,11 @@ export function useAiClient(): CallAIApi {
     const modelId = store.agentModelBindings[agentRole] || store.models[0]?.id;
     const model = store.models.find(m => m.id === modelId) || store.models[0];
 
-    let apiKeyParam = '';
-    let modelNameParam = '';
+    // 组装多模型配置：优先使用 agent 绑定模型，否则回退到顶层默认
+    let apiKeyParam: string;
+    let modelNameParam: string;
 
     if (model) {
-      modelNameParam = model.name;
       const overrides = store.agentOverrides[agentRole] || {};
       apiKeyParam = JSON.stringify({
         apiKey: model.apiKey,
@@ -39,19 +39,17 @@ export function useAiClient(): CallAIApi {
         systemInstruction: store.systemInstruction,
         reasoningEnabled: model.reasoningEnabled === true
       });
+      modelNameParam = model.name;
     } else {
-      apiKeyParam = store.apiKey;
-      if (store.apiKey && store.apiProvider) {
-        apiKeyParam = JSON.stringify({
-          apiKey: store.apiKey,
-          apiProvider: store.apiProvider,
-          apiBaseUrl: store.apiBaseUrl,
-          temperature: store.temperature,
-          maxTokens: store.maxTokens,
-          systemInstruction: store.systemInstruction,
-          reasoningEnabled: store.reasoningEnabled === true
-        });
-      }
+      apiKeyParam = JSON.stringify({
+        apiKey: store.apiKey,
+        apiProvider: store.apiProvider,
+        apiBaseUrl: store.apiBaseUrl,
+        temperature: store.temperature,
+        maxTokens: store.maxTokens,
+        systemInstruction: store.systemInstruction,
+        reasoningEnabled: store.reasoningEnabled === true
+      });
       modelNameParam = store.modelName;
     }
 
