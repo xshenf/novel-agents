@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder } from 'lucide-react';
+import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { findWritten, statusOf, chapterWordCount, collectOrphans, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
@@ -18,8 +18,15 @@ export function WorkspaceSidebar() {
   const { setShowNewChapModal } = modals;
   const { sidebarWidth, setSidebarWidth, sidebarCollapsed, setSidebarCollapsed } = layout;
   const { localSections, selectedVolumeIdx, setSelectedVolumeIdx, selectedChapterIdx, setSelectedChapterIdx, collapsedVolumes, setCollapsedVolumes } = outlineTree;
-  const { handleAddChapter } = volumeActions;
+  const { handleAddChapter, handleAddVolume, handleAiCreateNewVolume, isAiOutlineLoading } = volumeActions;
   const [hoveredMenuKey, setHoveredMenuKey] = useState<string | null>(null);
+
+  const treeActionBtn: React.CSSProperties = {
+    flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+    padding: '6px 8px', fontSize: '11px', borderRadius: '6px',
+    background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)',
+    color: '#c7d2fe', cursor: 'pointer',
+  };
 
   const handleSelectVolume = (vIdx: number) => {
     setSelectedVolumeIdx(vIdx);
@@ -187,10 +194,25 @@ export function WorkspaceSidebar() {
                 })()}
 
                 {localSections.length === 0 && store.chapters.length === 0 && (
-                  <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    暂无章节，请在世界设定中创建
+                  <div style={{ padding: '16px 12px 8px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    暂无分卷，点击下方按钮创建第一卷
                   </div>
                 )}
+
+                {/* 分卷创建入口：直接在章节树里新建分卷 */}
+                <div style={{ display: 'flex', gap: '6px', padding: '8px 4px 4px', marginTop: '4px', borderTop: localSections.length > 0 ? '1px solid var(--border-light)' : 'none' }}>
+                  <button onClick={() => handleAddVolume()} style={treeActionBtn} title="新建一个空分卷">
+                    <FolderPlus size={12} /> 新建分卷
+                  </button>
+                  <button
+                    onClick={() => handleAiCreateNewVolume(5)}
+                    disabled={isAiOutlineLoading}
+                    style={isAiOutlineLoading ? { ...treeActionBtn, opacity: 0.5, cursor: 'not-allowed' } : treeActionBtn}
+                    title="让 AI 新增一个完整分卷（卷头 + 5 章）"
+                  >
+                    {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} style={{ color: '#a5b4fc' }} />} AI 新建分卷
+                  </button>
+                </div>
               </div>
             </div>
           </div>
