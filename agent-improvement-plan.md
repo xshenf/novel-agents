@@ -91,3 +91,20 @@
 - `interrupt` 恢复会重跑节点，注意副作用幂等；上线前在 SSE 链路验证暂停/恢复。
 - 新增 `@langchain/langgraph-checkpoint-sqlite` 前确认与 langgraph 1.3.5 版本兼容。
 - 单文件 500 行约束：`tools.ts` 已 929 行，新增工具/提示词模块应拆到新文件（如 `lib/agent/prompts/` 按角色拆分、`lib/agent/tools/` 分组），不要继续堆大文件。
+
+## 五、落地进度与结论（截至 2026-06-06）
+
+已完成：
+- P0-2 持久化 checkpointer：SqliteSaver 落盘，真实模型端到端验证通过。
+- P0-1 A/C/D 提示词：文风契约/反AI规则注入 writer/editor 节点；A/C 进一步覆盖到生成工具源头（autoWriteChapter 注入 styleSetting 文本，反AI规则解析统一去重）；writer 自检与输出约束、planner 大纲规范。
+- P0-1 B few-shot：autoWriteChapter 取本书已有章节正文片段作文风范例（复用现成数据，无需样本库）。
+- P1-3 委托路由「核心」：`resolveDelegateTarget` 抽取去重 + 单元测试；新增桩 LLM 图路由测试台（覆盖委派/直答/失控保护），作为后续路由调整的回归安全网。
+
+评估后不建议做（关闭）：
+- P1-3 完整 Command 重写 / P2-6 拓扑简化 / P1-5 状态通道。原因：LangGraph 条件边只能路由、不能更新 state，计数器（delegationCount / specialistToolCalls）只能在节点里更新——当前 reset_specialist / after_specialist / *_tool_count 等「管道节点」正是为在 prebuilt ToolNode 前后维护这些计数而存在。Command 虽能合并 goto+update，但要消除这些节点须自行重写 ToolNode 的工具执行与错误处理，为「代码更简洁」承担重写风险，性价比低。而原本脆弱的委托信号正则已集中为单一受测函数并被测试台覆盖，收益已兑现。
+
+待办（需独立投入 / 你参与验证）：
+- P1-4 interrupt 人工确认：真实可靠性提升（锁定项删除不再依赖 LLM 自律），但需跨栈改动（route.ts SSE 检测 `__interrupt__` + 新增 resume 接口 + 前端确认 UI），且必须在浏览器联调验证暂停/恢复，建议作为独立任务。
+- P0-1 E 创作模式：写手已能依委派任务自适应，单加模式 prompt 价值有限，暂缓。
+- P2-7 专家横向协作：低优先，暂缓。
+- 推理模型 maxTokens：默认 3000-4000 对「长正文+推理」偏紧；因涉及成本，未擅自调整全局默认，建议由你在模型配置中按需调高。
