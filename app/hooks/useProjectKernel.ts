@@ -81,11 +81,17 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
     setIsKernelLoading(true);
     setKernelProgress('正在准备推演...');
     try {
+      // 获取当前绑定模型的并发配置
+      const boundModelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
+      const boundModel = store.models.find(m => m.id === boundModelId);
+      const concurrency = boundModel?.concurrency || 3;
+
       const response = await callAIApi({
         action: 'generateKernel',
         projectTitle: store.currentProject.title,
         genre: store.currentProject.description || '仙侠修真',
-        tone: store.currentProject.styleSetting || '传统正剧'
+        tone: store.currentProject.styleSetting || '传统正剧',
+        concurrency
       });
 
       if (!response.ok) {

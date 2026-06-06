@@ -11,6 +11,7 @@ export interface ModelConfig {
   temperature: number;
   maxTokens: number;
   reasoningEnabled: boolean;
+  concurrency: number; // 并发请求数上限
 }
 
 export interface NovelStore {
@@ -105,7 +106,10 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     try {
       const storedModels = localStorage.getItem('novel_models');
       if (storedModels) {
-        parsedModels = JSON.parse(storedModels);
+        parsedModels = JSON.parse(storedModels).map((m: ModelConfig) => ({
+          ...m,
+          concurrency: m.concurrency || 3,
+        }));
       }
       const storedBindings = localStorage.getItem('novel_agent_bindings');
       if (storedBindings) {
@@ -133,7 +137,8 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         apiBaseUrl: initialBaseUrl,
         temperature: initialTemp,
         maxTokens: initialTokens,
-        reasoningEnabled: initialReasoning
+        reasoningEnabled: initialReasoning,
+        concurrency: 3
       }
     ];
     parsedBindings = {

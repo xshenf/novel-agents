@@ -10,6 +10,7 @@ export interface EditModelForm {
   temperature: number;
   maxTokens: number;
   reasoningEnabled: boolean;
+  concurrency: number;
 }
 
 export type ModelSettingsApi = ReturnType<typeof useModelSettings>;
@@ -34,7 +35,8 @@ export function useModelSettings(store: NovelStore) {
     apiBaseUrl: '',
     temperature: 0.7,
     maxTokens: 3000,
-    reasoningEnabled: false
+    reasoningEnabled: false,
+    concurrency: 3
   });
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -204,7 +206,8 @@ export function useModelSettings(store: NovelStore) {
       apiBaseUrl: '',
       temperature: 0.7,
       maxTokens: 3000,
-      reasoningEnabled: false
+      reasoningEnabled: false,
+      concurrency: 3
     });
     setFetchedModels([]);
     setTestStatus('idle');
@@ -221,7 +224,8 @@ export function useModelSettings(store: NovelStore) {
       apiBaseUrl: model.apiBaseUrl,
       temperature: model.temperature,
       maxTokens: model.maxTokens,
-      reasoningEnabled: model.reasoningEnabled === true
+      reasoningEnabled: model.reasoningEnabled === true,
+      concurrency: model.concurrency || 3
     });
     setFetchedModels([]);
     setTestStatus('idle');

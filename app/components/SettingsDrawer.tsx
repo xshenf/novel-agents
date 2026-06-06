@@ -91,7 +91,7 @@ export function SettingsDrawer() {
                               </div>
                             </div>
                             <div style={{ fontSize: '10px', color: 'var(--text-dark)' }}>
-                              Temp: {model.temperature} | Tokens: {model.maxTokens}
+                              Temp: {model.temperature} | Tokens: {model.maxTokens} | Concurrency: {model.concurrency || 3}
                             </div>
                           </div>
                           {isDefault && <span className="model-card-badge">总控默认</span>}
@@ -310,6 +310,24 @@ export function SettingsDrawer() {
                       value={editModelForm.maxTokens}
                       onChange={(e) => setEditModelForm(prev => ({ ...prev, maxTokens: Number(e.target.value) }))}
                     />
+                  </div>
+
+                  <div className="drawer-field">
+                    <label className="drawer-label">并发请求数上限 (Concurrency): {editModelForm.concurrency}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        className="slider-input"
+                        value={editModelForm.concurrency}
+                        onChange={(e) => setEditModelForm(prev => ({ ...prev, concurrency: Number(e.target.value) }))}
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '20px', textAlign: 'center' }}>{editModelForm.concurrency}</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>推演、对话、子智能体等场景同时发起的 AI 请求数量</span>
                   </div>
 
                   <div className="drawer-field">

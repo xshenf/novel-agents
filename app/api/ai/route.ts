@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       }
 
       case 'generateKernel': {
-        const { genre, tone } = body;
+        const { genre, tone, concurrency } = body;
         if (!projectTitle || !genre || !tone) {
           return NextResponse.json({ error: '缺少 projectTitle, genre 或 tone' }, { status: 400 });
         }
@@ -177,7 +177,8 @@ export async function POST(request: Request) {
                 projectTitle, genre, tone, apiKey, modelName,
                 (dimKey, dimLabel, index, total) => {
                   send('progress', { dimKey, dimLabel, index, total });
-                }
+                },
+                concurrency || 3
               );
               send('done', result);
             } catch (err: any) {

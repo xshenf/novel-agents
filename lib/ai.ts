@@ -21,6 +21,39 @@ export interface AICheckResult {
   suggestions: string[];
 }
 
+/**
+ * 并发控制器：限制同时执行的 Promise 数量
+ * @param tasks 任务函数数组
+ * @param concurrency 最大并发数
+ * @param onProgress 每完成一个任务时的回调 (completed, total)
+ */
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number,
+  onProgress?: (completed: number, total: number) => void
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let nextIndex = 0;
+  let completedCount = 0;
+
+  async function worker() {
+    while (nextIndex < tasks.length) {
+      const idx = nextIndex++;
+      try {
+        results[idx] = await tasks[idx]();
+      } catch (err) {
+        results[idx] = err as any;
+      }
+      completedCount++;
+      if (onProgress) onProgress(completedCount, tasks.length);
+    }
+  }
+
+  const workerCount = Math.min(concurrency, tasks.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 
 
 // 清洗并安全解析 LLM 返回的 JSON 字符串。
@@ -297,13 +330,14 @@ export const ai = {
   },
   /**
    * AI 推演网络小说核心设定 (10 大维度，各 3 套备选推荐)
-   * 按维度分批调用，确保每个方案内容充实
+   * 按维度并发调用，concurrency 控制同时请求数
    * onProgress 回调在每完成一个维度时触发，参数为 (dimKey, dimLabel, index, total)
    */
   async generateKernelSettings(
     projectTitle: string, genre: string, tone: string,
     apiKey?: string, modelName?: string,
-    onProgress?: (dimKey: string, dimLabel: string, index: number, total: number) => void
+    onProgress?: (dimKey: string, dimLabel: string, index: number, total: number) => void,
+    concurrency: number = 3
   ): Promise<any> {
     const dimensions = [
       { key: 'worldSetting', label: '世界观设定', desc: '小说主舞台的大陆疆域、宏观规则、历史背景与社会法则' },
@@ -322,9 +356,8 @@ export const ai = {
       throw new Error("请先配置 API Key 后再使用 AI 功能");
     }
 
-    const result: Record<string, any> = {};
-    for (let i = 0; i < dimensions.length; i++) {
-      const dim = dimensions[i];
+    // 构建每个维度的任务
+    const tasks = dimensions.map((dim) => {
       const systemInstruction = `你是一个专业的顶级网络小说总策划和架构师。你的任务是根据给定的书名、题材和文风，为小说的「${dim.label}」维度推演 3 套风格迥异、极具网文爽点与创意的备选方案。
 
 维度说明：${dim.desc}
@@ -349,11 +382,32 @@ export const ai = {
 
 请为「${dim.label}」维度推演 3 套高品质备选方案。`;
 
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      const parsed = safeParseJSON<{ options: Array<{ name: string; description: string }> }>(jsonStr, { options: [] });
-      result[dim.key] = parsed.options || [];
-      if (onProgress) {
-        onProgress(dim.key, dim.label, i + 1, dimensions.length);
+      return async () => {
+        const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+        const parsed = safeParseJSON<{ options: Array<{ name: string; description: string }> }>(jsonStr, { options: [] });
+        return { key: dim.key, label: dim.label, options: parsed.options || [] };
+      };
+    });
+
+    // 并发执行，按 concurrency 控制并发数
+    const taskResults = await runWithConcurrency(tasks, concurrency, (completed, total) => {
+      if (onProgress && completed <= dimensions.length) {
+        const r = taskResults as Array<{ key: string; label: string; options: any[] } | undefined>;
+        const lastResult = r[completed - 1];
+        const dimKey = lastResult?.key || dimensions[completed - 1]?.key || '';
+        const dimLabel = lastResult?.label || dimensions[completed - 1]?.label || '';
+        onProgress(dimKey, dimLabel, completed, total);
+      }
+    });
+
+    const result: Record<string, any> = {};
+    for (const r of taskResults) {
+      if (r && !(r instanceof Error)) {
+        const item = r as { key: string; label: string; options: any[] };
+        result[item.key] = item.options;
+        if (onProgress) {
+          onProgress(item.key, item.label, Object.keys(result).length, dimensions.length);
+        }
       }
     }
 
