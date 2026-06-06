@@ -8,9 +8,11 @@ import { ChapterContextBar } from './write/ChapterContextBar';
 import { GenerationControl } from './write/GenerationControl';
 import { MemoryPanel } from './write/MemoryPanel';
 import { DriftCheckPanel } from './write/DriftCheckPanel';
+import { VolumeManagementView } from './write/VolumeManagementView';
 
 export function WriteTab() {
-  const { store, editor, autoWriter, inlineAi, kernel } = useWorkspace();
+  const { store, editor, autoWriter, inlineAi, kernel, outlineTree } = useWorkspace();
+  const { selectedVolumeIdx, selectedChapterIdx } = outlineTree;
   const {
     editorTitle, editorContent,
     saveStatus, handleEditorChange, handleTitleChange, forceSave, exportFile,
@@ -54,7 +56,9 @@ export function WriteTab() {
         </div>
       )}
 
-      {store.currentChapter ? (
+      {selectedVolumeIdx !== null && selectedChapterIdx === null ? (
+        <VolumeManagementView vIdx={selectedVolumeIdx} />
+      ) : store.currentChapter ? (
         <>
           <ChapterContextBar />
           <MemoryPanel />

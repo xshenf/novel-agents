@@ -366,6 +366,50 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
     [getLocalSections, persist]
   );
 
+  // 切换分卷锁定标记
+  const toggleLockVolume = useCallback(
+    (volIdx: number) => {
+      const sections = getLocalSections();
+      const next = sections.map((vol, i) =>
+        i === volIdx ? { ...vol, isLocked: !vol.isLocked } : vol
+      );
+      persist(next);
+    },
+    [getLocalSections, persist]
+  );
+
+  // 移位分卷位置
+  const handleMoveVolume = useCallback(
+    (volIdx: number, direction: 'up' | 'down') => {
+      const sections = getLocalSections();
+      if (direction === 'up' && volIdx === 0) return;
+      if (direction === 'down' && volIdx === sections.length - 1) return;
+
+      const targetIdx = direction === 'up' ? volIdx - 1 : volIdx + 1;
+      const next = [...sections];
+      const temp = next[volIdx];
+      next[volIdx] = next[targetIdx];
+      next[targetIdx] = temp;
+      persist(next);
+    },
+    [getLocalSections, persist]
+  );
+
+  // 更新分卷标题与概要
+  const updateVolumeInfo = useCallback(
+    (volIdx: number, title: string, content: string) => {
+      const sections = getLocalSections();
+      if (volIdx < 0 || volIdx >= sections.length) return;
+      const next = sections.map((vol, i) =>
+        i === volIdx
+          ? { ...vol, title: title.trim(), content: content.trim() }
+          : vol
+      );
+      persist(next);
+    },
+    [getLocalSections, persist]
+  );
+
   return {
     isAiOutlineLoading,
     handleAiGenerateVolumeOutline,
@@ -375,5 +419,8 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
     handleAddChapter,
     handleAddVolume,
     handleDeleteVolume,
+    toggleLockVolume,
+    handleMoveVolume,
+    updateVolumeInfo,
   };
 }

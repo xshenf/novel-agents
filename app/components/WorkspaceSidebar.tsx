@@ -31,6 +31,9 @@ export function WorkspaceSidebar() {
   const handleSelectVolume = (vIdx: number) => {
     setSelectedVolumeIdx(vIdx);
     setSelectedChapterIdx(null);
+    store.setCurrentChapter(null);
+    setActiveWorkspaceTab('write');
+    router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
   };
 
   const handleSelectChapter = (vIdx: number, cIdx: number) => {
@@ -201,11 +204,31 @@ export function WorkspaceSidebar() {
 
                 {/* 分卷创建入口：直接在章节树里新建分卷 */}
                 <div style={{ display: 'flex', gap: '6px', padding: '8px 4px 4px', marginTop: '4px', borderTop: localSections.length > 0 ? '1px solid var(--border-light)' : 'none' }}>
-                  <button onClick={() => handleAddVolume()} style={treeActionBtn} title="新建一个空分卷">
+                  <button
+                    onClick={() => {
+                      handleAddVolume();
+                      setSelectedVolumeIdx(localSections.length);
+                      setSelectedChapterIdx(null);
+                      store.setCurrentChapter(null);
+                      setActiveWorkspaceTab('write');
+                      router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
+                    }}
+                    style={treeActionBtn}
+                    title="新建一个空分卷"
+                  >
                     <FolderPlus size={12} /> 新建分卷
                   </button>
                   <button
-                    onClick={() => handleAiCreateNewVolume(5)}
+                    onClick={async () => {
+                      await handleAiCreateNewVolume(5);
+                      setTimeout(() => {
+                        setSelectedVolumeIdx(localSections.length);
+                        setSelectedChapterIdx(null);
+                        store.setCurrentChapter(null);
+                        setActiveWorkspaceTab('write');
+                        router.push(buildWorkspaceUrl(store.currentProject!.id, 'write'));
+                      }, 100);
+                    }}
                     disabled={isAiOutlineLoading}
                     style={isAiOutlineLoading ? { ...treeActionBtn, opacity: 0.5, cursor: 'not-allowed' } : treeActionBtn}
                     title="让 AI 新增一个完整分卷（卷头 + 5 章）"

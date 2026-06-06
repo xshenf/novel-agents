@@ -1,0 +1,564 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { BookOpen, Lock, Unlock, ArrowUp, ArrowDown, Trash2, Sparkles, PenLine, Plus, Loader2, Save } from 'lucide-react';
+import { useWorkspace } from '../../workspace-context';
+import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
+
+interface VolumeManagementViewProps {
+  vIdx: number;
+}
+
+const STATUS_COLOR: Record<ChapterStatus, string> = {
+  unwritten: 'var(--text-dark)',
+  draft: '#fbbf24',
+  done: 'var(--accent-success)',
+};
+
+export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
+  const { store, routing, outlineTree, volumeActions } = useWorkspace();
+  const { router, buildWorkspaceUrl } = routing;
+  const { localSections, setSelectedVolumeIdx, setSelectedChapterIdx } = outlineTree;
+  const {
+    isAiOutlineLoading,
+    handleAiGenerateVolumeOutline,
+    handleAiGenerateVolumeChapters,
+    handleAiGenerateFullVolume,
+    handleAddChapter,
+    handleDeleteVolume,
+    toggleLockVolume,
+    handleMoveVolume,
+    updateVolumeInfo,
+  } = volumeActions;
+
+  const vol = localSections[vIdx];
+
+  // 局部状态，用于输入框编辑
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [numChapters, setNumChapters] = useState(3);
+  const [isSaved, setIsSaved] = useState(true);
+
+  // 当分卷变化时，同步局部状态
+  useEffect(() => {
+    if (vol) {
+      setTitle(vol.title || '');
+      setContent(vol.content || '');
+      setIsSaved(true);
+    }
+  }, [vol, vIdx]);
+
+  if (!vol) {
+    return (
+      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-dark)', gap: '15px', padding: '40px' }}>
+        <BookOpen size={48} style={{ opacity: 0.3 }} />
+        <span>未找到该分卷信息</span>
+      </div>
+    );
+  }
+
+  // 自动保存触发
+  const handleBlur = () => {
+    if (title.trim() !== (vol.title || '').trim() || content.trim() !== (vol.content || '').trim()) {
+      updateVolumeInfo(vIdx, title, content);
+      setIsSaved(true);
+    }
+  };
+
+  const handleChangeTitle = (val: string) => {
+    setTitle(val);
+    setIsSaved(false);
+  };
+
+  const handleChangeContent = (val: string) => {
+    setContent(val);
+    setIsSaved(false);
+  };
+
+  const handleEnterWriting = (cIdx: number, chapterId: string | null) => {
+    if (!store.currentProject) return;
+    setSelectedVolumeIdx(vIdx);
+    setSelectedChapterIdx(cIdx);
+    
+    const dbChap = store.chapters.find((c: any) => c.id === chapterId);
+    store.setCurrentChapter(dbChap || null);
+    
+    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', chapterId ?? undefined));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
+      {/* 头部导航与操作栏 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: 'rgba(255, 255, 255, 0.02)',
+        border: '1px solid rgba(255, 255, 255, 0.04)',
+        borderRadius: '12px',
+        padding: '16px 20px',
+        flexShrink: 0,
+        gap: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '6px',
+            background: vol.isLocked ? 'rgba(251, 191, 36, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: vol.isLocked ? '1px solid rgba(251, 191, 36, 0.2)' : '1px solid rgba(99, 102, 241, 0.2)',
+            flexShrink: 0
+          }}>
+            <BookOpen size={16} color={vol.isLocked ? '#fbbf24' : '#6366f1'} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>第 {vIdx + 1} 卷</span>
+              {!isSaved && (
+                <span style={{ fontSize: '10px', color: 'var(--accent)', background: 'rgba(99, 102, 241, 0.1)', padding: '1px 6px', borderRadius: '4px' }}>
+                  未保存修改
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={e => handleChangeTitle(e.target.value)}
+              onBlur={handleBlur}
+              placeholder="输入分卷名称..."
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: '18px',
+                fontWeight: '700',
+                outline: 'none',
+                width: '100%',
+                padding: '2px 0'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* 顶部操作按钮 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => toggleLockVolume(vIdx)}
+            style={{
+              background: 'transparent',
+              border: vol.isLocked ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+              color: vol.isLocked ? '#fbbf24' : 'var(--text-muted)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title={vol.isLocked ? "分卷已锁定，AI 推演大纲时此卷走向受保护" : "锁定此分卷"}
+          >
+            {vol.isLocked ? <Lock size={14} /> : <Unlock size={14} />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveVolume(vIdx, 'up');
+              setSelectedVolumeIdx(Math.max(0, vIdx - 1));
+            }}
+            disabled={vIdx === 0}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: vIdx === 0 ? 'rgba(255, 255, 255, 0.1)' : 'var(--text-muted)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: vIdx === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="上移分卷"
+          >
+            <ArrowUp size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              handleMoveVolume(vIdx, 'down');
+              setSelectedVolumeIdx(Math.min(localSections.length - 1, vIdx + 1));
+            }}
+            disabled={vIdx === localSections.length - 1}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: vIdx === localSections.length - 1 ? 'rgba(255, 255, 255, 0.1)' : 'var(--text-muted)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: vIdx === localSections.length - 1 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="下移分卷"
+          >
+            <ArrowDown size={14} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              handleDeleteVolume(vIdx);
+              setSelectedVolumeIdx(null);
+            }}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              color: '#ef4444',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="删除分卷"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start', flexGrow: 1 }}>
+        {/* 左侧：剧情走向与章节列表 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* 剧情大纲走向 */}
+          <div className="glass-card" style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.04)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            <h5 style={{ fontSize: '13px', fontWeight: '600', color: '#fff', margin: '0 0 12px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>剧情走向与看点设定</span>
+              {!isSaved && (
+                <button
+                  onClick={handleBlur}
+                  style={{
+                    fontSize: '11px',
+                    color: '#4ade80',
+                    background: 'rgba(74,222,128,0.1)',
+                    border: '1px solid rgba(74,222,128,0.2)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Save size={11} />
+                  <span>立即保存</span>
+                </button>
+              )}
+            </h5>
+            <textarea
+              value={content}
+              onChange={e => handleChangeContent(e.target.value)}
+              onBlur={handleBlur}
+              placeholder="概括本分卷的核心矛盾、阶段高潮与对全书的承接走向..."
+              rows={6}
+              style={{
+                background: 'rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '8px',
+                width: '100%',
+                padding: '12px 14px',
+                color: '#fff',
+                fontSize: '13px',
+                lineHeight: '1.6',
+                resize: 'none',
+                outline: 'none',
+                transition: 'border 0.2s'
+              }}
+            />
+          </div>
+
+          {/* 章节细纲与写作进度 */}
+          <div className="glass-card" style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.04)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h5 style={{ fontSize: '13px', fontWeight: '600', color: '#fff', margin: 0 }}>
+                下属章节列表 ({vol.chapters.length} 章)
+              </h5>
+              <button
+                type="button"
+                onClick={() => handleAddChapter(vIdx)}
+                style={{
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  color: '#a5b4fc',
+                  fontSize: '11px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Plus size={12} />
+                <span>新增章节</span>
+              </button>
+            </div>
+
+            {vol.chapters.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', border: '1px dashed rgba(255, 255, 255, 0.05)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                本卷下暂无章节大纲，点击右上角“新增章节”或使用 AI 规划章节
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {vol.chapters.map((chap, cIdx) => {
+                  const dbChap = findWritten(chap.title, store.chapters);
+                  const status = statusOf(dbChap);
+                  const words = chapterWordCount(dbChap);
+
+                  return (
+                    <div
+                      key={cIdx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        background: 'rgba(255, 255, 255, 0.01)',
+                        border: '1px solid rgba(255, 255, 255, 0.03)',
+                        borderRadius: '8px',
+                        gap: '12px',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                        <span
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: STATUS_COLOR[status],
+                            flexShrink: 0
+                          }}
+                          title={`状态：${STATUS_LABEL[status]}`}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '500', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                            {chap.title || `第 ${cIdx + 1} 章（未命名）`}
+                          </div>
+                          {chap.content && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {chap.content}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                        {words > 0 && (
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {words} 字
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleEnterWriting(cIdx, dbChap?.id ?? null)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            color: 'var(--text-primary)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <PenLine size={11} />
+                          <span>去写作</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 右侧：AI 智能助手与规划 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="glass-card" style={{
+            background: 'linear-gradient(135deg, rgba(56,189,248,0.02) 0%, rgba(56,189,248,0.005) 100%)',
+            border: '1px solid rgba(56, 189, 248, 0.15)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)'
+          }}>
+            <h5 style={{ fontSize: '13px', fontWeight: '700', color: '#38bdf8', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} />
+              <span>AI 剧情大纲助手</span>
+            </h5>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* ① 走向一键推演 */}
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
+                  分卷走向推演
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
+                  让 AI 结合全书背景设定，智能重写或丰富本分卷的整体矛盾与高潮走向。
+                </div>
+                <button
+                  type="button"
+                  disabled={isAiOutlineLoading}
+                  onClick={() => handleAiGenerateVolumeOutline(vIdx)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    color: '#38bdf8',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  <span>AI 推演分卷走向</span>
+                </button>
+              </div>
+
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+
+              {/* ② 规划新章节 */}
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
+                  AI 规划章节细纲
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
+                  仅在本卷末尾接续规划新的章节大纲，不影响现有分卷标题与概要。
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>规划数量：</span>
+                  <select
+                    value={numChapters}
+                    onChange={e => setNumChapters(Number(e.target.value))}
+                    style={{
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      outline: 'none'
+                    }}
+                  >
+                    {[2, 3, 5, 8, 10].map(n => (
+                      <option key={n} value={n}>{n} 章</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  disabled={isAiOutlineLoading}
+                  onClick={() => handleAiGenerateVolumeChapters(vIdx, numChapters)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(56, 189, 248, 0.2)',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    color: '#e0e0e0',
+                    fontSize: '11px',
+                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  <span>规划新章节大纲</span>
+                </button>
+              </div>
+
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+
+              {/* ③ 重置重建整卷 */}
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '4px' }}>
+                  AI 一键重建本卷
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: '1.4' }}>
+                  重写本卷的标题、概要走向，并重新规划所含的章节。警告：这将清空该卷旧的章节细纲。
+                </div>
+                <button
+                  type="button"
+                  disabled={isAiOutlineLoading}
+                  onClick={() => handleAiGenerateFullVolume(vIdx, 5)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    background: 'rgba(239, 68, 68, 0.05)',
+                    color: '#f87171',
+                    fontSize: '11px',
+                    cursor: isAiOutlineLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  <span>重建本卷大纲与章节</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
