@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Save, Loader2, Eye, Edit3, Plus, Trash2, ArrowUp, ArrowDown, User, Activity, Key, BookOpen, Check, X, Tag, Lock, Unlock, Sparkles, Compass, Flame, Zap, Award, Trophy } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { useAiClient } from '../hooks/useAiClient';
+import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
 interface OutlineChapter {
   title: string;
@@ -242,6 +243,50 @@ export function OutlineTab() {
   const [regeningVolumeIdx, setRegeningVolumeIdx] = useState<number | null>(null);
   const [regeningField, setRegeningField] = useState<string | null>(null);
   
+  // AI 推演用户输入状态
+  const [aiPromptVolIdx, setAiPromptVolIdx] = useState<number | null>(null);
+  const [aiPromptText, setAiPromptText] = useState('');
+  
+  // AI 推演撤销历史栈（支持多次撤销）
+  const [aiUndoStack, setAiUndoStack] = useState<{
+    type: 'volume' | 'chapter' | 'macro';
+    label: string;
+    restore: () => void;
+  }[]>([]);
+
+  // 推入新的撤销记录（清空旧的"未来"）
+  const pushAiUndo = (entry: { type: 'volume' | 'chapter' | 'macro'; label: string; restore: () => void }) => {
+    setAiUndoStack(prev => [...prev, entry]);
+  };
+
+  // 撤销最近一次
+  const undoLastAiRegen = () => {
+    setAiUndoStack(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      last.restore();
+      return prev.slice(0, -1);
+    });
+  };
+
+  // 丢弃最近一次
+  const dismissLastAiUndo = () => {
+    setAiUndoStack(prev => prev.slice(0, -1));
+  };
+
+  // 清空所有
+  const clearAiUndo = () => setAiUndoStack([]);
+
+  // AI 推演 AbortController（用于取消）
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const cancelAiRegen = () => {
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
+    setRegeningVolumeIdx(null);
+    setRegeningIndex(null);
+    setRegeningField(null);
+  };
+  
   // UI 关联性交互状态
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
@@ -251,8 +296,68 @@ export function OutlineTab() {
   useEffect(() => {
     if (editingChapterPath === null && editingVolumeIdx === null) {
       setLocalSections(parseStructureOutline(tempOutlineFull));
+      clearAiUndo();
     }
   }, [tempOutlineFull, editingChapterPath, editingVolumeIdx]);
+
+  // 大纲自动保存：tempOutlineFull 变化时 debounce 2s 保存
+  const outlineSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevOutlineRef = useRef(tempOutlineFull);
+  useEffect(() => {
+    // 跳过初始化和项目切换时的保存
+    if (tempOutlineFull === prevOutlineRef.current) return;
+    prevOutlineRef.current = tempOutlineFull;
+    if (!store.currentProject) return;
+    if (outlineSaveTimer.current) clearTimeout(outlineSaveTimer.current);
+    outlineSaveTimer.current = setTimeout(async () => {
+      try {
+        await store.updateProject(store.currentProject!.id, { outlineFull: tempOutlineFull });
+        createVersionSnapshot({
+          projectId: store.currentProject!.id,
+          type: 'outline',
+          key: 'outlineFull',
+          label: '分卷主线大纲',
+          data: tempOutlineFull,
+          source: 'auto',
+        });
+      } catch { /* ignore auto-save errors */ }
+    }, 2000);
+    return () => { if (outlineSaveTimer.current) clearTimeout(outlineSaveTimer.current); };
+  }, [tempOutlineFull]);
+
+  // 宏观设定自动保存：任一设定字段变化时 debounce 2s 保存
+  const macroSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevMacroRef = useRef({ tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints });
+  useEffect(() => {
+    const prev = prevMacroRef.current;
+    const curr = { tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints };
+    if (JSON.stringify(prev) === JSON.stringify(curr)) return;
+    prevMacroRef.current = curr;
+    if (!store.currentProject) return;
+    if (macroSaveTimer.current) clearTimeout(macroSaveTimer.current);
+    macroSaveTimer.current = setTimeout(async () => {
+      try {
+        await store.updateProject(store.currentProject!.id, {
+          styleSetting: tempStyleSetting,
+          worldSetting: tempWorldSetting,
+          powerSystem: tempPowerSystem,
+          goldFinger: tempGoldFinger,
+          coreConflict: tempCoreConflict,
+          factionsMap: tempFactionsMap,
+          sellingPoints: tempSellingPoints,
+        });
+        createVersionSnapshot({
+          projectId: store.currentProject!.id,
+          type: 'macro',
+          key: 'macro',
+          label: '核心设定',
+          data: { styleSetting: tempStyleSetting, worldSetting: tempWorldSetting, powerSystem: tempPowerSystem, goldFinger: tempGoldFinger, coreConflict: tempCoreConflict, factionsMap: tempFactionsMap, sellingPoints: tempSellingPoints },
+          source: 'auto',
+        });
+      } catch { /* ignore auto-save errors */ }
+    }, 2000);
+    return () => { if (macroSaveTimer.current) clearTimeout(macroSaveTimer.current); };
+  }, [tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints]);
 
   // 全书所有章节拍平后的扁平章节映射表，用以挂载折线图和角色池（支持分卷过滤）
   const flatChapters = localSections
@@ -546,6 +651,9 @@ export function OutlineTab() {
   // AI 智能重写单章 Beat
   const handleAiRegenChapter = async (volIdx: number, chapIdx: number) => {
     if (!store.currentProject) return;
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     const globalIdx = flatChapters.findIndex(ch => ch.volIdx === volIdx && ch.chapIdx === chapIdx);
     setRegeningIndex(globalIdx);
     try {
@@ -569,10 +677,10 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
 - **相关人物**：本章出场的角色名。`;
 
       const res = await callAIApi({
-        action: 'outline',
+        action: 'chat',
         projectId: store.currentProject.id,
         query: prompt
-      });
+      }, controller.signal);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
@@ -602,23 +710,47 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
         const md = generateMarkdownFromSections(newSections);
         setLocalSections(newSections);
         setTempOutlineFull(md);
-        alert('该章节细纲已成功完成 AI 局部重写并同步！');
+        pushAiUndo({
+          type: 'chapter',
+          label: sec.title,
+          restore: () => {
+            const prevSections = localSections.map((vol, vIdx) => {
+              if (vIdx !== volIdx) return vol;
+              const prevChapters = [...vol.chapters];
+              prevChapters[chapIdx] = sec;
+              return { ...vol, chapters: prevChapters };
+            });
+            setLocalSections(prevSections);
+            setTempOutlineFull(generateMarkdownFromSections(prevSections));
+          }
+        });
       } else {
         throw new Error('AI 生成的章节大纲格式有误，未能成功解析');
       }
     } catch (e: any) {
-      alert('AI 单章重写失败: ' + e.message);
+      if (e.name !== 'AbortError') {
+        alert('AI 单章重写失败: ' + e.message);
+      }
     } finally {
-      setRegeningIndex(null);
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        setRegeningIndex(null);
+      }
     }
   };
 
   // AI 推演分卷走向大纲
-  const handleAiRegenVolume = async (volIdx: number) => {
+  const handleAiRegenVolume = async (volIdx: number, userHint?: string) => {
     if (!store.currentProject) return;
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     setRegeningVolumeIdx(volIdx);
     try {
       const vol = localSections[volIdx];
+      const userHintSection = userHint?.trim()
+        ? `\n\n【用户对本卷的推演要求】：\n${userHint.trim()}\n请在推演时充分考虑以上要求。`
+        : '';
       const prompt = `你是一个网络小说金牌策划和商业剧情架构大师。请为我的小说《${store.currentProject.title}》推演和重新设计【${vol.title}】的整体剧情大纲走向与本卷核心看点。
 
 【当前小说设定】:
@@ -629,14 +761,14 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
 
 【其他分卷的上下文大纲】:
 ${localSections.map((v, vIdx) => vIdx !== volIdx ? `- ${v.title}: ${v.content}` : '').filter(Boolean).join('\n')}
-
+${userHintSection}
 请直接输出推荐的【${vol.title}】的卷概要走向描述（字数在150字到250字之间），不需要输出任何标题、多余的说明前言或分析，直接给出描述即可。`;
 
       const res = await callAIApi({
-        action: 'outline',
+        action: 'chat',
         projectId: store.currentProject.id,
         query: prompt
-      });
+      }, controller.signal);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
@@ -648,20 +780,38 @@ ${localSections.map((v, vIdx) => vIdx !== volIdx ? `- ${v.title}: ${v.content}` 
         setLocalSections(newSections);
         const md = generateMarkdownFromSections(newSections);
         setTempOutlineFull(md);
-        alert(`已成功推演【${vol.title}】的卷级剧情走向！`);
+        pushAiUndo({
+          type: 'volume',
+          label: vol.title,
+          restore: () => {
+            const prevSections = localSections.map((v, vIdx) =>
+              vIdx === volIdx ? { ...v, content: vol.content } : v
+            );
+            setLocalSections(prevSections);
+            setTempOutlineFull(generateMarkdownFromSections(prevSections));
+          }
+        });
       } else {
         throw new Error('AI 未能返回有效的生成数据');
       }
     } catch (e: any) {
-      alert(`AI 推演分卷走向失败: ` + e.message);
+      if (e.name !== 'AbortError') {
+        alert(`AI 推演分卷走向失败: ` + e.message);
+      }
     } finally {
-      setRegeningVolumeIdx(null);
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        setRegeningVolumeIdx(null);
+      }
     }
   };
 
   // AI 宏观大纲单项设定字段推演 ( Deducing StoryMacro fields )
   const handleAiRegenMacroField = async (fieldKey: string, fieldLabel: string) => {
     if (!store.currentProject) return;
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     setRegeningField(fieldKey);
     try {
       const prompt = `你是一个网络小说金牌策划和商业企划大师。请为我的小说《${store.currentProject.title}》推演和设计一个极具吸睛力、新颖度与商业卖点的【${fieldLabel}】。
@@ -673,15 +823,23 @@ ${localSections.map((v, vIdx) => vIdx !== volIdx ? `- ${v.title}: ${v.content}` 
 Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体文本内容描述（字数在150字左右），不需要输出任何标题、多余的说明前言或分析，直接给出描述即可。`;
 
       const res = await callAIApi({
-        action: 'outline',
+        action: 'chat',
         projectId: store.currentProject.id,
         query: prompt
-      });
+      }, controller.signal);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       const reply = data.reply.trim();
       if (reply) {
+        const prevValue = fieldKey === 'styleSetting' ? tempStyleSetting
+          : fieldKey === 'worldSetting' ? tempWorldSetting
+          : fieldKey === 'powerSystem' ? tempPowerSystem
+          : fieldKey === 'goldFinger' ? tempGoldFinger
+          : fieldKey === 'coreConflict' ? tempCoreConflict
+          : fieldKey === 'factionsMap' ? tempFactionsMap
+          : tempSellingPoints;
+
         if (fieldKey === 'styleSetting') setTempStyleSetting(reply);
         else if (fieldKey === 'worldSetting') setTempWorldSetting(reply);
         else if (fieldKey === 'powerSystem') setTempPowerSystem(reply);
@@ -690,14 +848,31 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
         else if (fieldKey === 'factionsMap') setTempFactionsMap(reply);
         else if (fieldKey === 'sellingPoints') setTempSellingPoints(reply);
 
-        alert(`已成功单独推演【${fieldLabel}】！请记得点击顶部的“保存宏观设定”完成落库。`);
+        pushAiUndo({
+          type: 'macro',
+          label: fieldLabel,
+          restore: () => {
+            if (fieldKey === 'styleSetting') setTempStyleSetting(prevValue);
+            else if (fieldKey === 'worldSetting') setTempWorldSetting(prevValue);
+            else if (fieldKey === 'powerSystem') setTempPowerSystem(prevValue);
+            else if (fieldKey === 'goldFinger') setTempGoldFinger(prevValue);
+            else if (fieldKey === 'coreConflict') setTempCoreConflict(prevValue);
+            else if (fieldKey === 'factionsMap') setTempFactionsMap(prevValue);
+            else if (fieldKey === 'sellingPoints') setTempSellingPoints(prevValue);
+          }
+        });
       } else {
         throw new Error('AI 未能返回有效的生成数据');
       }
     } catch (e: any) {
-      alert(`AI 单项推演【${fieldLabel}】失败: ` + e.message);
+      if (e.name !== 'AbortError') {
+        alert(`AI 单项推演【${fieldLabel}】失败: ` + e.message);
+      }
     } finally {
-      setRegeningField(null);
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        setRegeningField(null);
+      }
     }
   };
 
@@ -721,7 +896,8 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
   };
 
   return (
-    <div style={{ display: 'flex', flex: '1', minHeight: 0, padding: '30px', gap: '30px', overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: '1', minHeight: 0, position: 'relative' }}>
+      <div style={{ display: 'flex', flex: '1', minHeight: 0, padding: '30px', gap: '30px', overflowY: 'auto' }}>
       {/* 左栏：核心故事大纲看板 */}
       <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
         
@@ -806,8 +982,7 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                       
                       <button
                         type="button"
-                        onClick={() => handleAiRegenMacroField(field.key, field.label)}
-                        disabled={isFieldRegening}
+                        onClick={() => kernel.handleAiDeduceField(field.key, field.label)}
                         style={{
                           fontSize: '10.5px',
                           color: '#38bdf8',
@@ -818,14 +993,10 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '3px'
+                          gap: '3px',
                         }}
                       >
-                        {isFieldRegening ? (
-                          <Loader2 className="animate-spin" size={10} />
-                        ) : (
-                          <Sparkles size={10} />
-                        )}
+                        <Sparkles size={10} />
                         <span>AI推演</span>
                       </button>
                     </div>
@@ -894,14 +1065,48 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                         ? '0 4px 24px rgba(251,191,36,0.05)'
                         : '0 4px 20px rgba(0,0,0,0.12)',
                       transition: 'all 0.25s ease',
+                      ...(isVolRegening && {
+                        border: '1px solid rgba(56,189,248,0.5)',
+                        boxShadow: '0 0 0 0 rgba(56,189,248,0.45), 0 4px 24px rgba(56,189,248,0.15)',
+                        animation: 'aiPulse 1.6s ease-in-out infinite',
+                        background: 'linear-gradient(135deg, rgba(56,189,248,0.04) 0%, rgba(56,189,248,0.01) 100%)'
+                      })
                     }}
                   >
-                    {isVolRegening ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
-                        <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
-                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI 正在智能推演本卷走向大纲...</span>
+                    {isVolRegening && (
+                      <div style={{
+                        marginBottom: '12px', padding: '6px 12px',
+                        background: 'rgba(56,189,248,0.08)',
+                        border: '1px solid rgba(56,189,248,0.25)',
+                        borderRadius: '6px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '14px', height: '14px',
+                            borderRadius: '50%',
+                            border: '2px solid rgba(56,189,248,0.2)',
+                            borderTopColor: '#38bdf8',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                          <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: '500' }}>AI 正在推演本卷走向...</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={cancelAiRegen}
+                          style={{
+                            fontSize: '11px', color: 'var(--text-muted)',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            padding: '2px 10px', borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          取消
+                        </button>
                       </div>
-                    ) : isEditing && editVolumeForm ? (
+                    )}
+                    {isEditing && editVolumeForm ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>
@@ -1023,7 +1228,10 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                             
                             <button
                               type="button"
-                              onClick={() => handleAiRegenVolume(vIdx)}
+                              onClick={() => {
+                                setAiPromptVolIdx(vIdx);
+                                setAiPromptText('');
+                              }}
                               style={{
                                 fontSize: '10.5px',
                                 color: '#38bdf8',
@@ -1039,7 +1247,7 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                               title="让 AI 为本卷智能推演剧情走向大纲"
                             >
                               <Sparkles size={10} />
-                              <span>AI推演本卷</span>
+                              <span>AI推演</span>
                             </button>
                             
                             <button
@@ -1066,8 +1274,71 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                         </div>
 
                         <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap' }}>
-                          {vol.content || '暂无此分卷的整体走向描述，点击“编辑”或“AI推演本卷”完善大纲...'}
+                          {vol.content || '暂无此分卷的整体走向描述，点击"编辑"或"AI推演"完善大纲...'}
                         </p>
+
+                        {/* AI推演本卷 - 用户输入框 */}
+                        {aiPromptVolIdx === vIdx && (
+                          <div style={{ marginTop: '8px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                            <input
+                              type="text"
+                              value={aiPromptText}
+                              onChange={e => setAiPromptText(e.target.value)}
+                              placeholder="输入推演要求（可选，如：加入主角觉醒情节）"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                  setAiPromptVolIdx(null);
+                                  handleAiRegenVolume(vIdx, aiPromptText);
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                fontSize: '12px',
+                                padding: '5px 8px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(56,189,248,0.3)',
+                                background: 'rgba(56,189,248,0.05)',
+                                color: 'var(--text-primary)',
+                                outline: 'none'
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAiPromptVolIdx(null);
+                                handleAiRegenVolume(vIdx, aiPromptText);
+                              }}
+                              style={{
+                                fontSize: '11px',
+                                padding: '5px 10px',
+                                borderRadius: '4px',
+                                border: 'none',
+                                background: '#38bdf8',
+                                color: '#000',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              推演
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAiPromptVolIdx(null)}
+                              style={{
+                                fontSize: '11px',
+                                padding: '5px 8px',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border-light)',
+                                background: 'transparent',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              取消
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1461,9 +1732,34 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                                     }}
                                   >
                                     {isRegening ? (
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
-                                        <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
-                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI 正在智能推演和重写本章细纲...</span>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '12px' }}>
+                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <div style={{
+                                            position: 'absolute',
+                                            width: '50px', height: '50px',
+                                            borderRadius: '50%',
+                                            border: '2px solid rgba(56,189,248,0.2)',
+                                            borderTopColor: '#38bdf8',
+                                            animation: 'spin 1s linear infinite'
+                                          }} />
+                                          <Sparkles size={20} style={{ color: '#38bdf8' }} />
+                                        </div>
+                                        <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: '600' }}>AI 正在智能推演本章细纲</span>
+                                        <button
+                                          type="button"
+                                          onClick={cancelAiRegen}
+                                          style={{
+                                            display: 'flex', alignItems: 'center', gap: '4px',
+                                            fontSize: '11px', color: 'var(--text-muted)',
+                                            background: 'rgba(255,255,255,0.04)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            padding: '3px 10px', borderRadius: '4px',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <X size={11} />
+                                          <span>取消推演</span>
+                                        </button>
                                       </div>
                                     ) : isEditing && editChapterForm ? (
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1629,7 +1925,7 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                                               title="让 AI 局部重写本章的大纲设定"
                                             >
                                               <Sparkles size={10} />
-                                              <span>AI重生</span>
+                                              <span>AI推演</span>
                                             </button>
                                             
                                             <button
@@ -1716,6 +2012,71 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
           </div>
         )}
       </div>
+      </div>
+
+      {/* AI 推演撤销浮层 - 固定在面板底部 */}
+      {aiUndoStack.length > 0 && (
+        <div style={{
+          padding: '10px 16px',
+          background: 'rgba(15,15,25,0.92)',
+          backdropFilter: 'blur(8px)',
+          borderTop: '1px solid rgba(56,189,248,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+          zIndex: 10
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '8px', height: '8px',
+              borderRadius: '50%',
+              background: '#38bdf8',
+              boxShadow: '0 0 6px rgba(56,189,248,0.6)'
+            }} />
+            <span style={{ fontSize: '13px', color: '#e0e0e0' }}>
+              {(() => {
+                const last = aiUndoStack[aiUndoStack.length - 1];
+                const typeLabel = last.type === 'volume' ? '分卷' : last.type === 'chapter' ? '章节' : '字段';
+                return `【${last.label}】${typeLabel}已推演`;
+              })()}
+            </span>
+            {aiUndoStack.length > 1 && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '3px' }}>
+                可撤销 {aiUndoStack.length} 次
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={undoLastAiRegen}
+              style={{
+                fontSize: '12px', padding: '4px 14px',
+                background: 'rgba(56,189,248,0.15)',
+                border: '1px solid rgba(56,189,248,0.4)',
+                color: '#38bdf8', borderRadius: '4px',
+                cursor: 'pointer', fontWeight: '500'
+              }}
+            >
+              撤销推演
+            </button>
+            <button
+              type="button"
+              onClick={clearAiUndo}
+              style={{
+                fontSize: '11px', padding: '4px 8px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'var(--text-muted)', borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              全部确认
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

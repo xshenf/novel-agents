@@ -1,7 +1,9 @@
 'use client';
 
-import { Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Save, Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
+import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
 interface KernelDimensionCardProps {
   cardKey: string;
@@ -26,14 +28,35 @@ export function KernelDimensionCard({
   const { expandedKernelCard, setExpandedKernelCard, isKernelLoading, kernelOptions } = kernel;
   const isExpanded = expandedKernelCard === cardKey;
 
+  // 自动保存：value 变化时 debounce 2s 保存
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (value === prevValueRef.current) return;
+    prevValueRef.current = value;
+    if (!store.currentProject) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await store.updateProject(store.currentProject!.id, { [cardType]: value });
+        createVersionSnapshot({
+          projectId: store.currentProject!.id,
+          type: 'macro',
+          key: cardType,
+          label: title,
+          data: value,
+          source: 'auto',
+        });
+      } catch { /* ignore auto-save errors */ }
+    }, 2000);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [value]);
+
   const handleSave = async () => {
     if (!store.currentProject) return;
     try {
       await store.updateProject(store.currentProject.id, { [cardType]: value });
-      alert(`${title}已成功保存！`);
-    } catch (e) {
-      alert(`${title}保存失败`);
-    }
+    } catch { /* ignore */ }
   };
 
   return (
@@ -80,22 +103,43 @@ export function KernelDimensionCard({
             padding: '20px',
             borderTop: '1px solid var(--border-light)',
             display: 'flex',
-            gap: '24px',
+            flexDirection: 'column',
             minHeight: '260px',
           }}
         >
-          {/* 左侧：微调及保存 */}
+          {/* 微调及保存 */}
           <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>当前设定与微调</span>
-              <button
-                className="btn btn-primary"
-                onClick={handleSave}
-                style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Save size={13} />
-                <span>保存设定</span>
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => kernel.handleAiDeduceField(cardType, title)}
+                  style={{
+                    fontSize: '12px',
+                    color: '#38bdf8',
+                    background: 'rgba(56,189,248,0.06)',
+                    border: '1px solid rgba(56,189,248,0.15)',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Sparkles size={12} />
+                  <span>AI推演</span>
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSave}
+                  style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Save size={13} />
+                  <span>保存设定</span>
+                </button>
+              </div>
             </div>
             <textarea
               className="textarea"
@@ -113,67 +157,6 @@ export function KernelDimensionCard({
                 borderRadius: '8px',
               }}
             />
-          </div>
-
-          {/* 右侧：AI 智能推荐方案 */}
-          <div style={{ width: '380px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>
-              AI 推荐备选方案 (一键选用)
-            </div>
-
-            {isKernelLoading ? (
-              <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', padding: '20px' }}>
-                <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)', marginBottom: '8px' }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>正在推演设定...</span>
-              </div>
-            ) : kernelOptions?.[cardType] ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
-                {kernelOptions[cardType].map((opt: any, idx: number) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: '10px 12px',
-                      background: 'rgba(255,255,255,0.01)',
-                      border: '1px solid var(--border-light)',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>{opt.name}</span>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={async () => {
-                          const val = opt.name + '：' + opt.description;
-                          setValue(val);
-                          if (store.currentProject) {
-                            try {
-                              await store.updateProject(store.currentProject.id, { [cardType]: val });
-                              alert(`已选用《${opt.name}》方案并自动保存！`);
-                            } catch (e) {}
-                          }
-                        }}
-                        style={{ fontSize: '10px', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
-                      >
-                        选用
-                      </button>
-                    </div>
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
-                      {opt.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-light)', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>
-                  暂无推荐，点击顶部「重新推演设定与大纲」生成方案
-                </span>
-              </div>
-            )}
           </div>
         </div>
       )}

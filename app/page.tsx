@@ -19,12 +19,13 @@ import { Dashboard } from './components/Dashboard';
 import { WizardPanel } from './components/WizardPanel';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { InspirationsModal } from './components/InspirationsModal';
-import { NewChapterModal, NewCharModal, NewRuleModal, EditProjectModal } from './components/Modals';
+import { NewChapterModal, NewCharModal, NewRuleModal, EditProjectModal, AiDeductionModal } from './components/Modals';
 import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceTabBar } from './components/WorkspaceTabBar';
 import { WriteTab } from './components/WriteTab';
 import { OutlineTab } from './components/OutlineTab';
 import { SettingsTab } from './components/SettingsTab';
+import { VersionHistoryTab } from './components/VersionHistoryTab';
 import { AgentPanel } from './components/AgentPanel';
 
 export default function Home() {
@@ -91,6 +92,8 @@ export default function Home() {
                 <WriteTab />
               ) : activeWorkspaceTab === 'outline' ? (
                 <OutlineTab />
+              ) : activeWorkspaceTab === 'versions' ? (
+                <VersionHistoryTab />
               ) : (
                 <SettingsTab />
               )}
@@ -107,6 +110,7 @@ export default function Home() {
         <NewCharModal />
         <NewRuleModal />
         <EditProjectModal />
+        <AiDeductionModal />
       </main>
     </WorkspaceProvider>
   );
