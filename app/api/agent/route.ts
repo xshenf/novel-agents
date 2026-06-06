@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: '无效的请求体' }), { status: 400 });
   }
 
-  const { projectId, message, apiKey, modelName, history } = body;
+  const { projectId, message, apiKey, modelName, messageId } = body;
 
   if (!projectId || !message) {
     return new Response(JSON.stringify({ error: '缺少 projectId 或 message' }), { status: 400 });
@@ -63,20 +63,17 @@ export async function POST(request: NextRequest) {
           } catch { /* controller 已关闭时忽略 */ }
         }, 15000);
 
+        // 保存用户发送的消息
+        const userMsgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        await db.appendAgentMessage(projectId, {
+          id: userMsgId,
+          type: 'user',
+          content: message,
+        });
+
         send('start', { message: '多 Agent 系统启动...' });
 
-        // 处理历史对话
-        const inputMessages = [];
-        if (history && Array.isArray(history)) {
-          for (const msg of history) {
-            if (msg.role === 'user') {
-              inputMessages.push(new HumanMessage(msg.content));
-            } else if (msg.role === 'assistant') {
-              inputMessages.push(new AIMessage(msg.content));
-            }
-          }
-        }
-        inputMessages.push(new HumanMessage(message));
+        const inputMessages = [new HumanMessage(message)];
 
         // 流式执行图，监听每个事件
         const eventStream = await graph.streamEvents(
@@ -88,6 +85,7 @@ export async function POST(request: NextRequest) {
             version: 'v2',
             recursionLimit: 50,
             configurable: {
+              thread_id: projectId,
               apiConfig: packedApiKey,
               modelName: modelName || 'gemini-2.5-flash',
             }
@@ -95,6 +93,7 @@ export async function POST(request: NextRequest) {
         );
 
         let lastAgent = 'orchestrator';
+        let currentAnswerMsgId = '';
 
         for await (const event of eventStream) {
           const { event: eventType, name, data } = event;
@@ -111,8 +110,17 @@ export async function POST(request: NextRequest) {
 
           // LLM 开始生成（thinking 阶段）
           if (eventType === 'on_chat_model_start' && data?.input?.messages) {
+            const thinkingMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            await db.appendAgentMessage(projectId, {
+              id: thinkingMsgId,
+              type: 'thinking',
+              agent: lastAgent,
+              label: AGENT_LABELS[lastAgent as keyof typeof AGENT_LABELS] || lastAgent,
+              content: '正在思考...',
+            });
             // 通知前端 agent 正在思考
             send('thinking', {
+              id: thinkingMsgId,
               agent: lastAgent,
               label: AGENT_LABELS[lastAgent as keyof typeof AGENT_LABELS] || lastAgent,
             });
@@ -124,13 +132,26 @@ export async function POST(request: NextRequest) {
               ? data.chunk.content
               : data.chunk.content?.[0]?.text || '';
             if (content) {
-              send('token', { agent: lastAgent, content });
+              if (!currentAnswerMsgId) {
+                currentAnswerMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+              }
+              send('token', { id: currentAnswerMsgId, agent: lastAgent, content });
             }
           }
 
           // 工具调用（delegate_* 委托类工具不展示为普通工具调用，改由 delegate 事件呈现）
           if (eventType === 'on_tool_start' && !(typeof name === 'string' && name.startsWith('delegate_'))) {
+            const toolMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            await db.appendAgentMessage(projectId, {
+              id: toolMsgId,
+              type: 'tool_call',
+              agent: lastAgent,
+              toolName: name,
+              toolInput: data?.input || {},
+              content: `调用工具：${name}`,
+            });
             send('tool_call', {
+              id: toolMsgId,
               agent: lastAgent,
               toolName: name,
               toolInput: data?.input || {},
@@ -144,16 +165,37 @@ export async function POST(request: NextRequest) {
               : JSON.stringify(data?.output || '');
             // 跳过 delegate 信号（内部路由，不展示给用户）
             if (!output.startsWith('[DELEGATE:')) {
-              send('tool_result', {
+              const resultMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+              const shortResult = output.slice(0, 800) + (output.length > 800 ? '...' : '');
+              await db.appendAgentMessage(projectId, {
+                id: resultMsgId,
+                type: 'tool_result',
                 agent: lastAgent,
                 toolName: name,
-                result: output.slice(0, 800) + (output.length > 800 ? '...' : ''),
+                content: shortResult,
+              });
+              send('tool_result', {
+                id: resultMsgId,
+                agent: lastAgent,
+                toolName: name,
+                result: shortResult,
               });
             } else {
               // delegate 发送路由事件
               const delegateTo = output.match(/\[DELEGATE:(\w+)\]/)?.[1] || '';
               if (delegateTo) {
+                const delegateMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                await db.appendAgentMessage(projectId, {
+                  id: delegateMsgId,
+                  type: 'delegate',
+                  from: lastAgent,
+                  fromLabel: AGENT_LABELS[lastAgent as keyof typeof AGENT_LABELS] || lastAgent,
+                  to: delegateTo,
+                  toLabel: AGENT_LABELS[delegateTo as keyof typeof AGENT_LABELS] || delegateTo,
+                  content: `编导将任务交给${AGENT_LABELS[delegateTo as keyof typeof AGENT_LABELS] || delegateTo}处理`,
+                });
                 send('delegate', {
+                  id: delegateMsgId,
                   from: lastAgent,
                   to: delegateTo,
                   toLabel: AGENT_LABELS[delegateTo as keyof typeof AGENT_LABELS] || delegateTo,
@@ -172,11 +214,23 @@ export async function POST(request: NextRequest) {
                   ? lastMsg.content
                   : lastMsg.content?.[0]?.text || '';
                 if (content && !lastMsg.tool_calls?.length) {
-                  send('final_answer', {
+                  if (!currentAnswerMsgId) {
+                    currentAnswerMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                  }
+                  await db.appendAgentMessage(projectId, {
+                    id: currentAnswerMsgId,
+                    type: 'final_answer',
                     agent: name,
                     label: AGENT_LABELS[name as keyof typeof AGENT_LABELS] || name,
                     content,
                   });
+                  send('final_answer', {
+                    id: currentAnswerMsgId,
+                    agent: name,
+                    label: AGENT_LABELS[name as keyof typeof AGENT_LABELS] || name,
+                    content,
+                  });
+                  currentAnswerMsgId = '';
                 }
               }
             }
@@ -186,7 +240,18 @@ export async function POST(request: NextRequest) {
         send('done', { message: '任务完成' });
       } catch (err: any) {
         console.error('Agent error:', err);
+        const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        try {
+          await db.appendAgentMessage(projectId, {
+            id: errorMsgId,
+            type: 'error',
+            content: err.message || 'Agent 执行失败',
+          });
+        } catch (dbErr) {
+          console.error('Failed to save error to DB:', dbErr);
+        }
         send('error', { 
+          id: errorMsgId,
           message: err.message || 'Agent 执行失败',
           tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送“请继续刚才未完成的工作”来续跑。'
         });

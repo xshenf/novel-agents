@@ -406,6 +406,27 @@ export const db = {
     return list.map(formatAgentMessage);
   },
 
+  async appendAgentMessage(projectId: string, msg: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>): Promise<AgentMessage> {
+    const created = await prisma.agentMessage.create({
+      data: {
+        id: msg.id,
+        projectId,
+        userId: 'default_user',
+        type: msg.type,
+        agent: msg.agent,
+        label: msg.label,
+        content: msg.content,
+        toolName: msg.toolName,
+        toolInput: msg.toolInput ? JSON.stringify(msg.toolInput) : null,
+        from: msg.from,
+        fromLabel: msg.fromLabel,
+        to: msg.to,
+        toLabel: msg.toLabel,
+      },
+    });
+    return formatAgentMessage(created);
+  },
+
   async saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): Promise<AgentMessage[]> {
     // 过滤并删除旧历史对话
     await prisma.agentMessage.deleteMany({ where: { projectId } });

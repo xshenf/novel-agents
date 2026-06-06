@@ -1,9 +1,20 @@
-import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
+import { Annotation, StateGraph, START, END, MemorySaver } from '@langchain/langgraph';
 import { BaseMessage, SystemMessage, AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+
+// 防止开发环境热重载丢失 Checkpointer 状态
+const globalForAgent = globalThis as unknown as {
+  agentCheckpointer: MemorySaver | undefined;
+};
+
+export const checkpointer = globalForAgent.agentCheckpointer ?? new MemorySaver();
+if (process.env.NODE_ENV !== 'production') {
+  globalForAgent.agentCheckpointer = checkpointer;
+}
+
 
 import {
   PLANNER_TOOLS,
@@ -453,5 +464,5 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
     .addEdge('editor_tools', 'editor_tool_count')
     .addEdge('editor_tool_count', 'editor');
 
-  return graph.compile();
+  return graph.compile({ checkpointer });
 }

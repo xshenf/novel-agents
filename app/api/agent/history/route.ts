@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { checkpointer } from '@/lib/agent/graph';
 
 export async function GET(request: Request) {
   try {
@@ -49,6 +50,7 @@ export async function DELETE(request: Request) {
     }
 
     await db.clearAgentMessages(projectId);
+    await checkpointer.deleteThread(projectId);
     return NextResponse.json({ success: true, message: '历史对话已清空' });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '清空历史对话失败';

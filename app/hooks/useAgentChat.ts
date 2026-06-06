@@ -101,42 +101,7 @@ export function useAgentChat(store: NovelStore) {
     };
   }, [store.currentProject?.id]);
 
-  // 对话历史变动时，防抖并过滤流式状态后保存到后台数据库
-  useEffect(() => {
-    if (!store.currentProject || agentMessages.length === 0) return;
-
-    // 如果有消息在流式传输中，不进行同步，等传输完毕再同步
-    if (agentMessages.some(m => m.streaming)) {
-      return;
-    }
-
-    const projectId = store.currentProject.id;
-    const timer = setTimeout(() => {
-      const messagesToSave = agentMessages.map(m => ({
-        id: m.id,
-        type: m.type,
-        agent: m.agent,
-        label: m.label,
-        content: m.content,
-        toolName: m.toolName,
-        toolInput: m.toolInput,
-        from: m.from,
-        fromLabel: m.fromLabel,
-        to: m.to,
-        toLabel: m.toLabel,
-      }));
-
-      fetch('/api/agent/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, messages: messagesToSave }),
-      }).catch(err => {
-        console.error('Failed to sync agent messages to backend:', err);
-      });
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [agentMessages, store.currentProject?.id]);
+  // 智能体消息直接由后端即时持久化到数据库，因此前端无需定时同步对话历史。
 
   const handleSendAgentMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,20 +110,14 @@ export function useAgentChat(store: NovelStore) {
     const userMsg = chatInput;
     const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+    const userMsgId = msgId();
     saveAndSetAgentMessages(prev => [...prev, {
-      id: msgId(),
+      id: userMsgId,
       type: 'user',
       content: userMsg,
     }]);
     setChatInput('');
     setIsAgentLoading(true);
-
-    const chatHistory = agentMessages
-      .filter(m => m.type === 'user' || (m.type === 'final_answer' && !m.streaming))
-      .map(m => ({
-        role: m.type === 'user' ? 'user' : 'assistant',
-        content: m.content
-      }));
 
     try {
       const multiModelConfig = JSON.stringify({
@@ -173,7 +132,7 @@ export function useAgentChat(store: NovelStore) {
         body: JSON.stringify({
           projectId: store.currentProject.id,
           message: userMsg,
-          history: chatHistory,
+          messageId: userMsgId,
           apiKey: multiModelConfig,
           modelName: store.modelName,
           systemInstruction: store.systemInstruction,
@@ -219,7 +178,7 @@ export function useAgentChat(store: NovelStore) {
                 streamingMsgId = null;
               }
               saveAndSetAgentMessages(prev => [...prev, {
-                id: msgId(),
+                id: data.id || msgId(),
                 type: 'thinking',
                 agent: data.agent,
                 label: data.label,
@@ -234,7 +193,7 @@ export function useAgentChat(store: NovelStore) {
 
             case 'token':
               if (!streamingMsgId) {
-                const newId = msgId();
+                const newId = data.id || msgId();
                 streamingMsgId = newId;
                 saveAndSetAgentMessages(prev => [...prev, {
                   id: newId,
@@ -266,7 +225,7 @@ export function useAgentChat(store: NovelStore) {
                 streamingMsgId = null;
               }
               saveAndSetAgentMessages(prev => [...prev, {
-                id: msgId(),
+                id: data.id || msgId(),
                 type: 'tool_call',
                 agent: data.agent,
                 label: data.label,
@@ -283,7 +242,7 @@ export function useAgentChat(store: NovelStore) {
 
             case 'tool_result':
               saveAndSetAgentMessages(prev => [...prev, {
-                id: msgId(),
+                id: data.id || msgId(),
                 type: 'tool_result',
                 agent: data.agent,
                 toolName: data.toolName,
@@ -305,7 +264,7 @@ export function useAgentChat(store: NovelStore) {
                 streamingMsgId = null;
               }
               saveAndSetAgentMessages(prev => [...prev, {
-                id: msgId(),
+                id: data.id || msgId(),
                 type: 'delegate',
                 from: data.from,
                 fromLabel: data.fromLabel,
@@ -329,7 +288,7 @@ export function useAgentChat(store: NovelStore) {
                 ));
               } else {
                 saveAndSetAgentMessages(prev => [...prev, {
-                  id: msgId(),
+                  id: data.id || msgId(),
                   type: 'final_answer',
                   agent: data.agent,
                   label: data.label,
@@ -373,7 +332,7 @@ export function useAgentChat(store: NovelStore) {
                 streamingMsgId = null;
               }
               saveAndSetAgentMessages(prev => [...prev, {
-                id: msgId(),
+                id: data.id || msgId(),
                 type: 'error',
                 content: data.message || 'Agent 执行出错',
               }]);
