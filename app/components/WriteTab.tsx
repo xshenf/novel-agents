@@ -2,6 +2,7 @@
 
 import { BookOpen, CheckCircle2, Sparkles, Download, Save, Plus, Play, Pause, Loader2 } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
+import { WriteOutlinePreview } from './WriteOutlinePreview';
 
 export function WriteTab() {
   const { store, editor, autoWriter, assist, modals, kernel } = useWorkspace();
@@ -22,6 +23,9 @@ export function WriteTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflowY: 'auto' }}>
+      {/* 选中分卷/章节时，顶部显示大纲预览 */}
+      <WriteOutlinePreview />
+
       {/* 新书完善设定 Banner */}
       {store.currentProject && store.currentProject.title === '未命名故事' && (
         <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>

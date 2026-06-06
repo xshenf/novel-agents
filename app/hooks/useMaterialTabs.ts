@@ -13,7 +13,7 @@ export interface MaterialItem {
   color: string;
 }
 
-// 18 宫格世界素材磁贴的固定清单
+// 18 宫格世界素材磁贴的固定清单（章节列表/大纲设定统一由最左侧 WorkspaceSidebar 承载）
 export const MATERIALS_LIST: MaterialItem[] = [
   { id: 'worldSetting', label: '世界观设定', icon: Compass, color: '#38bdf8' },
   { id: 'coreConflict', label: '故事核心', icon: Activity, color: '#f43f5e' },
@@ -24,14 +24,12 @@ export const MATERIALS_LIST: MaterialItem[] = [
   { id: 'powerSystem', label: '力量体系', icon: Flame, color: '#f97316' },
   { id: 'skillSystem', label: '功法体系', icon: Award, color: '#ec4899' },
   { id: 'specialSetting', label: '特殊设定', icon: Lock, color: '#14b8a6' },
-  { id: 'outline', label: '大纲设定', icon: BookOpen, color: '#6366f1' },
   { id: 'character', label: '角色管理', icon: User, color: '#06b6d4' },
   { id: 'relation', label: '人物关系图', icon: Activity, color: '#84cc16' },
   { id: 'foreshadow', label: '伏笔管理', icon: Key, color: '#f59e0b' },
   { id: 'plot', label: '情节脉络', icon: Trophy, color: '#ef4444' },
   { id: 'subPlot', label: '支线故事', icon: Compass, color: '#8b5cf6' },
   { id: 'timeline', label: '时间线', icon: Activity, color: '#06b6d4' },
-  { id: 'chapter', label: '章节细纲', icon: BookOpen, color: '#10b981' },
   { id: 'events', label: '已经历事件', icon: CheckCircle2, color: '#22c55e' }
 ];
 
@@ -50,16 +48,6 @@ export function useMaterialTabs() {
 
   // 选择素材磁贴时统一控制跳转
   const handleSelectMaterial = useCallback((material: string) => {
-    if (material === 'outline') {
-      setActiveMaterial('outline');
-      setOutlineSubTab('volume');
-      return;
-    }
-    if (material === 'chapter') {
-      setActiveMaterial('outline');
-      setOutlineSubTab('chapter');
-      return;
-    }
     if (ASSET_MATERIAL_IDS.has(material)) {
       setActiveMaterial(material);
       setOutlineSubTab('assets');

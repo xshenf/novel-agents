@@ -2,16 +2,17 @@
 
 import { createContext, useContext, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 import type { NovelStore } from '@/lib/store';
-import type { useWorkspaceRouting } from './hooks/useWorkspaceRouting';
-import type { useEditor } from './hooks/useEditor';
-import type { useModelSettings } from './hooks/useModelSettings';
-import type { useAutoWriter } from './hooks/useAutoWriter';
-import type { useAgentChat } from './hooks/useAgentChat';
-import type { useAiAssist } from './hooks/useAiAssist';
-import type { useWizard } from './hooks/useWizard';
-import type { useProjectKernel } from './hooks/useProjectKernel';
-import type { useCreationModals } from './hooks/useCreationModals';
-import type { useResizablePanels } from './hooks/useResizablePanels';
+import { useWorkspaceRouting } from './hooks/useWorkspaceRouting';
+import { useEditor } from './hooks/useEditor';
+import { useModelSettings } from './hooks/useModelSettings';
+import { useAutoWriter } from './hooks/useAutoWriter';
+import { useAgentChat } from './hooks/useAgentChat';
+import { useAiAssist } from './hooks/useAiAssist';
+import { useWizard } from './hooks/useWizard';
+import { useProjectKernel } from './hooks/useProjectKernel';
+import { useCreationModals } from './hooks/useCreationModals';
+import { useResizablePanels } from './hooks/useResizablePanels';
+import { useOutlineTreeState } from './hooks/useOutlineTreeState';
 
 // 命名空间化的工作台 Context：各 hook 输出按功能分组，避免大平铺
 export type WorkspaceContextValue = {
@@ -30,6 +31,7 @@ export type WorkspaceContextValue = {
   kernel: ReturnType<typeof useProjectKernel>;
   modals: ReturnType<typeof useCreationModals>;
   layout: ReturnType<typeof useResizablePanels>;
+  outlineTree: ReturnType<typeof useOutlineTreeState>;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);

@@ -1,12 +1,13 @@
 import type { MutableRefObject } from 'react';
 import type { OutlineChapter, OutlineVolume } from '@/lib/outlineParser';
 import type { AiUndoEntry } from '../../hooks/useAiUndoStack';
+import type { OutlineSubTab } from '../../hooks/useMaterialTabs';
 import type { WorkspaceContextValue } from '../../workspace-context';
 
 export interface OutlineTreeController {
   // 视图
-  outlineSubTab: 'volume' | 'chapter';
-  setOutlineSubTab: (v: 'volume' | 'chapter') => void;
+  outlineSubTab: OutlineSubTab;
+  setOutlineSubTab: (v: OutlineSubTab) => void;
   handleSelectMaterial: (id: string) => void;
 
   // 状态
