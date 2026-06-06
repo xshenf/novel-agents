@@ -5,6 +5,15 @@ import { db, type Chapter } from '../db';
 import { searchMemory } from '../memory';
 import { ai } from '../ai';
 import { formatAntiAiInstructions } from '../rules';
+import { interrupt } from '@langchain/langgraph';
+
+// 锁定项的破坏性操作：用 LangGraph interrupt 暂停整张图，等待用户经 Command({resume}) 回传决定。
+// resume 传 true / 'confirm' / 'yes' 视为确认继续，其它（含 false / 取消）一律视为取消。
+// 关键：必须在真正写库的副作用之前调用——resume 会让工具从头重跑，确认后写库只执行一次。
+function confirmLockedAction(action: string, target: string): boolean {
+  const decision = interrupt({ type: 'confirm_locked', action, target }) as unknown;
+  return decision === true || decision === 'confirm' || decision === 'yes';
+}
 
 // ─── 构建 callAIApi 参数（从 agent 环境变量注入） ────────────────────────────
 
@@ -566,59 +575,57 @@ export const addVolumeTool = tool(
 
 // ─── 18. 删除分卷 ────────────────────────────────────────────────────────────
 export const deleteVolumeTool = tool(
-  async ({ projectId, volumeIndex, force }) => {
+  async ({ projectId, volumeIndex }) => {
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const volumes = parseOutlineMarkdown(project.outlineFull || '');
     if (volumeIndex < 0 || volumeIndex >= volumes.length) {
       return `分卷索引${volumeIndex}越界，当前共${volumes.length}个分卷（索引0~${volumes.length - 1}）。`;
     }
-    if (volumes[volumeIndex].isLocked && !force) {
-      return `[CONFIRM_REQUIRED] 分卷「${volumes[volumeIndex].title}」已锁定，删除将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    if (volumes[volumeIndex].isLocked && !confirmLockedAction('删除分卷', volumes[volumeIndex].title)) {
+      return `已取消删除锁定分卷「${volumes[volumeIndex].title}」。`;
     }
     const removed = volumes.splice(volumeIndex, 1)[0];
     const md = serializeOutlineMarkdown(volumes);
     await db.updateProject(projectId, { outlineFull: md });
-    return `分卷「${removed.title}」已删除${removed.isLocked ? '（已忽略锁定）' : ''}，剩余${volumes.length}个分卷。`;
+    return `分卷「${removed.title}」已删除${removed.isLocked ? '（锁定项，已确认）' : ''}，剩余${volumes.length}个分卷。`;
   },
   {
     name: 'delete_volume',
-    description: '删除大纲中的指定分卷（及其下所有章节）。已锁定的分卷需用户确认后才能删除（force=true）。',
+    description: '删除大纲中的指定分卷（及其下所有章节）。若分卷已锁定，系统会自动暂停并请用户确认，无需也不要传任何额外的确认参数。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       volumeIndex: z.number().int().describe('要删除的分卷索引（从0开始），可先用 get_outline_structure 查看'),
-      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定分卷必须先向用户确认，确认后设为 true'),
     }),
   }
 );
 
 // ─── 19. 更新分卷 ────────────────────────────────────────────────────────────
 export const updateVolumeTool = tool(
-  async ({ projectId, volumeIndex, title, content, force }) => {
+  async ({ projectId, volumeIndex, title, content }) => {
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const volumes = parseOutlineMarkdown(project.outlineFull || '');
     if (volumeIndex < 0 || volumeIndex >= volumes.length) {
       return `分卷索引${volumeIndex}越界，当前共${volumes.length}个分卷。`;
     }
-    if (volumes[volumeIndex].isLocked && !force) {
-      return `[CONFIRM_REQUIRED] 分卷「${volumes[volumeIndex].title}」已锁定，修改将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    if (volumes[volumeIndex].isLocked && !confirmLockedAction('修改分卷', volumes[volumeIndex].title)) {
+      return `已取消修改锁定分卷「${volumes[volumeIndex].title}」。`;
     }
     if (title !== undefined) volumes[volumeIndex].title = title;
     if (content !== undefined) volumes[volumeIndex].content = content;
     const md = serializeOutlineMarkdown(volumes);
     await db.updateProject(projectId, { outlineFull: md });
-    return `分卷「${volumes[volumeIndex].title}」已更新${volumes[volumeIndex].isLocked ? '（已忽略锁定）' : ''}。`;
+    return `分卷「${volumes[volumeIndex].title}」已更新${volumes[volumeIndex].isLocked ? '（锁定项，已确认）' : ''}。`;
   },
   {
     name: 'update_volume',
-    description: '修改指定分卷的标题或概要内容。已锁定的分卷需用户确认后才能修改（force=true）。',
+    description: '修改指定分卷的标题或概要内容。若分卷已锁定，系统会自动暂停并请用户确认，无需也不要传任何额外的确认参数。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
       title: z.string().optional().describe('新的分卷标题'),
       content: z.string().optional().describe('新的分卷概要描述'),
-      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定分卷必须先向用户确认，确认后设为 true'),
     }),
   }
 );
@@ -664,7 +671,7 @@ export const addChapterTool = tool(
 
 // ─── 21. 删除章节 ────────────────────────────────────────────────────────────
 export const deleteChapterTool = tool(
-  async ({ projectId, volumeIndex, chapterIndex, force }) => {
+  async ({ projectId, volumeIndex, chapterIndex }) => {
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const volumes = parseOutlineMarkdown(project.outlineFull || '');
@@ -675,29 +682,28 @@ export const deleteChapterTool = tool(
     if (chapterIndex < 0 || chapterIndex >= chapters.length) {
       return `章节索引${chapterIndex}越界，该分卷共${chapters.length}个章节。`;
     }
-    if (chapters[chapterIndex].isLocked && !force) {
-      return `[CONFIRM_REQUIRED] 章节「${chapters[chapterIndex].title}」已锁定，删除将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    if (chapters[chapterIndex].isLocked && !confirmLockedAction('删除章节', chapters[chapterIndex].title)) {
+      return `已取消删除锁定章节「${chapters[chapterIndex].title}」。`;
     }
     const removed = chapters.splice(chapterIndex, 1)[0];
     const md = serializeOutlineMarkdown(volumes);
     await db.updateProject(projectId, { outlineFull: md });
-    return `章节「${removed.title}」已从分卷「${volumes[volumeIndex].title}」中删除${removed.isLocked ? '（已忽略锁定）' : ''}，剩余${chapters.length}个章节。`;
+    return `章节「${removed.title}」已从分卷「${volumes[volumeIndex].title}」中删除${removed.isLocked ? '（锁定项，已确认）' : ''}，剩余${chapters.length}个章节。`;
   },
   {
     name: 'delete_chapter',
-    description: '删除指定分卷中的指定章节。已锁定的章节需用户确认后才能删除（force=true）。',
+    description: '删除指定分卷中的指定章节。若章节已锁定，系统会自动暂停并请用户确认，无需也不要传任何额外的确认参数。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
       chapterIndex: z.number().int().describe('章节索引（从0开始）'),
-      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定章节必须先向用户确认，确认后设为 true'),
     }),
   }
 );
 
 // ─── 22. 更新章节 ────────────────────────────────────────────────────────────
 export const updateChapterTool = tool(
-  async ({ projectId, volumeIndex, chapterIndex, title, content, details, force }) => {
+  async ({ projectId, volumeIndex, chapterIndex, title, content, details }) => {
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const volumes = parseOutlineMarkdown(project.outlineFull || '');
@@ -708,8 +714,8 @@ export const updateChapterTool = tool(
     if (chapterIndex < 0 || chapterIndex >= chapters.length) {
       return `章节索引${chapterIndex}越界。`;
     }
-    if (chapters[chapterIndex].isLocked && !force) {
-      return `[CONFIRM_REQUIRED] 章节「${chapters[chapterIndex].title}」已锁定，修改将忽略锁定保护。请向用户确认是否继续，确认后请将 force 参数设为 true 重新调用。`;
+    if (chapters[chapterIndex].isLocked && !confirmLockedAction('修改章节', chapters[chapterIndex].title)) {
+      return `已取消修改锁定章节「${chapters[chapterIndex].title}」。`;
     }
     if (title !== undefined) chapters[chapterIndex].title = title;
     if (content !== undefined) chapters[chapterIndex].content = content;
@@ -718,11 +724,11 @@ export const updateChapterTool = tool(
     }
     const md = serializeOutlineMarkdown(volumes);
     await db.updateProject(projectId, { outlineFull: md });
-    return `章节「${chapters[chapterIndex].title}」已更新${chapters[chapterIndex].isLocked ? '（已忽略锁定）' : ''}。`;
+    return `章节「${chapters[chapterIndex].title}」已更新${chapters[chapterIndex].isLocked ? '（锁定项，已确认）' : ''}。`;
   },
   {
     name: 'update_chapter',
-    description: '修改指定章节的标题、概要内容或细节键值对。已锁定的章节需用户确认后才能修改（force=true）。',
+    description: '修改指定章节的标题、概要内容或细节键值对。若章节已锁定，系统会自动暂停并请用户确认，无需也不要传任何额外的确认参数。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       volumeIndex: z.number().int().describe('分卷索引（从0开始）'),
@@ -730,7 +736,6 @@ export const updateChapterTool = tool(
       title: z.string().optional().describe('新的章节标题'),
       content: z.string().optional().describe('新的章节概要描述'),
       details: z.array(z.object({ key: z.string(), value: z.string() })).optional().describe('新的章节细节键值对（会整体替换）'),
-      force: z.boolean().optional().describe('是否强制执行（忽略锁定保护）。锁定章节必须先向用户确认，确认后设为 true'),
     }),
   }
 );

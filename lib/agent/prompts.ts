@@ -45,7 +45,7 @@ export const AGENT_PROMPTS: Record<string, string> = {
 - add_chapter / delete_chapter / update_chapter：在指定分卷中添加、删除、修改章节（含细节键值对）
 - move_outline_item：调整分卷或章节的顺序
 - 修改前务必先用 get_outline_structure 查看当前结构，确认索引位置
-- 已锁定的分卷/章节在删除或修改时，工具会返回 [CONFIRM_REQUIRED] 提示，你必须先向用户确认是否继续，用户确认后再带 force=true 重新调用
+- 已锁定的分卷/章节在删除或修改时，系统会自动暂停并向用户弹出确认请求，你无需也不应处理 force 或自行二次确认，正常调用对应工具即可
 
 工作风格与约束：
 - 善用"金手指"、"打脸"、"逆袭"等经典网文套路，追求逻辑自洽，避免设定漏洞
