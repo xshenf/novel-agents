@@ -1,4 +1,4 @@
-import { db, Chapter, Character, WorldRule } from './db';
+import { db, Chapter, Character, WorldRule, NovelProject } from './db';
 
 export interface MemorySearchResult {
   contextText: string;
@@ -19,8 +19,12 @@ const STOPWORDS = new Set([
   '不', '有', '个', '这', '那', '之', '就', '都', '而', '及', '或', '吗', '呢', '吧',
 ]);
 
+// 最近章节始终注入「细节层」的数量（关键状态变化），其余靠全书逐章摘要承载
+const RECENT_DETAIL_N = 3;
+// 关键词检索额外挑选的「相关旧章节」数量
+const RELEVANT_DETAIL_N = 3;
+
 // 分词：英文按词切，中文按「单字 + 相邻二元组(bigram)」切，兼顾召回与精度。
-// 旧实现按空格切分对无空格的中文几乎失效，这里专门处理 CJK。
 function tokenize(text: string): string[] {
   if (!text) return [];
   const segments = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -41,176 +45,153 @@ function tokenize(text: string): string[] {
   return Array.from(tokens);
 }
 
-export async function searchMemory(projectId: string, query: string): Promise<MemorySearchResult> {
-  const chapters = await db.getChapters(projectId);
-  const characters = await db.getCharacters(projectId);
-  const worldRules = await db.getWorldRules(projectId);
-  const project = await db.getProject(projectId);
+// 计算「未回收伏笔台账」：所有 newForeshadowing 减去任意章节已 resolved 的
+function collectOpenForeshadowing(chapters: Chapter[]): string[] {
+  const resolved = new Set<string>();
+  chapters.forEach(c => (c.resolvedForeshadowing || []).forEach(f => resolved.add(f.trim())));
+  const open: string[] = [];
+  chapters.forEach(c => (c.newForeshadowing || []).forEach(f => {
+    const t = f.trim();
+    if (t && !resolved.has(t) && !open.includes(t)) open.push(t);
+  }));
+  return open;
+}
 
-  const queryTokens = tokenize(query);
-
-  if (queryTokens.length === 0) {
-    // 默认返回最近的章节和核心角色卡作为默认上下文
-    const defaultChapters = chapters.slice(-3); // 最近3章
-    const defaultCharacters = characters.filter(c => c.role === '男主' || c.role === '女主' || c.role === '主角');
-    return {
-      contextText: formatContext(project?.title || '', defaultChapters, defaultCharacters, worldRules.slice(0, 3)),
-      chapters: defaultChapters,
-      characters: defaultCharacters,
-      worldRules: worldRules.slice(0, 3),
-    };
-  }
-
-  // 评分匹配：计算各实体得分
-  const scoredChapters = chapters.map((chap, index) => {
+// 关键词打分挑选与 query 最相关的旧章节，用于补充细节层（非主力，主力是全书逐章摘要）
+function scoreRelevantChapters(chapters: Chapter[], queryTokens: string[]): Chapter[] {
+  if (queryTokens.length === 0) return [];
+  const scored = chapters.map((chap, index) => {
     let score = 0;
-    const contentToSearch = [
+    const haystack = [
       chap.title,
       chap.summary,
-      chap.timelineEvents.join(' '),
-      chap.newForeshadowing.join(' '),
-      chap.resolvedForeshadowing.join(' '),
-      chap.characterChanges.map(c => `${c.character} ${c.change}`).join(' '),
+      (chap.timelineEvents || []).join(' '),
+      (chap.newForeshadowing || []).join(' '),
+      (chap.resolvedForeshadowing || []).join(' '),
+      (chap.characterChanges || []).map(c => `${c.character} ${c.change}`).join(' '),
     ].join(' ').toLowerCase();
 
     queryTokens.forEach(token => {
-      if (contentToSearch.includes(token)) {
+      if (haystack.includes(token)) {
         score += 10;
-        // 匹配次数加分
-        const occurrences = (contentToSearch.match(new RegExp(escapeRegExp(token), 'g')) || []).length;
+        const occurrences = (haystack.match(new RegExp(escapeRegExp(token), 'g')) || []).length;
         score += occurrences * 2;
       }
     });
-
-    // 越接近当前章节（数组靠后），给予轻微的权重分，以维持短期记忆连贯性
-    score += (index / chapters.length) * 5;
-
+    score += (index / Math.max(1, chapters.length)) * 5; // 轻微的近因权重
     return { item: chap, score };
   }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
 
-  const scoredCharacters = characters.map(char => {
-    let score = 0;
-    const contentToSearch = [
-      char.name,
-      char.role,
-      char.identity,
-      char.currentState,
-      char.personality.join(' '),
-      char.goals.join(' '),
-      char.relationships.map(r => `${r.target} ${r.type}`).join(' '),
-      char.forbidden.join(' '),
-    ].join(' ').toLowerCase();
+  return scored.slice(0, RELEVANT_DETAIL_N).map(x => x.item);
+}
 
-    queryTokens.forEach(token => {
-      // 人物名字精准匹配权重极大
-      if (char.name.toLowerCase().includes(token)) {
-        score += 30;
-      }
-      if (contentToSearch.includes(token)) {
-        score += 8;
-        const occurrences = (contentToSearch.match(new RegExp(escapeRegExp(token), 'g')) || []).length;
-        score += occurrences * 1.5;
-      }
-    });
+// 检索小说记忆：始终注入「故事圣经 + 全书逐章摘要」，并补充最近/相关章节的关键状态变化。
+// 这从根本上避免了「只给最近/命中的 top-3 章」导致的长篇跑偏。
+export async function searchMemory(projectId: string, query: string): Promise<MemorySearchResult> {
+  const [chapters, characters, worldRules, project] = await Promise.all([
+    db.getChapters(projectId),
+    db.getCharacters(projectId),
+    db.getWorldRules(projectId),
+    db.getProject(projectId),
+  ]);
 
-    return { item: char, score };
-  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+  // 细节层 = 最近 N 章 ∪ 关键词相关旧章节（按章节自然顺序输出）
+  const relevant = scoreRelevantChapters(chapters, tokenize(query));
+  const recent = chapters.slice(-RECENT_DETAIL_N);
+  const detailIds = new Set([...recent, ...relevant].map(c => c.id));
+  const detailChapters = chapters.filter(c => detailIds.has(c.id));
 
-  const scoredRules = worldRules.map(rule => {
-    let score = 0;
-    const contentToSearch = [
-      rule.name,
-      rule.type,
-      rule.description,
-    ].join(' ').toLowerCase();
-
-    queryTokens.forEach(token => {
-      if (rule.name.toLowerCase().includes(token)) {
-        score += 25;
-      }
-      if (contentToSearch.includes(token)) {
-        score += 8;
-      }
-    });
-
-    return { item: rule, score };
-  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
-
-  // 截取前 N 个最相关的实体
-  const topChapters = scoredChapters.slice(0, 3).map(x => x.item);
-  const topCharacters = scoredCharacters.slice(0, 5).map(x => x.item);
-  const topRules = scoredRules.slice(0, 4).map(x => x.item);
-
-  // 如果检索结果过少，补充一些核心/最近设定
-  if (topChapters.length === 0 && chapters.length > 0) {
-    topChapters.push(chapters[chapters.length - 1]);
-  }
-  if (topCharacters.length === 0 && characters.length > 0) {
-    const mainChars = characters.filter(c => c.role === '男主' || c.role === '女主' || c.role === '主角');
-    topCharacters.push(...(mainChars.length > 0 ? mainChars : characters.slice(0, 2)));
-  }
-
-  const contextText = formatContext(project?.title || '', topChapters, topCharacters, topRules);
+  const contextText = formatContext(project, chapters, characters, worldRules, detailChapters);
 
   return {
     contextText,
-    chapters: topChapters,
-    characters: topCharacters,
-    worldRules: topRules,
+    chapters: detailChapters,
+    characters,
+    worldRules,
   };
 }
 
-// 格式化上下文成 LLM 易读的 Prompt 文本
-function formatContext(projectTitle: string, chapters: Chapter[], characters: Character[], rules: WorldRule[]): string {
-  let contextText = `【小说项目】: ${projectTitle}\n\n`;
+const RULE_TYPE_MAP: Record<string, string> = {
+  location: '地点', faction: '势力', rule: '法则/设定', item: '物品', other: '其他',
+};
 
+// 组装分层的长期记忆上下文：故事圣经（始终） + 全书逐章摘要（始终） + 最近/相关章节细节
+function formatContext(
+  project: NovelProject | null | undefined,
+  allChapters: Chapter[],
+  characters: Character[],
+  rules: WorldRule[],
+  detailChapters: Chapter[],
+): string {
+  const parts: string[] = [];
+
+  // ── 1. 故事圣经：核心设定（始终注入，不走检索）──
+  const kernel: string[] = [];
+  const pushKernel = (label: string, val?: string) => {
+    const v = (val || '').trim();
+    if (v) kernel.push(`- ${label}：${v}`);
+  };
+  pushKernel('世界观', project?.worldSetting);
+  pushKernel('力量体系', project?.powerSystem);
+  pushKernel('金手指', project?.goldFinger);
+  pushKernel('核心冲突', project?.coreConflict);
+  pushKernel('势力版图', project?.factionsMap);
+  pushKernel('卖点', project?.sellingPoints);
+
+  let bible = `【小说项目】：${project?.title || ''}`;
+  if (kernel.length > 0) bible += `\n\n【本书核心设定（贯穿全书，不得自相矛盾）】：\n${kernel.join('\n')}`;
+  parts.push(bible);
+
+  // ── 2. 全部登场人物 · 当前状态（始终注入：人物状态最易跑偏）──
   if (characters.length > 0) {
-    contextText += `【相关人物设定】:\n`;
+    let charText = `【全部人物 · 当前状态（务必与此保持一致）】：`;
     characters.forEach(c => {
-      contextText += `- 姓名: ${c.name} (${c.role}, ${c.age}岁)\n`;
-      contextText += `  身份: ${c.identity}\n`;
-      contextText += `  性格: ${c.personality.join(', ')}\n`;
-      contextText += `  目标: ${c.goals.join(', ')}\n`;
-      if (c.relationships.length > 0) {
-        contextText += `  人际关系: ${c.relationships.map(r => `${r.target}(${r.type})`).join(', ')}\n`;
-      }
-      contextText += `  当前状态: ${c.currentState}\n`;
-      if (c.forbidden.length > 0) {
-        contextText += `  写作禁忌: ${c.forbidden.join(', ')}\n`;
-      }
-      contextText += `\n`;
+      charText += `\n- ${c.name}（${c.role}${c.age ? `，${c.age}` : ''}）`;
+      if (c.identity) charText += `：${c.identity}`;
+      if (c.currentState) charText += `\n  现状：${c.currentState}`;
+      const traits: string[] = [];
+      if (c.personality?.length) traits.push(`性格：${c.personality.join('、')}`);
+      if (c.goals?.length) traits.push(`目标：${c.goals.join('、')}`);
+      if (traits.length) charText += `\n  ${traits.join('｜')}`;
+      if (c.relationships?.length) charText += `\n  关系：${c.relationships.map(r => `${r.target}(${r.type})`).join('、')}`;
+      if (c.forbidden?.length) charText += `\n  写作禁忌：${c.forbidden.join('、')}`;
     });
+    parts.push(charText);
   }
 
+  // ── 3. 世界观设定（始终注入全部规则）──
   if (rules.length > 0) {
-    contextText += `【相关世界观设定】:\n`;
+    let ruleText = `【世界观设定】：`;
     rules.forEach(r => {
-      const typeMap = { location: '地点', faction: '势力', rule: '法则/设定', item: '物品', other: '其他' };
-      contextText += `- [${typeMap[r.type] || r.type}] ${r.name}: ${r.description}\n`;
+      ruleText += `\n- [${RULE_TYPE_MAP[r.type] || r.type}] ${r.name}：${r.description}`;
     });
-    contextText += `\n`;
+    parts.push(ruleText);
   }
 
-  if (chapters.length > 0) {
-    contextText += `【前文章节回顾与状态】:\n`;
-    chapters.forEach(c => {
-      contextText += `- 章节: ${c.title}\n`;
-      contextText += `  摘要: ${c.summary || '暂无摘要'}\n`;
-      if (c.characterChanges && c.characterChanges.length > 0) {
-        contextText += `  人物状态变更: ${c.characterChanges.map(cc => `${cc.character} -> ${cc.change}`).join('; ')}\n`;
-      }
-      if (c.newForeshadowing && c.newForeshadowing.length > 0) {
-        contextText += `  新埋伏笔: ${c.newForeshadowing.join(', ')}\n`;
-      }
-      if (c.resolvedForeshadowing && c.resolvedForeshadowing.length > 0) {
-        contextText += `  收回伏笔: ${c.resolvedForeshadowing.join(', ')}\n`;
-      }
-      if (c.timelineEvents && c.timelineEvents.length > 0) {
-        contextText += `  关键事件时间线: ${c.timelineEvents.join(' | ')}\n`;
-      }
-      contextText += `\n`;
-    });
+  // ── 4. 未回收伏笔台账（始终注入）──
+  const openForeshadow = collectOpenForeshadowing(allChapters);
+  if (openForeshadow.length > 0) {
+    parts.push(`【尚未回收的伏笔（需推进或避免遗忘）】：\n${openForeshadow.map(f => `- ${f}`).join('\n')}`);
   }
 
-  return contextText.trim();
+  // ── 5. 全书剧情脉络：逐章摘要（始终注入，取代「只给 top-3」）──
+  const withSummary = allChapters.filter(c => c.summary && c.summary.trim() !== '');
+  if (withSummary.length > 0) {
+    parts.push(`【全书剧情脉络（按章节顺序的摘要，保持连续性）】：\n${withSummary.map(c => `- ${c.title}：${c.summary}`).join('\n')}`);
+  }
+
+  // ── 6. 最近 / 相关章节的关键状态变化（细节层）──
+  if (detailChapters.length > 0) {
+    let detailText = `【最近 / 相关章节的关键状态变化】：`;
+    detailChapters.forEach(c => {
+      detailText += `\n- ${c.title}`;
+      if (c.characterChanges?.length) detailText += `\n  人物状态变更：${c.characterChanges.map(cc => `${cc.character} -> ${cc.change}`).join('；')}`;
+      if (c.newForeshadowing?.length) detailText += `\n  新埋伏笔：${c.newForeshadowing.join('、')}`;
+      if (c.resolvedForeshadowing?.length) detailText += `\n  收回伏笔：${c.resolvedForeshadowing.join('、')}`;
+      if (c.timelineEvents?.length) detailText += `\n  关键时间线：${c.timelineEvents.join(' | ')}`;
+    });
+    parts.push(detailText);
+  }
+
+  return parts.join('\n\n').trim();
 }
