@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Save, Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
@@ -61,13 +61,6 @@ export function KernelDimensionCard({
     }, 2000);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [value]);
-
-  const handleSave = async () => {
-    if (!store.currentProject) return;
-    try {
-      await store.updateProject(store.currentProject.id, { [cardType]: value });
-    } catch { /* ignore */ }
-  };
 
   const handleSelectOption = async (content: string) => {
     setValue(content);
@@ -146,35 +139,25 @@ export function KernelDimensionCard({
           <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>当前设定与微调</span>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => kernel.handleAiDeduceField(cardType, title)}
-                  style={{
-                    fontSize: '12px',
-                    color: '#38bdf8',
-                    background: 'rgba(56,189,248,0.06)',
-                    border: '1px solid rgba(56,189,248,0.15)',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Sparkles size={12} />
-                  <span>AI推演</span>
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSave}
-                  style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Save size={13} />
-                  <span>保存设定</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => kernel.handleAiDeduceField(cardType, title)}
+                style={{
+                  fontSize: '12px',
+                  color: '#38bdf8',
+                  background: 'rgba(56,189,248,0.06)',
+                  border: '1px solid rgba(56,189,248,0.15)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Sparkles size={12} />
+                <span>AI推演</span>
+              </button>
             </div>
             <textarea
               className="textarea"
