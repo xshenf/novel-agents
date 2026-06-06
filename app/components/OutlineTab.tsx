@@ -8,207 +8,20 @@ import { createVersionSnapshot } from '@/lib/versionSnapshot';
 import { KernelDimensionCard } from './KernelDimensionCard';
 import { CharacterCard, AddCharacterCard, WorldRuleCard, AddWorldRuleCard } from './AssetCards';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
-
-interface OutlineChapter {
-  title: string;
-  content: string;
-  details: { key: string; value: string }[];
-  isLocked?: boolean;
-}
-
-interface OutlineVolume {
-  title: string;
-  content: string;
-  chapters: OutlineChapter[];
-  isLocked?: boolean;
-}
-
-// 智能大纲解析器，提取分卷（一级标题 # ）与章节（二级标题 ## ）和锁定状态标记
-function parseStructureOutline(text: string): OutlineVolume[] {
-  if (!text) return [];
-  const volumes: OutlineVolume[] = [];
-  let currentVolume: OutlineVolume | null = null;
-  let currentChapter: OutlineChapter | null = null;
-
-  const lines = text.split('\n');
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    if (/^#[^#]/.test(trimmed)) {
-      // 匹配一级标题作为分卷
-      let titleText = trimmed.replace(/^#\s+/, '').trim();
-      let isLocked = false;
-      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
-        isLocked = true;
-        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
-      }
-      currentVolume = {
-        title: titleText || '新分卷',
-        content: '',
-        chapters: [],
-        isLocked
-      };
-      volumes.push(currentVolume);
-      currentChapter = null; // 切换分卷，清除上一章缓存
-    } else if (trimmed.startsWith('##')) {
-      // 匹配二级标题作为章节细纲
-      let titleText = trimmed.replace(/^##\s+/, '').trim();
-      let isLocked = false;
-      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
-        isLocked = true;
-        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
-      }
-      currentChapter = {
-        title: titleText || '新章节',
-        content: '',
-        details: [],
-        isLocked
-      };
-      
-      // 如果大纲一上来就是章节标题，隐式为其创建一个默认正文卷
-      if (!currentVolume) {
-        currentVolume = {
-          title: '第一卷：正文',
-          content: '全局默认分卷',
-          chapters: []
-        };
-        volumes.push(currentVolume);
-      }
-      currentVolume.chapters.push(currentChapter);
-    } else {
-      // 解析非标题行
-      if (currentChapter) {
-        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-          // 匹配卡片键值对，例如: "- **核心冲突**：xxx"
-          const kvMatch = trimmed.match(/^[\-\*]\s+(?:\*\*(.*?)\*\*|([^：:]+))[：:](.*)$/);
-          if (kvMatch) {
-            const key = (kvMatch[1] || kvMatch[2]).trim();
-            const value = kvMatch[3].trim();
-            currentChapter.details.push({ key, value });
-          } else {
-            currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed.replace(/^[\-\*]\s+/, '');
-          }
-        } else {
-          currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed;
-        }
-      } else if (currentVolume) {
-        currentVolume.content += (currentVolume.content ? '\n' : '') + trimmed;
-      }
-    }
-  }
-
-  // 兜底保障：如果没有解析到任何分卷，尝试隐式补充一个正文卷
-  if (volumes.length === 0) {
-    volumes.push({
-      title: '第一卷：正文',
-      content: '全局默认分卷',
-      chapters: []
-    });
-  }
-
-  return volumes;
-}
-
-// 将树状的分卷-章节结构重新序列化编译成规整的 Markdown 文本，并携带锁定标记
-function generateMarkdownFromSections(volumes: OutlineVolume[]): string {
-  return volumes.map(vol => {
-    let part = `# ${vol.title}${vol.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
-    if (vol.content && vol.content.trim()) {
-      part += `${vol.content.trim()}\n`;
-    }
-    vol.chapters.forEach(sec => {
-      part += `\n## ${sec.title}${sec.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
-      if (sec.content && sec.content.trim()) {
-        part += `${sec.content.trim()}\n`;
-      }
-      sec.details.forEach(det => {
-        if (det.key.trim() && det.value.trim()) {
-          part += `- **${det.key.trim()}**：${det.value.trim()}\n`;
-        }
-      });
-    });
-    return part;
-  }).join('\n\n');
-}
-
-// 将数字转换为中文章节/卷序号
-function getChineseNumber(num: number): string {
-  const chineseNumbers = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'];
-  if (num <= 20) return chineseNumbers[num];
-  if (num < 100) {
-    const tens = Math.floor(num / 10);
-    const units = num % 10;
-    if (units === 0) return `${chineseNumbers[tens]}十`;
-    return `${chineseNumbers[tens]}十${chineseNumbers[units]}`;
-  }
-  return String(num);
-}
-
-// 自动对卷名和章节标题做多级层级化自动重排
-function renumberVolumesAndChapters(volumes: OutlineVolume[]): OutlineVolume[] {
-  let volIdx = 1;
-  let chapIdx = 1;
-  
-  return volumes.map((vol, vIdx) => {
-    const currentVolTitle = vol.title;
-    const volMatch = currentVolTitle.match(/^(?:第[一二三四五六七八九十百\d]+卷[：:\s\-]*)(.*)$/);
-    const remainingVolTitle = volMatch ? volMatch[1].trim() : currentVolTitle;
-    
-    // 过滤导言类非正文卷
-    const isIntro = vIdx === 0 && (remainingVolTitle.includes('导言') || remainingVolTitle.includes('前言') || remainingVolTitle.includes('简介') || remainingVolTitle === '正文');
-    const volTitle = isIntro ? remainingVolTitle : `第${getChineseNumber(volIdx)}卷：${remainingVolTitle || '新分卷'}`;
-    if (!isIntro) volIdx++;
-
-    const newChapters = vol.chapters.map((sec) => {
-      const currentTitle = sec.title;
-      const titleMatch = currentTitle.match(/^(?:第[一二三四五六七八九十百\d]+章[：:\s\-]*)(.*)$/);
-      const remainingTitle = titleMatch ? titleMatch[1].trim() : currentTitle;
-      
-      const chapNum = getChineseNumber(chapIdx);
-      chapIdx++;
-      return {
-        ...sec,
-        title: `第${chapNum}章：${remainingTitle || '新章节'}`
-      };
-    });
-
-    return {
-      ...vol,
-      title: volTitle,
-      chapters: newChapters
-    };
-  });
-}
-
-// 提取章节包含的登场角色列表
-function parseCharacters(details: { key: string; value: string }[]): string[] {
-  const charDetail = details.find(d => d.key.includes('人物') || d.key.includes('角色'));
-  if (!charDetail) return [];
-  return charDetail.value
-    .split(/[,，、\/\\\s\+]+/)
-    .map(c => c.trim())
-    .filter(c => c.length > 0 && c !== '主角' && c !== '配角');
-}
-
-// 定量化章节情绪曲线值
-function parseEmotionValue(details: { key: string; value: string }[]): number {
-  const emoDetail = details.find(d => d.key.includes('情绪') || d.key.includes('起伏') || d.key.includes('曲线'));
-  if (!emoDetail) return 50;
-  const val = emoDetail.value;
-  const match = val.match(/(\d+)%/);
-  if (match) return parseInt(match[1], 10);
-  
-  if (val.includes('高潮') || val.includes('爽') || val.includes('燃') || val.includes('沸腾') || val.includes('爆发')) return 90;
-  if (val.includes('逆袭') || val.includes('打脸') || val.includes('反击') || val.includes('爽快')) return 80;
-  if (val.includes('冲突') || val.includes('危机') || val.includes('交锋') || val.includes('博弈')) return 70;
-  if (val.includes('铺垫') || val.includes('悬念') || val.includes('伏笔')) return 60;
-  if (val.includes('日常') || val.includes('平稳') || val.includes('轻松') || val.includes('温馨')) return 50;
-  if (val.includes('压抑') || val.includes('绝境') || val.includes('低谷') || val.includes('困难')) return 25;
-  return 50;
-}
-
+import {
+  parseStructureOutline,
+  generateMarkdownFromSections,
+  renumberVolumesAndChapters,
+  parseCharacters,
+  parseEmotionValue,
+  type OutlineChapter,
+  type OutlineVolume,
+} from '@/lib/outlineParser';
+import { useAiUndoStack, type AiUndoEntry } from '../hooks/useAiUndoStack';
+import { useAiRegen } from '../hooks/useAiRegen';
+import { useMaterialTabs, MATERIALS_LIST } from '../hooks/useMaterialTabs';
+import { useOutlineSections } from '../hooks/useOutlineSections';
+import { useOutlineAutoSave } from '../hooks/useOutlineAutoSave';
 export function OutlineTab() {
   const { store, kernel } = useWorkspace();
   const {
@@ -230,33 +43,67 @@ export function OutlineTab() {
 
   const callAIApi = useAiClient();
 
+  // 视图模式（保留：未来结构/编辑双视图切换）
   const [viewMode, setViewMode] = useState<'structure' | 'editor'>('structure');
-  
-  // 核心切换 Tab：整合大纲与设定子页签
-  const [outlineSubTab, setOutlineSubTab] = useState<'kernel' | 'volume' | 'chapter' | 'assets'>('kernel');
-  const [activeMaterial, setActiveMaterial] = useState<string>('worldSetting');
-  const [outlineSearchQuery, setOutlineSearchQuery] = useState('');
-  const [collapsedVolumes, setCollapsedVolumes] = useState<Record<number, boolean>>({});
 
-  // 当选择素材磁贴时的统一控制函数
-  const handleSelectMaterial = (material: string) => {
-    setActiveMaterial(material);
-    if (material === 'outline') {
-      setOutlineSubTab('volume');
-    } else if (material === 'chapter') {
-      setActiveMaterial('outline');
-      setOutlineSubTab('chapter');
-      return;
-    } else if ([
-      'character', 'location', 'faction', 'item', 'currency', 
-      'skillSystem', 'relation', 'foreshadow', 'plot', 'subPlot', 
-      'timeline', 'events'
-    ].includes(material)) {
-      setOutlineSubTab('assets');
-    } else {
-      setOutlineSubTab('kernel');
-    }
-  };
+  // 素材磁贴 / 大纲子 Tab 状态
+  const {
+    outlineSubTab, setOutlineSubTab,
+    activeMaterial, setActiveMaterial,
+    collapsedVolumes, setCollapsedVolumes,
+    outlineSearchQuery, setOutlineSearchQuery,
+    handleSelectMaterial,
+  } = useMaterialTabs();
+
+  // AI 推演撤销历史栈
+  const {
+    stack: aiUndoStack,
+    push: pushAiUndo,
+    undo: undoLastAiRegen,
+    dismiss: dismissLastAiUndo,
+    clear: clearAiUndo,
+  } = useAiUndoStack();
+
+  // 行内编辑控制
+  const [editingVolumeIdx, setEditingVolumeIdx] = useState<number | null>(null);
+  const [editVolumeForm, setEditVolumeForm] = useState<OutlineVolume | null>(null);
+  const [editingChapterPath, setEditingChapterPath] = useState<{ volIdx: number; chapIdx: number } | null>(null);
+  const [editChapterForm, setEditChapterForm] = useState<OutlineChapter | null>(null);
+
+  // AI 推演 / 重写任务的 controller 与定位状态
+  const {
+    abortRef: aiAbortRef,
+    regenIndex: regeningIndex, setRegenIndex: setRegeningIndex,
+    regenVolumeIdx: regeningVolumeIdx, setRegenVolumeIdx: setRegeningVolumeIdx,
+    regenField: regeningField, setRegenField: setRegeningField,
+    cancel: cancelAiRegen,
+  } = useAiRegen();
+
+  // 树状大纲本地编辑态（与 tempOutlineFull 自动同步）
+  const { localSections, setLocalSections } = useOutlineSections({
+    tempOutlineFull,
+    editingVolumeIdx,
+    editingChapterPath,
+    onResetUndoStack: clearAiUndo,
+  });
+
+  // 大纲全文与宏观设定自动保存
+  useOutlineAutoSave({
+    projectId: store.currentProject?.id,
+    tempOutlineFull,
+    macro: {
+      tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger,
+      tempCoreConflict, tempFactionsMap, tempSellingPoints,
+    },
+    updateProject: store.updateProject,
+  });
+
+  // AI 推演用户输入状态
+  const [aiPromptVolIdx, setAiPromptVolIdx] = useState<number | null>(null);
+  const [aiPromptText, setAiPromptText] = useState('');
+
+
+  
 
   const [initingMaterial, setInitingMaterial] = useState<string | null>(null);
 
@@ -308,158 +155,16 @@ export function OutlineTab() {
     }
   };
 
-  const materialsList = [
-    { id: 'worldSetting', label: '世界观设定', icon: Compass, color: '#38bdf8' },
-    { id: 'coreConflict', label: '故事核心', icon: Activity, color: '#f43f5e' },
-    { id: 'location', label: '地理地图', icon: BookOpen, color: '#10b981' },
-    { id: 'faction', label: '势力阵营', icon: User, color: '#a855f7' },
-    { id: 'currency', label: '货币体系', icon: Tag, color: '#eab308' },
-    { id: 'item', label: '物品列表', icon: Zap, color: '#3b82f6' },
-    { id: 'powerSystem', label: '力量体系', icon: Flame, color: '#f97316' },
-    { id: 'skillSystem', label: '功法体系', icon: Award, color: '#ec4899' },
-    { id: 'specialSetting', label: '特殊设定', icon: Lock, color: '#14b8a6' },
-    { id: 'outline', label: '大纲设定', icon: BookOpen, color: '#6366f1' },
-    { id: 'character', label: '角色管理', icon: User, color: '#06b6d4' },
-    { id: 'relation', label: '人物关系图', icon: Activity, color: '#84cc16' },
-    { id: 'foreshadow', label: '伏笔管理', icon: Key, color: '#f59e0b' },
-    { id: 'plot', label: '情节脉络', icon: Trophy, color: '#ef4444' },
-    { id: 'subPlot', label: '支线故事', icon: Compass, color: '#8b5cf6' },
-    { id: 'timeline', label: '时间线', icon: Activity, color: '#06b6d4' },
-    { id: 'chapter', label: '章节细纲', icon: BookOpen, color: '#10b981' },
-    { id: 'events', label: '已经历事件', icon: CheckCircle2, color: '#22c55e' }
-  ];
   
-  // 树状大纲核心缓存状态
-  const [localSections, setLocalSections] = useState<OutlineVolume[]>([]);
   
-  // 分卷行内编辑控制
-  const [editingVolumeIdx, setEditingVolumeIdx] = useState<number | null>(null);
-  const [editVolumeForm, setEditVolumeForm] = useState<OutlineVolume | null>(null);
-  
-  // 章节行内编辑控制
-  const [editingChapterPath, setEditingChapterPath] = useState<{ volIdx: number; chapIdx: number } | null>(null);
-  const [editChapterForm, setEditChapterForm] = useState<OutlineChapter | null>(null);
-  
-  // AI 局部生成状态反馈
-  const [regeningIndex, setRegeningIndex] = useState<number | null>(null);
-  const [regeningVolumeIdx, setRegeningVolumeIdx] = useState<number | null>(null);
-  const [regeningField, setRegeningField] = useState<string | null>(null);
-  
-  // AI 推演用户输入状态
-  const [aiPromptVolIdx, setAiPromptVolIdx] = useState<number | null>(null);
-  const [aiPromptText, setAiPromptText] = useState('');
-  
-  // AI 推演撤销历史栈（支持多次撤销）
-  const [aiUndoStack, setAiUndoStack] = useState<{
-    type: 'volume' | 'chapter' | 'macro';
-    label: string;
-    restore: () => void;
-  }[]>([]);
 
-  // 推入新的撤销记录（清空旧的"未来"）
-  const pushAiUndo = (entry: { type: 'volume' | 'chapter' | 'macro'; label: string; restore: () => void }) => {
-    setAiUndoStack(prev => [...prev, entry]);
-  };
 
-  // 撤销最近一次
-  const undoLastAiRegen = () => {
-    setAiUndoStack(prev => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      last.restore();
-      return prev.slice(0, -1);
-    });
-  };
-
-  // 丢弃最近一次
-  const dismissLastAiUndo = () => {
-    setAiUndoStack(prev => prev.slice(0, -1));
-  };
-
-  // 清空所有
-  const clearAiUndo = () => setAiUndoStack([]);
-
-  // AI 推演 AbortController（用于取消）
-  const aiAbortRef = useRef<AbortController | null>(null);
-  const cancelAiRegen = () => {
-    aiAbortRef.current?.abort();
-    aiAbortRef.current = null;
-    setRegeningVolumeIdx(null);
-    setRegeningIndex(null);
-    setRegeningField(null);
-  };
   
   // UI 关联性交互状态
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   const [selectedVolumeIdx, setSelectedVolumeIdx] = useState<number | null>(null);
 
-  // 初始化反序列化 Markdown 文本
-  useEffect(() => {
-    if (editingChapterPath === null && editingVolumeIdx === null) {
-      setLocalSections(parseStructureOutline(tempOutlineFull));
-      clearAiUndo();
-    }
-  }, [tempOutlineFull, editingChapterPath, editingVolumeIdx]);
-
-  // 大纲自动保存：tempOutlineFull 变化时 debounce 2s 保存
-  const outlineSaveTimer = useRef<NodeJS.Timeout | null>(null);
-  const prevOutlineRef = useRef(tempOutlineFull);
-  useEffect(() => {
-    // 跳过初始化和项目切换时的保存
-    if (tempOutlineFull === prevOutlineRef.current) return;
-    prevOutlineRef.current = tempOutlineFull;
-    if (!store.currentProject) return;
-    if (outlineSaveTimer.current) clearTimeout(outlineSaveTimer.current);
-    outlineSaveTimer.current = setTimeout(async () => {
-      try {
-        await store.updateProject(store.currentProject!.id, { outlineFull: tempOutlineFull });
-        createVersionSnapshot({
-          projectId: store.currentProject!.id,
-          type: 'outline',
-          key: 'outlineFull',
-          label: '分卷主线大纲',
-          data: tempOutlineFull,
-          source: 'auto',
-        });
-      } catch { /* ignore auto-save errors */ }
-    }, 2000);
-    return () => { if (outlineSaveTimer.current) clearTimeout(outlineSaveTimer.current); };
-  }, [tempOutlineFull]);
-
-  // 宏观设定自动保存：任一设定字段变化时 debounce 2s 保存
-  const macroSaveTimer = useRef<NodeJS.Timeout | null>(null);
-  const prevMacroRef = useRef({ tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints });
-  useEffect(() => {
-    const prev = prevMacroRef.current;
-    const curr = { tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints };
-    if (JSON.stringify(prev) === JSON.stringify(curr)) return;
-    prevMacroRef.current = curr;
-    if (!store.currentProject) return;
-    if (macroSaveTimer.current) clearTimeout(macroSaveTimer.current);
-    macroSaveTimer.current = setTimeout(async () => {
-      try {
-        await store.updateProject(store.currentProject!.id, {
-          styleSetting: tempStyleSetting,
-          worldSetting: tempWorldSetting,
-          powerSystem: tempPowerSystem,
-          goldFinger: tempGoldFinger,
-          coreConflict: tempCoreConflict,
-          factionsMap: tempFactionsMap,
-          sellingPoints: tempSellingPoints,
-        });
-        createVersionSnapshot({
-          projectId: store.currentProject!.id,
-          type: 'macro',
-          key: 'macro',
-          label: '核心设定',
-          data: { styleSetting: tempStyleSetting, worldSetting: tempWorldSetting, powerSystem: tempPowerSystem, goldFinger: tempGoldFinger, coreConflict: tempCoreConflict, factionsMap: tempFactionsMap, sellingPoints: tempSellingPoints },
-          source: 'auto',
-        });
-      } catch { /* ignore auto-save errors */ }
-    }, 2000);
-    return () => { if (macroSaveTimer.current) clearTimeout(macroSaveTimer.current); };
-  }, [tempStyleSetting, tempWorldSetting, tempPowerSystem, tempGoldFinger, tempCoreConflict, tempFactionsMap, tempSellingPoints]);
 
   // 全书所有章节拍平后的扁平章节映射表，用以挂载折线图和角色池（支持分卷过滤）
   const flatChapters = localSections
@@ -986,7 +691,7 @@ ${userHintSection}
           gap: '10px',
           marginTop: '4px'
         }}>
-          {materialsList.map(item => {
+          {MATERIALS_LIST.map(item => {
             const isSelected = activeMaterial === item.id;
             const IconComponent = item.icon;
             return (
@@ -1066,7 +771,7 @@ ${userHintSection}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>
-                  {materialsList.find(m => m.id === activeMaterial)?.label}
+                  {MATERIALS_LIST.find(m => m.id === activeMaterial)?.label}
                 </h4>
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                   {activeMaterial === 'worldSetting' && "定义小说主舞台的大陆疆域、宏观规则、历史背景与社会法则"}
@@ -2618,8 +2323,8 @@ ${userHintSection}
         {['location', 'faction', 'item', 'currency', 'skillSystem', 'timeline', 'foreshadow', 'plot', 'subPlot', 'events', 'relation'].includes(activeMaterial) && (
           (() => {
             const currentRules = getFilteredRules(activeMaterial);
-            const materialLabel = materialsList.find(m => m.id === activeMaterial)?.label || '';
-            const materialColor = materialsList.find(m => m.id === activeMaterial)?.color || 'var(--accent)';
+            const materialLabel = MATERIALS_LIST.find(m => m.id === activeMaterial)?.label || '';
+            const materialColor = MATERIALS_LIST.find(m => m.id === activeMaterial)?.color || 'var(--accent)';
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
