@@ -106,7 +106,7 @@ export default function Home() {
             <WorkspaceSidebar />
 
             {/* 中间：主章节编辑器 / 大纲 / 设定 工作区 */}
-            <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', flexGrow: 1, minWidth: 300 }}>
+            <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', flexGrow: 1, minWidth: 300 }}>
               <WorkspaceTabBar />
 
               {activeWorkspaceTab === 'write' ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
+import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { countChineseChars } from '@/lib/textStats';
 import { MemoryPanel } from './write/MemoryPanel';
@@ -11,8 +11,10 @@ import { ChapterOutlinePreview } from './write/ChapterOutlinePreview';
 import { generateMarkdownFromSections } from '@/lib/outlineParser';
 
 export function WriteTab() {
-  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing } = useWorkspace();
+  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui } = useWorkspace();
   const { router, buildWorkspaceUrl } = routing;
+  const { handleConsistencyCheck, handleAutoSummarize } = assist;
+  const busy = ui.isAiLoading;
   const { selectedVolumeIdx, selectedChapterIdx } = outlineTree;
   const {
     editorTitle, editorContent,
@@ -52,6 +54,16 @@ export function WriteTab() {
       kernel.setTempOutlineFull(md);
     }
   };
+
+  // 自动长高 textarea，以支持整体全页面滚动
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      const minHeight = 400;
+      el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
+    }
+  }, [editorContent]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const locked = isAutoWriting || inlineBusy !== null;
@@ -100,6 +112,16 @@ export function WriteTab() {
 
               <div className="editor-header" style={{ justifyContent: 'flex-end' }}>
                 <div className="editor-toolbar">
+                  {/* 一致性检测 */}
+                  <button className="btn btn-secondary" onClick={handleConsistencyCheck} style={inlineBtn} disabled={locked || busy} title="对照记忆检查人物/伏笔/世界观一致性">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />}
+                    <span>一致性检测</span>
+                  </button>
+                  {/* 重算本章记忆 */}
+                  <button className="btn btn-secondary" onClick={handleAutoSummarize} style={inlineBtn} disabled={locked || busy} title="重新复盘本章，更新记忆与摘要">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} style={{ color: '#34d399' }} />}
+                    <span>重算本章记忆</span>
+                  </button>
                   {/* 内联 AI：仅做编辑/修改辅助，正文以 AI 生成为主 */}
                   <button className="btn btn-secondary" onClick={continueWriting} style={inlineBtn} disabled={locked} title="在全文末尾续写">
                     {inlineBusy === 'continue' ? <Loader2 size={13} className="animate-spin" /> : <PenLine size={13} />}
@@ -127,7 +149,7 @@ export function WriteTab() {
                 </div>
               </div>
 
-              <div className="editor-body">
+              <div className="editor-body" style={{ flexGrow: 0, overflowY: 'visible', paddingBottom: '80px' }}>
                 <textarea
                   ref={textareaRef}
                   className="editor-textarea"
@@ -135,6 +157,7 @@ export function WriteTab() {
                   value={editorContent}
                   onChange={handleEditorChange}
                   disabled={locked}
+                  style={{ overflowY: 'hidden', height: 'auto', resize: 'none' }}
                 />
               </div>
 
