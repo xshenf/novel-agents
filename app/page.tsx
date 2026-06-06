@@ -24,7 +24,6 @@ import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceTabBar } from './components/WorkspaceTabBar';
 import { WriteTab } from './components/WriteTab';
 import { OutlineTab } from './components/OutlineTab';
-import { SettingsTab } from './components/SettingsTab';
 import { VersionHistoryTab } from './components/VersionHistoryTab';
 import { AgentPanel } from './components/AgentPanel';
 
@@ -92,10 +91,8 @@ export default function Home() {
                 <WriteTab />
               ) : activeWorkspaceTab === 'outline' ? (
                 <OutlineTab />
-              ) : activeWorkspaceTab === 'versions' ? (
-                <VersionHistoryTab />
               ) : (
-                <SettingsTab />
+                <VersionHistoryTab />
               )}
             </div>
 

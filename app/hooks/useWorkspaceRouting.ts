@@ -139,8 +139,12 @@ export function useWorkspaceRouting(store: NovelStore) {
   // 从 URL 恢复 tab 和 chapter 选中状态
   useEffect(() => {
     if (!store.currentProject) return;
-    if (urlTab && ['write', 'outline', 'settings', 'versions'].includes(urlTab)) {
-      setActiveWorkspaceTab(urlTab as WorkspaceTab);
+    if (urlTab) {
+      if (urlTab === 'settings') {
+        setActiveWorkspaceTab('outline');
+      } else if (['write', 'outline', 'versions'].includes(urlTab)) {
+        setActiveWorkspaceTab(urlTab as WorkspaceTab);
+      }
     }
     if (urlChapterId && store.chapters.length > 0) {
       const chapter = store.chapters.find(c => c.id === urlChapterId);
