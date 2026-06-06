@@ -5,85 +5,132 @@ import { Save, Loader2, Eye, Edit3, Plus, Trash2, ArrowUp, ArrowDown, User, Acti
 import { useWorkspace } from '../workspace-context';
 import { useAiClient } from '../hooks/useAiClient';
 
-interface OutlineSection {
+interface OutlineChapter {
   title: string;
   content: string;
   details: { key: string; value: string }[];
   isLocked?: boolean;
 }
 
-// 智能大纲解析器，提取章节与锁定标记
-function parseStructureOutline(text: string): OutlineSection[] {
-  if (!text) return [];
-  const sections: OutlineSection[] = [];
-  
-  // 以 markdown 格式的二级标题 "## " 作为切分节点
-  const parts = text.split(/(?=^##\s+)/m);
-  
-  for (const part of parts) {
-    const lines = part.split('\n');
-    let title = '';
-    let isLocked = false;
-    const details: { key: string; value: string }[] = [];
-    const contentLines: string[] = [];
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      
-      if (trimmed.startsWith('##')) {
-        let titleText = trimmed.replace(/^##\s+/, '').trim();
-        if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
-          isLocked = true;
-          titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
-        }
-        title = titleText;
-      } else if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-        // 匹配属性键值对，例如: "- **核心冲突**：xxx" 或 "- 核心冲突: xxx"
-        const kvMatch = trimmed.match(/^[\-\*]\s+(?:\*\*(.*?)\*\*|([^：:]+))[：:](.*)$/);
-        if (kvMatch) {
-          const key = (kvMatch[1] || kvMatch[2]).trim();
-          const value = kvMatch[3].trim();
-          details.push({ key, value });
-        } else {
-          contentLines.push(trimmed.replace(/^[\-\*]\s+/, ''));
-        }
-      } else if (!trimmed.startsWith('#')) {
-        contentLines.push(trimmed);
-      }
-    }
-    
-    if (title || contentLines.length > 0 || details.length > 0) {
-      sections.push({
-        title: title || '故事导言',
-        content: contentLines.join('\n'),
-        details,
-        isLocked
-      });
-    }
-  }
-  
-  return sections;
+interface OutlineVolume {
+  title: string;
+  content: string;
+  chapters: OutlineChapter[];
+  isLocked?: boolean;
 }
 
-// 将修改后的结构重新编译成 Markdown 文本并写入 <!-- LOCKED --> 锁定标记
-function generateMarkdownFromSections(sections: OutlineSection[]): string {
-  return sections.map(sec => {
-    let part = `## ${sec.title}${sec.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
-    if (sec.content && sec.content.trim()) {
-      part += `${sec.content.trim()}\n`;
-    }
-    sec.details.forEach(det => {
-      if (det.key.trim() && det.value.trim()) {
-        part += `- **${det.key.trim()}**：${det.value.trim()}\n`;
+// 智能大纲解析器，提取分卷（一级标题 # ）与章节（二级标题 ## ）和锁定状态标记
+function parseStructureOutline(text: string): OutlineVolume[] {
+  if (!text) return [];
+  const volumes: OutlineVolume[] = [];
+  let currentVolume: OutlineVolume | null = null;
+  let currentChapter: OutlineChapter | null = null;
+
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
+      // 匹配一级标题作为分卷
+      let titleText = trimmed.replace(/^#\s+/, '').trim();
+      let isLocked = false;
+      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
+        isLocked = true;
+        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
       }
+      currentVolume = {
+        title: titleText || '新分卷',
+        content: '',
+        chapters: [],
+        isLocked
+      };
+      volumes.push(currentVolume);
+      currentChapter = null; // 切换分卷，清除上一章缓存
+    } else if (trimmed.startsWith('##')) {
+      // 匹配二级标题作为章节细纲
+      let titleText = trimmed.replace(/^##\s+/, '').trim();
+      let isLocked = false;
+      if (titleText.includes('<!-- LOCKED -->') || titleText.includes('[LOCKED]')) {
+        isLocked = true;
+        titleText = titleText.replace('<!-- LOCKED -->', '').replace('[LOCKED]', '').trim();
+      }
+      currentChapter = {
+        title: titleText || '新章节',
+        content: '',
+        details: [],
+        isLocked
+      };
+      
+      // 如果大纲一上来就是章节标题，隐式为其创建一个默认正文卷
+      if (!currentVolume) {
+        currentVolume = {
+          title: '第一卷：正文',
+          content: '全局默认分卷',
+          chapters: []
+        };
+        volumes.push(currentVolume);
+      }
+      currentVolume.chapters.push(currentChapter);
+    } else {
+      // 解析非标题行
+      if (currentChapter) {
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          // 匹配卡片键值对，例如: "- **核心冲突**：xxx"
+          const kvMatch = trimmed.match(/^[\-\*]\s+(?:\*\*(.*?)\*\*|([^：:]+))[：:](.*)$/);
+          if (kvMatch) {
+            const key = (kvMatch[1] || kvMatch[2]).trim();
+            const value = kvMatch[3].trim();
+            currentChapter.details.push({ key, value });
+          } else {
+            currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed.replace(/^[\-\*]\s+/, '');
+          }
+        } else {
+          currentChapter.content += (currentChapter.content ? '\n' : '') + trimmed;
+        }
+      } else if (currentVolume) {
+        currentVolume.content += (currentVolume.content ? '\n' : '') + trimmed;
+      }
+    }
+  }
+
+  // 兜底保障：如果没有解析到任何分卷，尝试隐式补充一个正文卷
+  if (volumes.length === 0) {
+    volumes.push({
+      title: '第一卷：正文',
+      content: '全局默认分卷',
+      chapters: []
+    });
+  }
+
+  return volumes;
+}
+
+// 将树状的分卷-章节结构重新序列化编译成规整的 Markdown 文本，并携带锁定标记
+function generateMarkdownFromSections(volumes: OutlineVolume[]): string {
+  return volumes.map(vol => {
+    let part = `# ${vol.title}${vol.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
+    if (vol.content && vol.content.trim()) {
+      part += `${vol.content.trim()}\n`;
+    }
+    vol.chapters.forEach(sec => {
+      part += `\n## ${sec.title}${sec.isLocked ? ' <!-- LOCKED -->' : ''}\n`;
+      if (sec.content && sec.content.trim()) {
+        part += `${sec.content.trim()}\n`;
+      }
+      sec.details.forEach(det => {
+        if (det.key.trim() && det.value.trim()) {
+          part += `- **${det.key.trim()}**：${det.value.trim()}\n`;
+        }
+      });
     });
     return part;
   }).join('\n\n');
 }
 
-// 将数字转换为中文章节号
-function getChineseChapterNumber(num: number): string {
+// 将数字转换为中文章节/卷序号
+function getChineseNumber(num: number): string {
   const chineseNumbers = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十'];
   if (num <= 20) return chineseNumbers[num];
   if (num < 100) {
@@ -95,30 +142,43 @@ function getChineseChapterNumber(num: number): string {
   return String(num);
 }
 
-// 自动对章节标题重新编序
-function renumberSections(sections: OutlineSection[]): OutlineSection[] {
+// 自动对卷名和章节标题做多级层级化自动重排
+function renumberVolumesAndChapters(volumes: OutlineVolume[]): OutlineVolume[] {
+  let volIdx = 1;
   let chapIdx = 1;
-  return sections.map((sec, idx) => {
-    const currentTitle = sec.title;
-    // 剥离类似 "第X章：" 的前缀
-    const titleMatch = currentTitle.match(/^(?:第[一二三四五六七八九十百\d]+章[：:\s\-]*)(.*)$/);
-    const remainingTitle = titleMatch ? titleMatch[1].trim() : currentTitle;
+  
+  return volumes.map((vol, vIdx) => {
+    const currentVolTitle = vol.title;
+    const volMatch = currentVolTitle.match(/^(?:第[一二三四五六七八九十百\d]+卷[：:\s\-]*)(.*)$/);
+    const remainingVolTitle = volMatch ? volMatch[1].trim() : currentVolTitle;
     
-    // 如果是导言，不强加章节序号
-    if (idx === 0 && (remainingTitle.includes('导言') || remainingTitle.includes('前言') || remainingTitle.includes('简介'))) {
-      return sec;
-    }
-    
-    const chapNum = getChineseChapterNumber(chapIdx);
-    chapIdx++;
+    // 过滤导言类非正文卷
+    const isIntro = vIdx === 0 && (remainingVolTitle.includes('导言') || remainingVolTitle.includes('前言') || remainingVolTitle.includes('简介') || remainingVolTitle === '正文');
+    const volTitle = isIntro ? remainingVolTitle : `第${getChineseNumber(volIdx)}卷：${remainingVolTitle || '新分卷'}`;
+    if (!isIntro) volIdx++;
+
+    const newChapters = vol.chapters.map((sec) => {
+      const currentTitle = sec.title;
+      const titleMatch = currentTitle.match(/^(?:第[一二三四五六七八九十百\d]+章[：:\s\-]*)(.*)$/);
+      const remainingTitle = titleMatch ? titleMatch[1].trim() : currentTitle;
+      
+      const chapNum = getChineseNumber(chapIdx);
+      chapIdx++;
+      return {
+        ...sec,
+        title: `第${chapNum}章：${remainingTitle || '新章节'}`
+      };
+    });
+
     return {
-      ...sec,
-      title: `第${chapNum}章：${remainingTitle || '新章节'}`
+      ...vol,
+      title: volTitle,
+      chapters: newChapters
     };
   });
 }
 
-// 提取章节的相关人物
+// 提取章节包含的登场角色列表
 function parseCharacters(details: { key: string; value: string }[]): string[] {
   const charDetail = details.find(d => d.key.includes('人物') || d.key.includes('角色'));
   if (!charDetail) return [];
@@ -128,7 +188,7 @@ function parseCharacters(details: { key: string; value: string }[]): string[] {
     .filter(c => c.length > 0 && c !== '主角' && c !== '配角');
 }
 
-// 量化情绪值以便在折线图中画图
+// 定量化章节情绪曲线值
 function parseEmotionValue(details: { key: string; value: string }[]): number {
   const emoDetail = details.find(d => d.key.includes('情绪') || d.key.includes('起伏') || d.key.includes('曲线'));
   if (!emoDetail) return 50;
@@ -163,173 +223,278 @@ export function OutlineTab() {
 
   const [viewMode, setViewMode] = useState<'structure' | 'editor'>('structure');
   
-  // 大纲子 Tab 视图
-  const [outlineSubTab, setOutlineSubTab] = useState<'chapters' | 'macro'>('chapters');
+  // 核心切换 Tab：大纲划分为 宏观、卷级、章级 三级视图看板
+  const [outlineSubTab, setOutlineSubTab] = useState<'macro' | 'volume' | 'chapter'>('macro');
   
-  // 结构化大纲内部局部状态
-  const [localSections, setLocalSections] = useState<OutlineSection[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<OutlineSection | null>(null);
+  // 树状大纲核心缓存状态
+  const [localSections, setLocalSections] = useState<OutlineVolume[]>([]);
   
-  // AI 局部生成状态
+  // 分卷行内编辑控制
+  const [editingVolumeIdx, setEditingVolumeIdx] = useState<number | null>(null);
+  const [editVolumeForm, setEditVolumeForm] = useState<OutlineVolume | null>(null);
+  
+  // 章节行内编辑控制
+  const [editingChapterPath, setEditingChapterPath] = useState<{ volIdx: number; chapIdx: number } | null>(null);
+  const [editChapterForm, setEditChapterForm] = useState<OutlineChapter | null>(null);
+  
+  // AI 局部生成状态反馈
   const [regeningIndex, setRegeningIndex] = useState<number | null>(null);
+  const [regeningVolumeIdx, setRegeningVolumeIdx] = useState<number | null>(null);
   const [regeningField, setRegeningField] = useState<string | null>(null);
   
-  // 可视化状态控制
+  // UI 关联性交互状态
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
 
-  // 同步外部 Markdown 大纲至局部状态
+  // 初始化反序列化 Markdown 文本
   useEffect(() => {
-    if (editingIndex === null) {
+    if (editingChapterPath === null && editingVolumeIdx === null) {
       setLocalSections(parseStructureOutline(tempOutlineFull));
     }
-  }, [tempOutlineFull, editingIndex]);
+  }, [tempOutlineFull, editingChapterPath, editingVolumeIdx]);
 
-  // 提取大纲中包含的全部角色列表以供筛选
+  // 全书所有章节拍平后的扁平章节映射表，用以挂载折线图和角色池
+  const flatChapters = localSections.flatMap((vol, volIdx) =>
+    vol.chapters.map((chap, chapIdx) => ({
+      ...chap,
+      volIdx,
+      chapIdx
+    }))
+  );
+
+  // 提取全部登场角色
   const allCharacters = Array.from(
     new Set(
-      localSections.flatMap(sec => parseCharacters(sec.details))
+      flatChapters.flatMap(sec => parseCharacters(sec.details))
     )
   );
 
-  // 计算情绪起伏折线图的点
-  const points = localSections.map((sec, i) => {
+  // 计算节奏折线图点位
+  const points = flatChapters.map((sec, i) => {
     const val = parseEmotionValue(sec.details);
-    // X 坐标均分，留出边距
-    const x = localSections.length > 1 ? 50 + (i / (localSections.length - 1)) * 700 : 400;
+    const x = flatChapters.length > 1 ? 50 + (i / (flatChapters.length - 1)) * 700 : 400;
     const y = 80 - (val / 100) * 60;
-    return { x, y, val, title: sec.title, idx: i };
+    return { x, y, val, title: sec.title, idx: i, volIdx: sec.volIdx, chapIdx: sec.chapIdx };
   });
 
-  // 构造 SVG 路径
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   const areaPath = points.length > 0 
     ? `${linePath} L ${points[points.length - 1].x} 95 L ${points[0].x} 95 Z` 
     : '';
 
-  // 添加新章节大纲
-  const handleInsertSection = (index: number) => {
-    const newSec: OutlineSection = {
-      title: '新章节',
-      content: '在此输入新章节的核心故事情节描述...',
-      details: [
-        { key: '核心冲突', value: '新章节的博弈冲突点' },
-        { key: '信息释放', value: '本章透露的秘密或回收的伏笔' },
-        { key: '情绪曲线', value: '情绪波动，如铺垫(40%)或高潮(85%)' },
-        { key: '相关人物', value: '主角' }
-      ]
+  // 添加新分卷
+  const handleInsertVolume = (volIdx: number) => {
+    const newVol: OutlineVolume = {
+      title: '新分卷',
+      content: '规划本分卷的剧烈矛盾、转折爆发与核心高潮走向...',
+      chapters: []
     };
     const newSections = [...localSections];
-    newSections.splice(index + 1, 0, newSec);
-    const renumbered = renumberSections(newSections);
+    newSections.splice(volIdx + 1, 0, newVol);
+    const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
     setTempOutlineFull(md);
   };
 
-  // 删除某章大纲
-  const handleDeleteSection = (index: number) => {
-    if (!confirm('确定要删除该章节大纲吗？删除后将重新计算并同步章节序号。')) return;
+  // 删除分卷
+  const handleDeleteVolume = (volIdx: number) => {
+    if (!confirm('确定要删除该分卷吗？删除分卷会连同删除该分卷下的所有章节！')) return;
     const newSections = [...localSections];
-    newSections.splice(index, 1);
-    const renumbered = renumberSections(newSections);
+    newSections.splice(volIdx, 1);
+    const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
     setTempOutlineFull(md);
-    if (editingIndex === index) {
-      setEditingIndex(null);
-      setEditForm(null);
+    if (editingVolumeIdx === volIdx) {
+      setEditingVolumeIdx(null);
+      setEditVolumeForm(null);
     }
   };
 
-  // 大纲卡片上下调换位置
-  const handleMoveSection = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === localSections.length - 1) return;
+  // 分卷位置上下移位
+  const handleMoveVolume = (volIdx: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && volIdx === 0) return;
+    if (direction === 'down' && volIdx === localSections.length - 1) return;
     
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const targetIdx = direction === 'up' ? volIdx - 1 : volIdx + 1;
     const newSections = [...localSections];
+    const temp = newSections[volIdx];
+    newSections[volIdx] = newSections[targetIdx];
+    newSections[targetIdx] = temp;
     
-    const temp = newSections[index];
-    newSections[index] = newSections[targetIndex];
-    newSections[targetIndex] = temp;
-    
-    const renumbered = renumberSections(newSections);
+    const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
     setTempOutlineFull(md);
   };
 
-  // 切换卡片的锁定状态，并即时保存
-  const toggleLockSection = (index: number) => {
+  // 切换分卷的锁定标记
+  const toggleLockVolume = (volIdx: number) => {
     const newSections = [...localSections];
-    newSections[index].isLocked = !newSections[index].isLocked;
+    newSections[volIdx].isLocked = !newSections[volIdx].isLocked;
     setLocalSections(newSections);
     const md = generateMarkdownFromSections(newSections);
     setTempOutlineFull(md);
   };
 
-  // 进入编辑模式并初始化表单
-  const startEditing = (index: number) => {
-    setEditingIndex(index);
-    // 深拷贝
-    setEditForm(JSON.parse(JSON.stringify(localSections[index])));
-  };
-
-  // 保存单个卡片的编辑内容并同步回 Markdown 文本
-  const saveEditing = () => {
-    if (editingIndex === null || !editForm) return;
+  // 保存分卷大纲修改
+  const saveVolumeEditing = () => {
+    if (editingVolumeIdx === null || !editVolumeForm) return;
     const newSections = [...localSections];
-    newSections[editingIndex] = editForm;
+    newSections[editingVolumeIdx] = editVolumeForm;
     
-    const renumbered = renumberSections(newSections);
+    const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
     setTempOutlineFull(md);
     
-    setEditingIndex(null);
-    setEditForm(null);
+    setEditingVolumeIdx(null);
+    setEditVolumeForm(null);
   };
 
-  // 修改表单中特定属性的值
-  const updateDetailValue = (key: string, val: string) => {
-    if (!editForm) return;
-    const details = [...editForm.details];
-    const itemIdx = details.findIndex(d => d.key === key);
-    if (itemIdx >= 0) {
-      details[itemIdx].value = val;
-    } else {
-      details.push({ key, value: val });
+  // 插入章节细纲
+  const handleInsertChapter = (volIdx: number, chapIdx: number) => {
+    const newSec: OutlineChapter = {
+      title: '新章节',
+      content: '本章具体发生的剧情细节交代，核心博弈走向...',
+      details: [
+        { key: '核心冲突', value: '本章的具体纠葛' },
+        { key: '信息释放', value: '揭示的内容或埋藏伏笔' },
+        { key: '情绪曲线', value: '铺垫(45%)' },
+        { key: '相关人物', value: '主角' }
+      ]
+    };
+    const newSections = [...localSections];
+    newSections[volIdx].chapters.splice(chapIdx + 1, 0, newSec);
+    const renumbered = renumberVolumesAndChapters(newSections);
+    setLocalSections(renumbered);
+    const md = generateMarkdownFromSections(renumbered);
+    setTempOutlineFull(md);
+  };
+
+  // 删除某章细纲
+  const handleDeleteChapter = (volIdx: number, chapIdx: number) => {
+    if (!confirm('确定要删除本章节大纲吗？此后序号会自动全书重新递增。')) return;
+    const newSections = [...localSections];
+    newSections[volIdx].chapters.splice(chapIdx, 1);
+    const renumbered = renumberVolumesAndChapters(newSections);
+    setLocalSections(renumbered);
+    const md = generateMarkdownFromSections(renumbered);
+    setTempOutlineFull(md);
+    if (editingChapterPath && editingChapterPath.volIdx === volIdx && editingChapterPath.chapIdx === chapIdx) {
+      setEditingChapterPath(null);
+      setEditChapterForm(null);
     }
-    setEditForm({ ...editForm, details });
   };
 
-  // 选用推荐大纲时智能合并锁定章节的算法
+  // 章节位置上下移位
+  const handleMoveChapter = (volIdx: number, chapIdx: number, direction: 'up' | 'down') => {
+    const chapters = localSections[volIdx].chapters;
+    if (direction === 'up' && chapIdx === 0) return;
+    if (direction === 'down' && chapIdx === chapters.length - 1) return;
+    
+    const targetIdx = direction === 'up' ? chapIdx - 1 : chapIdx + 1;
+    const newSections = [...localSections];
+    const temp = newSections[volIdx].chapters[chapIdx];
+    newSections[volIdx].chapters[chapIdx] = newSections[volIdx].chapters[targetIdx];
+    newSections[volIdx].chapters[targetIdx] = temp;
+    
+    const renumbered = renumberVolumesAndChapters(newSections);
+    setLocalSections(renumbered);
+    const md = generateMarkdownFromSections(renumbered);
+    setTempOutlineFull(md);
+  };
+
+  // 切换章节锁定标记
+  const toggleLockChapter = (volIdx: number, chapIdx: number) => {
+    const newSections = [...localSections];
+    newSections[volIdx].chapters[chapIdx].isLocked = !newSections[volIdx].chapters[chapIdx].isLocked;
+    setLocalSections(newSections);
+    const md = generateMarkdownFromSections(newSections);
+    setTempOutlineFull(md);
+  };
+
+  // 保存章节大纲修改
+  const saveChapterEditing = () => {
+    if (editingChapterPath === null || !editChapterForm) return;
+    const { volIdx, chapIdx } = editingChapterPath;
+    const newSections = [...localSections];
+    newSections[volIdx].chapters[chapIdx] = editChapterForm;
+    
+    const renumbered = renumberVolumesAndChapters(newSections);
+    setLocalSections(renumbered);
+    const md = generateMarkdownFromSections(renumbered);
+    setTempOutlineFull(md);
+    
+    setEditingChapterPath(null);
+    setEditChapterForm(null);
+  };
+
+  // 选用推荐大纲时执行层次化智能合并
   const handleSelectRecommendedOutline = async (opt: any) => {
     const optDesc = opt.description || '';
     const newSections = parseStructureOutline(optDesc);
     const oldSections = localSections;
 
-    // 智能合并：被锁定的卡片绝对保留，未锁定的覆盖
-    const mergedSections = newSections.map((newSec, idx) => {
-      const oldSec = oldSections[idx];
-      if (oldSec && oldSec.isLocked) {
-        return oldSec;
-      }
-      return newSec;
+    // 智能锁定合并：打平旧大纲包含的所有章节，保留锁定态与其归属卷索引
+    const oldFlat: (OutlineChapter & { volIdx: number })[] = [];
+    oldSections.forEach((vol, vIdx) => {
+      vol.chapters.forEach(ch => {
+        oldFlat.push({ ...ch, volIdx: vIdx });
+      });
     });
 
-    // 如果旧章节多于新推荐章节，且多出来的章节里有被锁定的，需要追加回来以防止丢失
-    if (oldSections.length > newSections.length) {
-      for (let i = newSections.length; i < oldSections.length; i++) {
-        if (oldSections[i].isLocked) {
-          mergedSections.push(oldSections[i]);
+    const newFlat: OutlineChapter[] = [];
+    newSections.forEach(vol => {
+      vol.chapters.forEach(ch => {
+        newFlat.push(ch);
+      });
+    });
+
+    // 交叉合并
+    const mergedFlat: (OutlineChapter & { volIdx?: number })[] = newFlat.map((newCh, idx) => {
+      const oldCh = oldFlat[idx];
+      if (oldCh && oldCh.isLocked) {
+        return oldCh;
+      }
+      return newCh;
+    });
+
+    // 追加保留多余章节里已被锁定的
+    if (oldFlat.length > newFlat.length) {
+      for (let i = newFlat.length; i < oldFlat.length; i++) {
+        if (oldFlat[i].isLocked) {
+          mergedFlat.push(oldFlat[i]);
         }
       }
     }
 
-    const renumbered = renumberSections(mergedSections);
+    // 恢复树状层级：清空旧大纲章节并回填
+    const mergedVolumes: OutlineVolume[] = oldSections.map(vol => ({
+      ...vol,
+      chapters: []
+    }));
+
+    mergedFlat.forEach(ch => {
+      let targetVolIdx = ch.volIdx !== undefined ? ch.volIdx : mergedVolumes.length - 1;
+      if (targetVolIdx < 0) {
+        mergedVolumes.push({
+          title: '第一卷：正文',
+          content: '',
+          chapters: []
+        });
+        targetVolIdx = mergedVolumes.length - 1;
+      }
+      mergedVolumes[targetVolIdx].chapters.push({
+        title: ch.title,
+        content: ch.content,
+        details: ch.details,
+        isLocked: ch.isLocked
+      });
+    });
+
+    const renumbered = renumberVolumesAndChapters(mergedVolumes);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
     setTempOutlineFull(md);
@@ -337,19 +502,20 @@ export function OutlineTab() {
     if (store.currentProject) {
       try {
         await store.updateProject(store.currentProject.id, { outlineFull: md });
-        alert(`已成功选用该大纲并执行智能合并（已保留锁定章节）！`);
+        alert('已选用新推荐大纲并完成层次合并，锁定的章节和大纲卷归属已完好保留！');
       } catch (e) {
-        alert('智能合并保存失败');
+        alert('推荐大纲合并保存失败');
       }
     }
   };
 
-  // AI 局部单章大纲重写 (Regenerate Beat)
-  const handleAiRegenSection = async (idx: number) => {
+  // AI 智能重写单章 Beat
+  const handleAiRegenChapter = async (volIdx: number, chapIdx: number) => {
     if (!store.currentProject) return;
-    setRegeningIndex(idx);
+    const globalIdx = flatChapters.findIndex(ch => ch.volIdx === volIdx && ch.chapIdx === chapIdx);
+    setRegeningIndex(globalIdx);
     try {
-      const sec = localSections[idx];
+      const sec = localSections[volIdx].chapters[chapIdx];
       const prompt = `你是一个资深网络小说剧情策划。请为我的小说《${store.currentProject.title}》重新规划设计【${sec.title}】的详细章节细纲。
 
 【当前小说设定】:
@@ -358,7 +524,7 @@ export function OutlineTab() {
 - 题材/核心冲突: ${tempCoreConflict || store.currentProject.coreConflict || '暂无'}
 
 【其他相邻章节的上下文大纲】:
-${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '').filter(Boolean).slice(Math.max(0, idx - 2), idx + 3).join('\n')}
+${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}` : '').filter(Boolean).slice(Math.max(0, globalIdx - 2), globalIdx + 3).join('\n')}
 
 请详细为本章设计新的剧情细纲。必须以如下格式直接输出，不要输出任何多余的引言、前言或分析解释：
 ## ${sec.title}
@@ -378,16 +544,16 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
 
       const reply = data.reply;
       const parsedRegen = parseStructureOutline(reply);
-      if (parsedRegen.length > 0) {
-        const newSec = parsedRegen[0];
-        // 保留原锁定属性与原章节名
-        const mergedSec = {
-          ...newSec,
+      // 提取解析结果中的第一章覆盖
+      if (parsedRegen.length > 0 && parsedRegen[0].chapters.length > 0) {
+        const newCh = parsedRegen[0].chapters[0];
+        const mergedCh = {
+          ...newCh,
           title: sec.title,
           isLocked: sec.isLocked
         };
         const newSections = [...localSections];
-        newSections[idx] = mergedSec;
+        newSections[volIdx].chapters[chapIdx] = mergedCh;
 
         const md = generateMarkdownFromSections(newSections);
         setLocalSections(newSections);
@@ -403,7 +569,52 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
     }
   };
 
-  // AI 宏观大纲单项字段推演 (Regenerate Macro Field)
+  // AI 推演分卷走向大纲
+  const handleAiRegenVolume = async (volIdx: number) => {
+    if (!store.currentProject) return;
+    setRegeningVolumeIdx(volIdx);
+    try {
+      const vol = localSections[volIdx];
+      const prompt = `你是一个网络小说金牌策划和商业剧情架构大师。请为我的小说《${store.currentProject.title}》推演和重新设计【${vol.title}】的整体剧情大纲走向与本卷核心看点。
+
+【当前小说设定】:
+- 书名: ${store.currentProject.title}
+- 核心冲突: ${tempCoreConflict || store.currentProject.coreConflict || '暂无描述'}
+- 世界观: ${tempWorldSetting || store.currentProject.worldSetting || '暂无'}
+- 境界体系: ${tempPowerSystem || store.currentProject.powerSystem || '暂无'}
+
+【其他分卷的上下文大纲】:
+${localSections.map((v, vIdx) => vIdx !== volIdx ? `- ${v.title}: ${v.content}` : '').filter(Boolean).join('\n')}
+
+请直接输出推荐的【${vol.title}】的卷概要走向描述（字数在150字到250字之间），不需要输出任何标题、多余的说明前言或分析，直接给出描述即可。`;
+
+      const res = await callAIApi({
+        action: 'chat',
+        projectId: store.currentProject.id,
+        query: prompt
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      const reply = data.reply.trim();
+      if (reply) {
+        const newSections = [...localSections];
+        newSections[volIdx].content = reply;
+        setLocalSections(newSections);
+        const md = generateMarkdownFromSections(newSections);
+        setTempOutlineFull(md);
+        alert(`已成功推演【${vol.title}】的卷级剧情走向！`);
+      } else {
+        throw new Error('AI 未能返回有效的生成数据');
+      }
+    } catch (e: any) {
+      alert(`AI 推演分卷走向失败: ` + e.message);
+    } finally {
+      setRegeningVolumeIdx(null);
+    }
+  };
+
+  // AI 宏观大纲单项设定字段推演 ( Deducing StoryMacro fields )
   const handleAiRegenMacroField = async (fieldKey: string, fieldLabel: string) => {
     if (!store.currentProject) return;
     setRegeningField(fieldKey);
@@ -414,7 +625,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
 - 简介: ${tempWorldSetting || store.currentProject.worldSetting || '暂无描述'}
 - 文风和背景基调: ${tempStyleSetting || store.currentProject.styleSetting || '暂无'}
 
-请直接输出推荐的【${fieldLabel}】的具体文本内容描述（字数在150字左右），不需要输出任何标题、多余的说明前言或分析，直接给出描述即可。`;
+Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体文本内容描述（字数在150字左右），不需要输出任何标题、多余的说明前言或分析，直接给出描述即可。`;
 
       const res = await callAIApi({
         action: 'chat',
@@ -434,7 +645,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
         else if (fieldKey === 'factionsMap') setTempFactionsMap(reply);
         else if (fieldKey === 'sellingPoints') setTempSellingPoints(reply);
 
-        alert(`已成功单独推演【${fieldLabel}】！请记得点击顶部的“保存大纲数据”或“保存宏观设定”完成落库。`);
+        alert(`已成功单独推演【${fieldLabel}】！请记得点击顶部的“保存宏观设定”完成落库。`);
       } else {
         throw new Error('AI 未能返回有效的生成数据');
       }
@@ -445,7 +656,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
     }
   };
 
-  // 保存宏观企划的设定
+  // 保存宏观设定落库
   const handleSaveMacroSettings = async () => {
     if (!store.currentProject) return;
     try {
@@ -469,44 +680,358 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
       {/* 左栏：核心故事大纲看板 */}
       <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
         
-        {/* 顶部的次级 Tab 切换：Chapters vs Macro */}
+        {/* 三级大纲 Tab 控制组：宏观、卷级、章级页签 */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', gap: '16px', flexShrink: 0 }}>
-          <button
-            onClick={() => setOutlineSubTab('chapters')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: outlineSubTab === 'chapters' ? '#fff' : 'var(--text-muted)',
-              fontSize: '14px',
-              fontWeight: outlineSubTab === 'chapters' ? '600' : 'normal',
-              paddingBottom: '8px',
-              borderBottom: outlineSubTab === 'chapters' ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            章节时间线细纲
-          </button>
-          <button
-            onClick={() => setOutlineSubTab('macro')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: outlineSubTab === 'macro' ? '#fff' : 'var(--text-muted)',
-              fontSize: '14px',
-              fontWeight: outlineSubTab === 'macro' ? '600' : 'normal',
-              paddingBottom: '8px',
-              borderBottom: outlineSubTab === 'macro' ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            故事宏观大纲企划
-          </button>
+          {[
+            { key: 'macro', label: '故事宏观设定' },
+            { key: 'volume', label: '分卷主线大纲' },
+            { key: 'chapter', label: '章节时间细纲' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setOutlineSubTab(tab.key as any)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: outlineSubTab === tab.key ? '#fff' : 'var(--text-muted)',
+                fontSize: '14px',
+                fontWeight: outlineSubTab === tab.key ? '600' : 'normal',
+                paddingBottom: '8px',
+                borderBottom: outlineSubTab === tab.key ? '2px solid var(--accent)' : '2px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {outlineSubTab === 'chapters' ? (
-          /* ============= 章节时间线细纲 Tab ============= */
+        {outlineSubTab === 'macro' ? (
+          /* ============= 故事宏观大纲企划 Tab ============= */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, flexGrow: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#fff', margin: 0 }}>小说核心设定企划内核</h4>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>控制全书主线走向的基础骨架设定，支持字段级单项 AI 创意生成</span>
+              </div>
+              
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveMacroSettings}
+                style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Save size={13} />
+                <span>保存核心设定</span>
+              </button>
+            </div>
+
+            {/* 7 大维度网格 */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', overflowY: 'auto', paddingRight: '4px', flexGrow: 1 }}>
+              {[
+                { key: 'sellingPoints', label: '一句话爽点与商业卖点', val: tempSellingPoints, setVal: setTempSellingPoints, icon: <Trophy size={14} />, placeholder: '简述本书的核心卖点与商业爽点，如扮猪吃老虎、幕后黑手...' },
+                { key: 'coreConflict', label: '核心矛盾与长期冲突线', val: tempCoreConflict, setVal: setTempCoreConflict, icon: <Flame size={14} />, placeholder: '主要的故事对抗冲突，终极敌对势力或天命使命...' },
+                { key: 'goldFinger', label: '主角金手指设定', val: tempGoldFinger, setVal: setTempGoldFinger, icon: <Zap size={14} />, placeholder: '主角特有的挂牌、系统、伴生宝物或极道能力...' },
+                { key: 'powerSystem', label: '境界与力量等级体系', val: tempPowerSystem, setVal: setTempPowerSystem, icon: <Award size={14} />, placeholder: '例如：练气、筑基、金丹、元婴、化神；或其它特异力量层级体系...' },
+                { key: 'factionsMap', label: '势力分布与地理图谱', val: tempFactionsMap, setVal: setTempFactionsMap, icon: <Compass size={14} />, placeholder: '世界地理背景，不同宗门门阀、教派与世家盟友的冲突交错...' },
+                { key: 'worldSetting', label: '小说世界观微观/宏观背景', val: tempWorldSetting, setVal: setTempWorldSetting, icon: <BookOpen size={14} />, placeholder: '大陆环境、规则机制或社会形态...' },
+                { key: 'styleSetting', label: '写作风格与题材调性', val: tempStyleSetting, setVal: setTempStyleSetting, icon: <Activity size={14} />, placeholder: '文风走势，如：轻喜搞笑、压抑正剧、王道热血...' },
+              ].map(field => {
+                const isFieldRegening = regeningField === field.key;
+                
+                return (
+                  <div
+                    key={field.key}
+                    className="glass-card animate-fade-in"
+                    style={{
+                      padding: '16px 20px',
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+                      border: '1px solid rgba(255,255,255,0.04)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--accent)' }}>
+                        {field.icon}
+                        <span>{field.label}</span>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleAiRegenMacroField(field.key, field.label)}
+                        disabled={isFieldRegening}
+                        style={{
+                          fontSize: '10.5px',
+                          color: '#38bdf8',
+                          background: 'rgba(56,189,248,0.06)',
+                          border: '1px solid rgba(56,189,248,0.15)',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        {isFieldRegening ? (
+                          <Loader2 className="animate-spin" size={10} />
+                        ) : (
+                          <Sparkles size={10} />
+                        )}
+                        <span>AI推演</span>
+                      </button>
+                    </div>
+
+                    <textarea
+                      className="textarea"
+                      rows={5}
+                      placeholder={field.placeholder}
+                      value={field.val}
+                      onChange={e => field.setVal(e.target.value)}
+                      style={{
+                        background: 'rgba(0,0,0,0.22)',
+                        border: '1px solid rgba(255,255,255,0.04)',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        color: '#f1f5f9',
+                        fontSize: '12.5px',
+                        lineHeight: '1.6',
+                        resize: 'none',
+                        flexGrow: 1
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : outlineSubTab === 'volume' ? (
+          /* ============= 分卷大纲主线看板 Tab ============= */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', paddingRight: '4px', flexGrow: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#fff', margin: 0 }}>小说分卷大纲看板</h4>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>规划各卷的情节高潮与走向，每卷大纲控制对应章节的发展</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleInsertVolume(localSections.length - 1)}
+                style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={13} />
+                <span>添加新分卷</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {localSections.map((vol, vIdx) => {
+                const isVolRegening = regeningVolumeIdx === vIdx;
+                const isEditing = editingVolumeIdx === vIdx;
+
+                return (
+                  <div
+                    key={vIdx}
+                    className="glass-card animate-fade-in"
+                    style={{
+                      padding: '20px',
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+                      border: isEditing
+                        ? '1px solid rgba(99,102,241,0.45)'
+                        : vol.isLocked
+                          ? '1px solid rgba(251,191,36,0.35)'
+                          : '1px solid rgba(255,255,255,0.04)',
+                      borderRadius: '12px',
+                      boxShadow: vol.isLocked
+                        ? '0 4px 24px rgba(251,191,36,0.05)'
+                        : '0 4px 20px rgba(0,0,0,0.12)',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    {isVolRegening ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
+                        <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI 正在智能推演本卷走向大纲...</span>
+                      </div>
+                    ) : isEditing && editVolumeForm ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>
+                            修改分卷大纲
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={saveVolumeEditing}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                color: '#4ade80',
+                                background: 'rgba(74,222,128,0.1)',
+                                border: '1px solid rgba(74,222,128,0.2)',
+                                padding: '4px 10px',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Check size={11} />
+                              <span>保存</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVolumeIdx(null);
+                                setEditVolumeForm(null);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                color: '#f87171',
+                                background: 'rgba(248,113,113,0.1)',
+                                border: '1px solid rgba(248,113,113,0.2)',
+                                padding: '4px 10px',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <X size={11} />
+                              <span>取消</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷名称</label>
+                          <input
+                            type="text"
+                            className="input"
+                            value={editVolumeForm.title}
+                            onChange={e => setEditVolumeForm({ ...editVolumeForm, title: e.target.value })}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px' }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷大纲剧情走向与主要看点</label>
+                          <textarea
+                            className="textarea"
+                            rows={4}
+                            value={editVolumeForm.content}
+                            onChange={e => setEditVolumeForm({ ...editVolumeForm, content: e.target.value })}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px', lineHeight: '1.6' }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleLockVolume(vIdx)}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: vol.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.25)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '2px',
+                                transition: 'all 0.2s'
+                              }}
+                              title={vol.isLocked ? "已锁定（更新推荐大纲时此卷将受到保留）" : "未锁定"}
+                            >
+                              {vol.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
+                            </button>
+                            <h4 style={{ fontSize: '14px', fontWeight: '600', color: vol.isLocked ? '#fbbf24' : '#fff', margin: 0 }}>
+                              {vol.title}
+                            </h4>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px' }}>
+                              共 {vol.chapters.length} 章
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveVolume(vIdx, 'up')}
+                              disabled={vIdx === 0}
+                              style={{ border: 'none', background: 'transparent', color: vIdx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === 0 ? 'not-allowed' : 'pointer' }}
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveVolume(vIdx, 'down')}
+                              disabled={vIdx === localSections.length - 1}
+                              style={{ border: 'none', background: 'transparent', color: vIdx === localSections.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === localSections.length - 1 ? 'not-allowed' : 'pointer' }}
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleAiRegenVolume(vIdx)}
+                              style={{
+                                fontSize: '10.5px',
+                                color: '#38bdf8',
+                                background: 'rgba(56,189,248,0.06)',
+                                border: '1px solid rgba(56,189,248,0.15)',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              title="让 AI 为本卷智能推演剧情走向大纲"
+                            >
+                              <Sparkles size={10} />
+                              <span>AI推演本卷</span>
+                            </button>
+                            
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVolumeIdx(vIdx);
+                                setEditVolumeForm(JSON.parse(JSON.stringify(vol)));
+                              }}
+                              style={{ fontSize: '10.5px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <Edit3 size={10} />
+                              <span>编辑</span>
+                            </button>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteVolume(vIdx)}
+                              style={{ fontSize: '10.5px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <Trash2 size={10} />
+                              <span>删除</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap' }}>
+                          {vol.content || '暂无此分卷的整体走向描述，点击“编辑”或“AI推演本卷”完善大纲...'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* ============= 章节大纲时间线细纲 Tab ============= */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, flexGrow: 1 }}>
             
             {/* 顶栏控制组 */}
@@ -578,7 +1103,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
             {viewMode === 'editor' ? (
               <textarea
                 className="textarea"
-                placeholder="在此以 Markdown 格式直接起草大纲，以 ## 开头作为章节划分..."
+                placeholder="在此以 Markdown 格式直接起草大纲，以 # 开头为分卷，以 ## 开头作为章节划分..."
                 value={tempOutlineFull}
                 onChange={e => setTempOutlineFull(e.target.value)}
                 style={{ flexGrow: 1, minHeight: '400px', fontSize: '13px', lineHeight: '1.7', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '10px' }}
@@ -587,7 +1112,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, flexGrow: 1 }}>
                 
                 {/* 情绪曲线图 */}
-                {localSections.length > 0 && (
+                {flatChapters.length > 0 && (
                   <div
                     className="glass-card"
                     style={{
@@ -658,7 +1183,7 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
                               cx={p.x}
                               cy={p.y}
                               r={hoveredPoint === i ? 6 : 4}
-                              fill={localSections[i].isLocked ? '#fbbf24' : (hoveredPoint === i ? '#fff' : 'var(--accent)')}
+                              fill={flatChapters[i].isLocked ? '#fbbf24' : (hoveredPoint === i ? '#fff' : 'var(--accent)')}
                               stroke={hoveredPoint === i ? 'var(--accent)' : 'rgba(255,255,255,0.8)'}
                               strokeWidth={hoveredPoint === i ? 3 : 1.5}
                               style={{ transition: 'all 0.15s ease' }}
@@ -750,326 +1275,348 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
                   </div>
                 )}
 
-                {/* 章节列表 */}
+                {/* 按分卷分组的章节细纲时间线列表 */}
                 <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '6px', minHeight: 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', paddingLeft: '8px', borderLeft: '2px solid rgba(99,102,241,0.12)', marginLeft: '6px', position: 'relative' }}>
-                    {localSections.map((sec, idx) => {
-                      const secChars = parseCharacters(sec.details);
-                      const isFiltered = selectedChar !== null && !secChars.includes(selectedChar);
-                      const isRegening = regeningIndex === idx;
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    {localSections.map((vol, vIdx) => {
+                      if (vol.chapters.length === 0) {
+                        return (
+                          <div key={vIdx} style={{ background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '13px', color: 'var(--text-dark)', fontWeight: '600', marginBottom: '4px' }}>{vol.title}</div>
+                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>本分卷下尚未添加任何章节</span>
+                            <div style={{ marginTop: '8px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => handleInsertChapter(vIdx, -1)}
+                                style={{ fontSize: '10.5px', padding: '4px 8px' }}
+                              >
+                                添加首章
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
 
                       return (
-                        <div
-                          key={idx}
-                          id={`chapter-card-${idx}`}
-                          style={{
-                            position: 'relative',
-                            opacity: isFiltered ? 0.28 : 1,
-                            filter: isFiltered ? 'grayscale(40%)' : 'none',
-                            transition: 'all 0.35s ease',
-                            transform: selectedChar && !isFiltered ? 'scale(1.01)' : 'scale(1)'
-                          }}
-                        >
-                          {/* 时间轴节点 */}
-                          <div style={{
-                            position: 'absolute',
-                            left: '-15px',
-                            top: '24px',
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            background: sec.isLocked
-                              ? 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)'
-                              : selectedChar && !isFiltered
-                                ? 'linear-gradient(135deg, #a855f7 0%, var(--accent) 100%)'
-                                : 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)',
-                            boxShadow: sec.isLocked
-                              ? '0 0 10px rgba(251,191,36,0.6)'
-                              : selectedChar && !isFiltered
-                                ? '0 0 12px rgba(168,85,247,0.8)'
-                                : '0 0 8px rgba(99,102,241,0.4)',
-                            zIndex: 2,
-                            transition: 'all 0.3s'
-                          }} />
+                        <div key={vIdx} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                            <BookOpen size={13} style={{ color: 'var(--accent)' }} />
+                            <strong style={{ fontSize: '13px', color: 'var(--accent)' }}>{vol.title}</strong>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.03)', padding: '1px 5px', borderRadius: '3px' }}>
+                              {vol.chapters.length} 章节
+                            </span>
+                          </div>
 
-                          {/* 卡片容器 */}
-                          <div
-                            className="glass-card"
-                            style={{
-                              padding: '20px',
-                              background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
-                              border: editingIndex === idx
-                                ? '1px solid rgba(99,102,241,0.45)'
-                                : sec.isLocked
-                                  ? '1px solid rgba(251,191,36,0.35)'
-                                  : selectedChar && !isFiltered
-                                    ? '1px solid rgba(168,85,247,0.3)'
-                                    : '1px solid rgba(255,255,255,0.04)',
-                              borderRadius: '12px',
-                              boxShadow: sec.isLocked
-                                ? '0 4px 24px rgba(251,191,36,0.05)'
-                                : selectedChar && !isFiltered
-                                  ? '0 6px 24px rgba(168,85,247,0.1)'
-                                  : '0 4px 20px rgba(0,0,0,0.12)',
-                              transition: 'all 0.25s ease',
-                            }}
-                          >
-                            {isRegening ? (
-                              /* 局部重写加载动效 */
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
-                                <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI 正在智能推演和重写本章细纲...</span>
-                              </div>
-                            ) : editingIndex === idx && editForm ? (
-                              /* 行内编辑表单 */
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>
-                                    行内细化大纲卡片
-                                  </span>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={saveEditing}
-                                      style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '11px',
-                                        color: '#4ade80',
-                                        background: 'rgba(74,222,128,0.1)',
-                                        border: '1px solid rgba(74,222,128,0.2)',
-                                        padding: '4px 10px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      <Check size={11} />
-                                      <span>保存</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingIndex(null);
-                                        setEditForm(null);
-                                      }}
-                                      style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '11px',
-                                        color: '#f87171',
-                                        background: 'rgba(248,113,113,0.1)',
-                                        border: '1px solid rgba(248,113,113,0.2)',
-                                        padding: '4px 10px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      <X size={11} />
-                                      <span>取消</span>
-                                    </button>
-                                  </div>
-                                </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingLeft: '8px', borderLeft: '2px solid rgba(99,102,241,0.12)', marginLeft: '6px', position: 'relative' }}>
+                            {vol.chapters.map((sec, cIdx) => {
+                              const globalIdx = flatChapters.findIndex(ch => ch.volIdx === vIdx && ch.chapIdx === cIdx);
+                              const secChars = parseCharacters(sec.details);
+                              const isFiltered = selectedChar !== null && !secChars.includes(selectedChar);
+                              const isRegening = regeningIndex === globalIdx;
+                              const isEditing = editingChapterPath && editingChapterPath.volIdx === vIdx && editingChapterPath.chapIdx === cIdx;
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                  <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>章节标题</label>
-                                  <input
-                                    type="text"
-                                    className="input"
-                                    value={editForm.title}
-                                    onChange={e => setEditForm({ ...editForm, title: e.target.value })}
-                                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px' }}
-                                  />
-                                </div>
+                              return (
+                                <div
+                                  key={cIdx}
+                                  id={`chapter-card-${globalIdx}`}
+                                  style={{
+                                    position: 'relative',
+                                    opacity: isFiltered ? 0.28 : 1,
+                                    filter: isFiltered ? 'grayscale(40%)' : 'none',
+                                    transition: 'all 0.35s ease',
+                                    transform: selectedChar && !isFiltered ? 'scale(1.01)' : 'scale(1)'
+                                  }}
+                                >
+                                  {/* 时间轴节点 */}
+                                  <div style={{
+                                    position: 'absolute',
+                                    left: '-15px',
+                                    top: '24px',
+                                    width: '12px',
+                                    height: '12px',
+                                    borderRadius: '50%',
+                                    background: sec.isLocked
+                                      ? 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)'
+                                      : selectedChar && !isFiltered
+                                        ? 'linear-gradient(135deg, #a855f7 0%, var(--accent) 100%)'
+                                        : 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)',
+                                    boxShadow: sec.isLocked
+                                      ? '0 0 10px rgba(251,191,36,0.6)'
+                                      : selectedChar && !isFiltered
+                                        ? '0 0 12px rgba(168,85,247,0.8)'
+                                        : '0 0 8px rgba(99,102,241,0.4)',
+                                    zIndex: 2,
+                                    transition: 'all 0.3s'
+                                  }} />
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                  <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>剧情推进叙述</label>
-                                  <textarea
-                                    className="textarea"
-                                    rows={3}
-                                    value={editForm.content}
-                                    onChange={e => setEditForm({ ...editForm, content: e.target.value })}
-                                    style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px', lineHeight: '1.6' }}
-                                  />
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>核心冲突</label>
-                                    <input
-                                      type="text"
-                                      className="input"
-                                      value={editForm.details.find(d => d.key === '核心冲突')?.value || ''}
-                                      onChange={e => updateDetailValue('核心冲突', e.target.value)}
-                                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '12px' }}
-                                    />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>信息释放</label>
-                                    <input
-                                      type="text"
-                                      className="input"
-                                      value={editForm.details.find(d => d.key === '信息释放')?.value || ''}
-                                      onChange={e => updateDetailValue('信息释放', e.target.value)}
-                                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '12px' }}
-                                    />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>情绪起伏</label>
-                                    <input
-                                      type="text"
-                                      className="input"
-                                      value={editForm.details.find(d => d.key === '情绪曲线')?.value || ''}
-                                      onChange={e => updateDetailValue('情绪曲线', e.target.value)}
-                                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '12px' }}
-                                    />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>相关人物</label>
-                                    <input
-                                      type="text"
-                                      className="input"
-                                      value={editForm.details.find(d => d.key === '相关人物')?.value || ''}
-                                      onChange={e => updateDetailValue('相关人物', e.target.value)}
-                                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '12px' }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              /* 浏览视图 */
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px', marginBottom: '12px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {/* 锁定图标按钮 */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleLockSection(idx)}
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: sec.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.25)',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        padding: '2px',
-                                        transition: 'all 0.2s'
-                                      }}
-                                      title={sec.isLocked ? "已锁定（更新推荐大纲时此卡片将受到保留）" : "未锁定"}
-                                    >
-                                      {sec.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                                    </button>
-                                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: sec.isLocked ? '#fbbf24' : '#fff', margin: 0 }}>
-                                      {sec.title}
-                                    </h4>
-                                  </div>
-
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMoveSection(idx, 'up')}
-                                      disabled={idx === 0}
-                                      style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: idx === 0 ? 'not-allowed' : 'pointer' }}
-                                    >
-                                      <ArrowUp size={12} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMoveSection(idx, 'down')}
-                                      disabled={idx === localSections.length - 1}
-                                      style={{ border: 'none', background: 'transparent', color: idx === localSections.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: idx === localSections.length - 1 ? 'not-allowed' : 'pointer' }}
-                                    >
-                                      <ArrowDown size={12} />
-                                    </button>
-                                    
-                                    {/* AI 局部重生 */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAiRegenSection(idx)}
-                                      style={{
-                                        fontSize: '10.5px',
-                                        color: '#38bdf8',
-                                        background: 'rgba(56,189,248,0.06)',
-                                        border: '1px solid rgba(56,189,248,0.15)',
-                                        padding: '3px 8px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '3px'
-                                      }}
-                                      title="让 AI 局部重写本章的大纲设定"
-                                    >
-                                      <Sparkles size={10} />
-                                      <span>AI重生</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditing(idx)}
-                                      style={{ fontSize: '10.5px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                    >
-                                      <Edit3 size={10} />
-                                      <span>编辑</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleInsertSection(idx)}
-                                      style={{ fontSize: '10.5px', color: '#a855f7', background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                    >
-                                      <Plus size={10} />
-                                      <span>加章</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSection(idx)}
-                                      style={{ fontSize: '10.5px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                    >
-                                      <Trash2 size={10} />
-                                      <span>删除</span>
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {sec.content && (
-                                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 16px 0', whiteSpace: 'pre-wrap' }}>
-                                    {sec.content}
-                                  </p>
-                                )}
-
-                                {sec.details.length > 0 && (
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-                                    {sec.details.map((det, dIdx) => {
-                                      let icon = <Tag size={10} />;
-                                      if (det.key.includes('冲突')) icon = <BookOpen size={10} />;
-                                      if (det.key.includes('信息') || det.key.includes('伏笔')) icon = <Key size={10} />;
-                                      if (det.key.includes('情绪') || det.key.includes('起伏')) icon = <Activity size={10} />;
-                                      if (det.key.includes('人物') || det.key.includes('角色')) icon = <User size={10} />;
-
-                                      return (
-                                        <div
-                                          key={dIdx}
-                                          style={{
-                                            padding: '10px 12px',
-                                            background: 'rgba(0,0,0,0.18)',
-                                            border: '1px solid rgba(255,255,255,0.02)',
-                                            borderRadius: '6px'
-                                          }}
-                                        >
-                                          <div style={{ fontSize: '10.5px', color: 'var(--accent)', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            {icon}
-                                            <span>{det.key}</span>
-                                          </div>
-                                          <div style={{ fontSize: '12px', color: '#e2e8f0', lineHeight: '1.5' }}>
-                                            {det.value}
+                                  {/* 卡片容器 */}
+                                  <div
+                                    className="glass-card"
+                                    style={{
+                                      padding: '20px',
+                                      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+                                      border: isEditing
+                                        ? '1px solid rgba(99,102,241,0.45)'
+                                        : sec.isLocked
+                                          ? '1px solid rgba(251,191,36,0.35)'
+                                          : selectedChar && !isFiltered
+                                            ? '1px solid rgba(168,85,247,0.3)'
+                                            : '1px solid rgba(255,255,255,0.04)',
+                                      borderRadius: '12px',
+                                      boxShadow: sec.isLocked
+                                        ? '0 4px 24px rgba(251,191,36,0.05)'
+                                        : selectedChar && !isFiltered
+                                          ? '0 6px 24px rgba(168,85,247,0.1)'
+                                          : '0 4px 20px rgba(0,0,0,0.12)',
+                                      transition: 'all 0.25s ease',
+                                    }}
+                                  >
+                                    {isRegening ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: '10px' }}>
+                                        <Loader2 className="animate-spin" size={20} style={{ color: 'var(--accent)' }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI 正在智能推演和重写本章细纲...</span>
+                                      </div>
+                                    ) : isEditing && editChapterForm ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>
+                                            行内细化大纲卡片
+                                          </span>
+                                          <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={saveChapterEditing}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                fontSize: '11px',
+                                                color: '#4ade80',
+                                                background: 'rgba(74,222,128,0.1)',
+                                                border: '1px solid rgba(74,222,128,0.2)',
+                                                padding: '4px 10px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              <Check size={11} />
+                                              <span>保存</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditingChapterPath(null);
+                                                setEditChapterForm(null);
+                                              }}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                fontSize: '11px',
+                                                color: '#f87171',
+                                                background: 'rgba(248,113,113,0.1)',
+                                                border: '1px solid rgba(248,113,113,0.2)',
+                                                padding: '4px 10px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              <X size={11} />
+                                              <span>取消</span>
+                                            </button>
                                           </div>
                                         </div>
-                                      );
-                                    })}
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>章节标题</label>
+                                          <input
+                                            type="text"
+                                            className="input"
+                                            value={editChapterForm.title}
+                                            onChange={e => setEditChapterForm({ ...editChapterForm, title: e.target.value })}
+                                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px' }}
+                                          />
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>剧情推进叙述</label>
+                                          <textarea
+                                            className="textarea"
+                                            rows={3}
+                                            value={editChapterForm.content}
+                                            onChange={e => setEditChapterForm({ ...editChapterForm, content: e.target.value })}
+                                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px', lineHeight: '1.6' }}
+                                          />
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                          {[
+                                            { key: '核心冲突', label: '核心冲突' },
+                                            { key: '信息释放', label: '信息释放' },
+                                            { key: '情绪曲线', label: '情绪起伏' },
+                                            { key: '相关人物', label: '相关人物' }
+                                          ].map(detailField => {
+                                            const detailItem = editChapterForm.details.find(d => d.key === detailField.key);
+                                            return (
+                                              <div key={detailField.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{detailField.label}</label>
+                                                <input
+                                                  type="text"
+                                                  className="input"
+                                                  value={detailItem?.value || ''}
+                                                  onChange={e => {
+                                                    const newDetails = [...editChapterForm.details];
+                                                    const idx = newDetails.findIndex(d => d.key === detailField.key);
+                                                    if (idx >= 0) newDetails[idx].value = e.target.value;
+                                                    else newDetails.push({ key: detailField.key, value: e.target.value });
+                                                    setEditChapterForm({ ...editChapterForm, details: newDetails });
+                                                  }}
+                                                  style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '12px' }}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px', marginBottom: '12px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleLockChapter(vIdx, cIdx)}
+                                              style={{
+                                                border: 'none',
+                                                background: 'transparent',
+                                                color: sec.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.25)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '2px',
+                                                transition: 'all 0.2s'
+                                              }}
+                                              title={sec.isLocked ? "已锁定（更新推荐大纲时此卡片将受到保留）" : "未锁定"}
+                                            >
+                                              {sec.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
+                                            </button>
+                                            <h4 style={{ fontSize: '14px', fontWeight: '600', color: sec.isLocked ? '#fbbf24' : '#fff', margin: 0 }}>
+                                              {sec.title}
+                                            </h4>
+                                          </div>
+
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMoveChapter(vIdx, cIdx, 'up')}
+                                              disabled={cIdx === 0}
+                                              style={{ border: 'none', background: 'transparent', color: cIdx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: cIdx === 0 ? 'not-allowed' : 'pointer' }}
+                                            >
+                                              <ArrowUp size={12} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMoveChapter(vIdx, cIdx, 'down')}
+                                              disabled={cIdx === vol.chapters.length - 1}
+                                              style={{ border: 'none', background: 'transparent', color: cIdx === vol.chapters.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: cIdx === vol.chapters.length - 1 ? 'not-allowed' : 'pointer' }}
+                                            >
+                                              <ArrowDown size={12} />
+                                            </button>
+                                            
+                                            <button
+                                              type="button"
+                                              onClick={() => handleAiRegenChapter(vIdx, cIdx)}
+                                              style={{
+                                                fontSize: '10.5px',
+                                                color: '#38bdf8',
+                                                background: 'rgba(56,189,248,0.06)',
+                                                border: '1px solid rgba(56,189,248,0.15)',
+                                                padding: '3px 8px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '3px'
+                                              }}
+                                              title="让 AI 局部重写本章的大纲设定"
+                                            >
+                                              <Sparkles size={10} />
+                                              <span>AI重生</span>
+                                            </button>
+                                            
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditingChapterPath({ volIdx: vIdx, chapIdx: cIdx });
+                                                setEditChapterForm(JSON.parse(JSON.stringify(sec)));
+                                              }}
+                                              style={{ fontSize: '10.5px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                            >
+                                              <Edit3 size={10} />
+                                              <span>编辑</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleInsertChapter(vIdx, cIdx)}
+                                              style={{ fontSize: '10.5px', color: '#a855f7', background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                            >
+                                              <Plus size={10} />
+                                              <span>加章</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteChapter(vIdx, cIdx)}
+                                              style={{ fontSize: '10.5px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                            >
+                                              <Trash2 size={10} />
+                                              <span>删除</span>
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {sec.content && (
+                                          <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 16px 0', whiteSpace: 'pre-wrap' }}>
+                                            {sec.content}
+                                          </p>
+                                        )}
+
+                                        {sec.details.length > 0 && (
+                                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                                            {sec.details.map((det, dIdx) => {
+                                              let icon = <Tag size={10} />;
+                                              if (det.key.includes('冲突')) icon = <BookOpen size={10} />;
+                                              if (det.key.includes('信息') || det.key.includes('伏笔')) icon = <Key size={10} />;
+                                              if (det.key.includes('情绪') || det.key.includes('起伏')) icon = <Activity size={10} />;
+                                              if (det.key.includes('人物') || det.key.includes('角色')) icon = <User size={10} />;
+
+                                              return (
+                                                <div
+                                                  key={dIdx}
+                                                  style={{
+                                                    padding: '10px 12px',
+                                                    background: 'rgba(0,0,0,0.18)',
+                                                    border: '1px solid rgba(255,255,255,0.02)',
+                                                    borderRadius: '6px'
+                                                  }}
+                                                >
+                                                  <div style={{ fontSize: '10.5px', color: 'var(--accent)', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {icon}
+                                                    <span>{det.key}</span>
+                                                  </div>
+                                                  <div style={{ fontSize: '12px', color: '#e2e8f0', lineHeight: '1.5' }}>
+                                                    {det.value}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -1078,109 +1625,6 @@ ${localSections.map((s, sIdx) => sIdx !== idx ? `- ${s.title}: ${s.content}` : '
                 </div>
               </div>
             )}
-          </div>
-        ) : (
-          /* ============= 故事宏观大纲企划 Tab ============= */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0, flexGrow: 1 }}>
-            
-            {/* 顶栏控制组 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-              <div>
-                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#fff', margin: 0 }}>小说核心设定企划内核</h4>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>控制全书主线走向的基础骨架设定，支持字段级单项 AI 创意生成</span>
-              </div>
-              
-              <button
-                className="btn btn-primary"
-                onClick={handleSaveMacroSettings}
-                style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Save size={13} />
-                <span>保存核心设定</span>
-              </button>
-            </div>
-
-            {/* 7 大宏观维度网格卡片 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', overflowY: 'auto', paddingRight: '4px', flexGrow: 1 }}>
-              {[
-                { key: 'sellingPoints', label: '一句话爽点与商业卖点', val: tempSellingPoints, setVal: setTempSellingPoints, icon: <Trophy size={14} />, placeholder: '简述本书的核心卖点与商业爽点，如扮猪吃老虎、幕后黑手...' },
-                { key: 'coreConflict', label: '核心矛盾与长期冲突线', val: tempCoreConflict, setVal: setTempCoreConflict, icon: <Flame size={14} />, placeholder: '主要的故事对抗冲突，终极敌对势力或天命使命...' },
-                { key: 'goldFinger', label: '主角金手指设定', val: tempGoldFinger, setVal: setTempGoldFinger, icon: <Zap size={14} />, placeholder: '主角特有的挂牌、系统、伴生宝物或极道能力...' },
-                { key: 'powerSystem', label: '境界与力量等级体系', val: tempPowerSystem, setVal: setTempPowerSystem, icon: <Award size={14} />, placeholder: '例如：练气、筑基、金丹、元婴、化神；或其它特异力量层级体系...' },
-                { key: 'factionsMap', label: '势力分布与地理图谱', val: tempFactionsMap, setVal: setTempFactionsMap, icon: <Compass size={14} />, placeholder: '世界地理背景，不同宗门门阀、教派与世家盟友的冲突交错...' },
-                { key: 'worldSetting', label: '小说世界观微观/宏观背景', val: tempWorldSetting, setVal: setTempWorldSetting, icon: <BookOpen size={14} />, placeholder: '大陆环境、规则机制或社会形态...' },
-                { key: 'styleSetting', label: '写作风格与题材调性', val: tempStyleSetting, setVal: setTempStyleSetting, icon: <Activity size={14} />, placeholder: '文风走势，如：轻喜搞笑、压抑正剧、王道热血...' },
-              ].map(field => {
-                const isFieldRegening = regeningField === field.key;
-                
-                return (
-                  <div
-                    key={field.key}
-                    className="glass-card animate-fade-in"
-                    style={{
-                      padding: '16px 20px',
-                      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
-                      border: '1px solid rgba(255,255,255,0.04)',
-                      borderRadius: '12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--accent)' }}>
-                        {field.icon}
-                        <span>{field.label}</span>
-                      </div>
-                      
-                      <button
-                        type="button"
-                        onClick={() => handleAiRegenMacroField(field.key, field.label)}
-                        disabled={isFieldRegening}
-                        style={{
-                          fontSize: '10.5px',
-                          color: '#38bdf8',
-                          background: 'rgba(56,189,248,0.06)',
-                          border: '1px solid rgba(56,189,248,0.15)',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '3px'
-                        }}
-                      >
-                        {isFieldRegening ? (
-                          <Loader2 className="animate-spin" size={10} />
-                        ) : (
-                          <Sparkles size={10} />
-                        )}
-                        <span>AI推演</span>
-                      </button>
-                    </div>
-
-                    <textarea
-                      className="textarea"
-                      rows={5}
-                      placeholder={field.placeholder}
-                      value={field.val}
-                      onChange={e => field.setVal(e.target.value)}
-                      style={{
-                        background: 'rgba(0,0,0,0.22)',
-                        border: '1px solid rgba(255,255,255,0.04)',
-                        borderRadius: '8px',
-                        padding: '10px 12px',
-                        color: '#f1f5f9',
-                        fontSize: '12.5px',
-                        lineHeight: '1.6',
-                        resize: 'none',
-                        flexGrow: 1
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
       </div>
