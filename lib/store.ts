@@ -13,7 +13,7 @@ export interface ModelConfig {
   reasoningEnabled: boolean;
 }
 
-interface NovelStore {
+export interface NovelStore {
   projects: NovelProject[];
   currentProject: NovelProject | null;
   chapters: Chapter[];

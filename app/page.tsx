@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNovelStore, ModelConfig } from '@/lib/store';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useAiClient } from './hooks/useAiClient';
+import { useWorkspaceRouting } from './hooks/useWorkspaceRouting';
+import { useEditor } from './hooks/useEditor';
 import { 
   BookOpen, Plus, Trash2, Settings, ChevronLeft, ChevronRight,
   User, Globe, MessageSquare, Sparkles, CheckCircle2, 
@@ -17,91 +19,30 @@ import { Markdown } from './components/Markdown';
 
 export default function Home() {
   const store = useNovelStore();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // 从 URL 路径中提取项目 ID
-  const urlProjectId = pathname.startsWith('/project/') ? pathname.split('/project/')[1] : null;
-  const urlTab = searchParams.get('tab') as 'write' | 'outline' | 'settings' | null;
-  const urlChapterId = searchParams.get('chapter');
-
-  // 构建工作区 URL
-  const buildWorkspaceUrl = useCallback((projectId: string, tab?: string, chapterId?: string) => {
-    const url = `/project/${projectId}`;
-    const params = new URLSearchParams();
-    if (tab) params.set('tab', tab);
-    if (chapterId) params.set('chapter', chapterId);
-    const qs = params.toString();
-    return qs ? `${url}?${qs}` : url;
-  }, []);
+  const callAIApi = useAiClient();
+  const {
+    router,
+    urlProjectId,
+    urlTab,
+    urlChapterId,
+    buildWorkspaceUrl,
+    mounted,
+    activeWorkspaceTab,
+    setActiveWorkspaceTab,
+  } = useWorkspaceRouting(store);
+  const {
+    editorTitle,
+    setEditorTitle,
+    editorContent,
+    setEditorContent,
+    saveStatus,
+    setSaveStatus,
+    handleEditorChange,
+    handleTitleChange,
+    forceSave,
+    exportFile,
+  } = useEditor(store);
   
-  const callAIApi = async (bodyParams: Record<string, any>) => {
-    const action = bodyParams.action;
-    
-    // 动作与智能体职能角色的映射
-    let agentRole = 'orchestrator';
-    if (action === 'autoPlanBook' || action === 'outline' || action === 'generateKernel') {
-      agentRole = 'planner';
-    } else if (action === 'generateInspirations') {
-      agentRole = 'lore_builder';
-    } else if (action === 'autoWrite' || action === 'continue') {
-      agentRole = 'writer';
-    } else if (action === 'polish' || action === 'selfCheck' || action === 'summarize') {
-      agentRole = 'editor';
-    }
-
-    const modelId = store.agentModelBindings[agentRole] || store.models[0]?.id;
-    const model = store.models.find(m => m.id === modelId) || store.models[0];
-    
-    let apiKeyParam = '';
-    let modelNameParam = '';
-    
-    if (model) {
-      modelNameParam = model.name;
-      const overrides = store.agentOverrides[agentRole] || {};
-      apiKeyParam = JSON.stringify({
-        apiKey: model.apiKey,
-        apiProvider: model.provider,
-        apiBaseUrl: model.apiBaseUrl,
-        temperature: overrides.temperature !== undefined ? overrides.temperature : model.temperature,
-        maxTokens: overrides.maxTokens !== undefined ? overrides.maxTokens : model.maxTokens,
-        systemInstruction: store.systemInstruction,
-        reasoningEnabled: model.reasoningEnabled === true
-      });
-    } else {
-      apiKeyParam = store.apiKey;
-      if (store.apiKey && store.apiProvider) {
-        apiKeyParam = JSON.stringify({
-          apiKey: store.apiKey,
-          apiProvider: store.apiProvider,
-          apiBaseUrl: store.apiBaseUrl,
-          temperature: store.temperature,
-          maxTokens: store.maxTokens,
-          systemInstruction: store.systemInstruction,
-          reasoningEnabled: store.reasoningEnabled === true
-        });
-      }
-      modelNameParam = store.modelName;
-    }
-
-    return await fetch('/api/ai', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        apiKey: apiKeyParam,
-        modelName: modelNameParam,
-        ...bodyParams,
-      }),
-    });
-  };
-
   const [settingsTab, setSettingsTab] = useState<'models' | 'bindings' | 'prompts'>('models');
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [editModelForm, setEditModelForm] = useState({
@@ -449,11 +390,6 @@ export default function Home() {
   
   const [checkResult, setCheckResult] = useState<{ passed?: boolean; issues: string[]; suggestions: string[] } | null>(null);
   
-  // 编辑器状态
-  const [editorTitle, setEditorTitle] = useState('');
-  const [editorContent, setEditorContent] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // ======= AI 自动写小说引擎状态 =======
@@ -520,7 +456,6 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ======= 核心设定与故事大纲平铺工作区状态 =======
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'write' | 'outline' | 'settings'>('write');
   const [kernelOptions, setKernelOptions] = useState<any>(null);
   const [isKernelLoading, setIsKernelLoading] = useState(false);
   const [expandedKernelCard, setExpandedKernelCard] = useState<string | null>('powerSystem');
@@ -763,187 +698,10 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [wizardLoading]);
 
-  // 初始化获取项目
-  useEffect(() => {
-    store.fetchProjects().then(() => {
-      const currentProjects = useNovelStore.getState().projects;
-      if (currentProjects.length === 0) {
-        seedDemoData();
-      } else if (urlProjectId && !useNovelStore.getState().currentProject) {
-        // 从 URL 恢复项目
-        const project = currentProjects.find((p: any) => p.id === urlProjectId);
-        if (project) {
-          useNovelStore.getState().setCurrentProject(project);
-        }
-      }
-    });
-  }, []);
-
-  // 从 URL 恢复 tab 和 chapter 选中状态
-  useEffect(() => {
-    if (!store.currentProject) return;
-    if (urlTab && ['write', 'outline', 'settings'].includes(urlTab)) {
-      setActiveWorkspaceTab(urlTab as 'write' | 'outline' | 'settings');
-    }
-    if (urlChapterId && store.chapters.length > 0) {
-      const chapter = store.chapters.find(c => c.id === urlChapterId);
-      if (chapter) {
-        store.setCurrentChapter(chapter);
-      }
-    }
-  }, [store.currentProject?.id, store.chapters.length]);
-
   // 滚动聊天到底部
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
-
-  // 当选择新章节时，同步更新编辑器内容
-  useEffect(() => {
-    if (store.currentChapter) {
-      setEditorTitle(store.currentChapter.title);
-      setEditorContent(store.currentChapter.content);
-      setSaveStatus('saved');
-    } else {
-      setEditorTitle('');
-      setEditorContent('');
-    }
-  }, [store.currentChapter]);
-
-  // 编辑器自动保存机制 (Debounce 1.5s)
-  const handleEditorChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditorContent(e.target.value);
-    setSaveStatus('dirty');
-
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    
-    autoSaveTimer.current = setTimeout(() => {
-      if (store.currentChapter) {
-        setSaveStatus('saving');
-        store.updateChapter(store.currentChapter.id, { content: e.target.value }).then(() => {
-          setSaveStatus('saved');
-        });
-      }
-    }, 1500);
-  };
-
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditorTitle(e.target.value);
-    setSaveStatus('dirty');
-
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    
-    autoSaveTimer.current = setTimeout(() => {
-      if (store.currentChapter) {
-        setSaveStatus('saving');
-        store.updateChapter(store.currentChapter.id, { title: e.target.value }).then(() => {
-          setSaveStatus('saved');
-        });
-      }
-    }, 1500);
-  };
-
-  // 手动保存章节
-  const forceSave = () => {
-    if (store.currentChapter) {
-      setSaveStatus('saving');
-      store.updateChapter(store.currentChapter.id, {
-        title: editorTitle,
-        content: editorContent
-      }).then(() => {
-        setSaveStatus('saved');
-      });
-    }
-  };
-
-  // 预设种子演示小说数据，提升初次体验
-  const seedDemoData = async () => {
-    try {
-      const demoProj = await store.createProject(
-        '仙途密信',
-        '一封前朝密信，打破了偏远小镇上的平静。陆家藏书阁女史陆青禾与随身佩戴神秘玉佩的失忆公子沈砚被迫卷入仙盟博弈与前朝复辟的洪流中。',
-        '传统修真悬疑，文笔清丽细腻，注重人物心理博弈与细腻的情感描写。',
-        '凡尘之上有三大修真豪门（陆、苏、王）以及统一天下的仙盟。暗地里，被消灭的前朝皇室死士组织“九幽阁”蠢幽动。'
-      );
-
-      // 选择此项目
-      store.setCurrentProject(demoProj);
-      router.push(buildWorkspaceUrl(demoProj.id, 'write'));
-
-      // 创建角色卡
-      await store.createCharacter({
-        projectId: demoProj.id,
-        name: '沈砚',
-        role: '男主',
-        age: '23',
-        identity: '前朝大皇子，在皇宫政变中重伤失忆，流落民间',
-        personality: ['冷静克制', '眼神锐利', '内心极度护短'],
-        goals: ['寻回遗失记忆', '查明生母死因', '暗中保护陆青禾'],
-        relationships: [{ target: '陆青禾', type: '同盟 / 暗生情愫' }],
-        currentState: '在藏书阁发现了蛛丝马迹，已警觉有人在调查自己',
-        forbidden: ['言行不能流于轻浮猥琐', '遇到危机时不能自乱阵脚']
-      });
-
-      await store.createCharacter({
-        projectId: demoProj.id,
-        name: '陆青禾',
-        role: '女主',
-        age: '20',
-        identity: '修真豪门陆家分支的藏书阁管卷女史，负责古籍整理',
-        personality: ['聪慧机智', '洞察力极强', '外柔内刚'],
-        goals: ['保全弟弟性命', '通过家族旧卷查明祖父被仙盟治罪真相'],
-        relationships: [{ target: '沈砚', type: '怀疑身份 / 利益盟友' }],
-        currentState: '在密室意外查阅到残破印章密信，开始怀疑沈砚身世',
-        forbidden: ['不可恋爱脑', '不可盲目相信他人']
-      });
-
-      // 创建设定卡
-      await store.createWorldRule({
-        projectId: demoProj.id,
-        name: '九幽阁',
-        type: 'faction',
-        description: '前朝大周皇室的核心死士亲军，擅长夜袭、隐匿与影杀术。旗帜印记为残破盘龙纹。'
-      });
-
-      await store.createWorldRule({
-        projectId: demoProj.id,
-        name: '盘龙玉佩',
-        type: 'item',
-        description: '沈砚贴身之物，品质温润的极品玄玉。其边缘雕刻有细密的皇家特有盘龙暗纹，但有明显火烧磨损痕迹。'
-      });
-
-      // 创建初始章节
-      const ch12 = await store.createChapter(demoProj.id, '第十二章：藏书阁夜读');
-      await store.updateChapter(ch12.id, {
-        content: `窗外夜雨淅淅沥沥，冷风吹得老旧的铜锁发出刺耳的撞击声。
-陆青禾侧身护着手里那盏昏黄的灯笼，轻手轻脚地推开了藏书阁最底层的铁木重门。这里的架上全是被仙盟列为“存疑”的世家旧档，纸张泛着陈旧的霉味。
-她耐着性子，纤细的手指在一排排泛黄的卷宗间划过，最终在角落一个落了锁的小暗格底端，抽出了那封信。
-信封一角盖着红斑斑驳的盘龙火漆，虽残破不全，但那盘卷的长龙之角，却猛地让陆青禾倒吸了一口凉气。
-“这印记……明明和沈公子的那枚玉佩……”她低语，捂住了自己狂跳的心口。`,
-        summary: '陆青禾在藏书阁底的密室发现了一封盖着盘龙火漆的密信，这火漆上的残破盘龙印记与沈砚随身玉佩上的纹路如出一辙，陆青禾大为震惊。',
-        characterChanges: [{ character: '陆青禾', change: '发现关键证据，对沈砚的来历产生极大怀疑' }],
-        newForeshadowing: ['盘龙火漆密信', '沈砚玉佩上的残缺龙角'],
-        resolvedForeshadowing: [],
-        timelineEvents: ['细雨之夜，陆青禾私入藏书阁禁区，查获前朝密信']
-      });
-
-      const ch13 = await store.createChapter(demoProj.id, '第十三章：深夜茶香的试探');
-      // 未写正文，以留空供AI自动写作体验
-      await store.updateChapter(ch13.id, {
-        content: ``,
-        summary: '',
-        characterChanges: [],
-        newForeshadowing: [],
-        resolvedForeshadowing: [],
-        timelineEvents: []
-      });
-
-      // 默认选中第十三章
-      store.setCurrentChapter(ch13);
-    } catch (e) {
-      console.error('Failed to seed demo data', e);
-    }
-  };
 
   // ======= 向导式新书生成器处理器 =======
   const handleOpenWizard = () => {
@@ -1825,21 +1583,6 @@ export default function Home() {
     } finally {
       setIsAiLoading(false);
     }
-  };
-
-  // --- 文件导出功能 ---
-  const exportFile = (type: 'md' | 'txt') => {
-    if (!store.currentChapter) return;
-    const title = editorTitle || '未命名章节';
-    const content = editorContent;
-    const filename = `${title}.${type}`;
-    const blob = new Blob([`# ${title}\n\n${content}`], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // 渲染大面积双栏开书向导
