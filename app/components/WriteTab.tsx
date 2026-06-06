@@ -188,6 +188,63 @@ export function WriteTab() {
                   </div>
                 </div>
 
+                {/* 本地草稿恢复提示条 */}
+                {editor.localDraft && (
+                  <div className="animate-fade-in" style={{
+                    margin: '5px 40px 10px',
+                    padding: '10px 16px',
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    fontSize: '12px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c7d2fe' }}>
+                      <span style={{ fontWeight: '600', color: '#38bdf8' }}>本地草稿提示：</span>
+                      <span>检测到本章有未同步至云端的本地缓存草稿（保存于 {new Date(editor.localDraft.updatedAt).toLocaleString()}）。</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        onClick={editor.restoreLocalDraft} 
+                        className="btn"
+                        style={{
+                          padding: '4px 10px',
+                          height: '24px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          background: 'var(--accent)',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                        title="载入浏览器本地保存的最新草稿内容"
+                      >
+                        恢复草稿
+                      </button>
+                      <button 
+                        onClick={editor.clearLocalDraft}
+                        className="btn"
+                        style={{
+                          padding: '4px 10px',
+                          height: '24px',
+                          fontSize: '11px',
+                          borderRadius: '4px',
+                          background: 'transparent',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                        title="放弃并删除此本地缓存"
+                      >
+                        忽略
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* AI 运行状态提示条 */}
                 {(locked || busy) && (
                   <div className="animate-fade-in" style={{
