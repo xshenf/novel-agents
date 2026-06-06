@@ -13,6 +13,7 @@ interface KernelDimensionCardProps {
   setValue: (val: string) => void;
   cardType: string;
   placeholder: string;
+  alwaysExpanded?: boolean;
 }
 
 export function KernelDimensionCard({
@@ -23,10 +24,11 @@ export function KernelDimensionCard({
   setValue,
   cardType,
   placeholder,
+  alwaysExpanded = false,
 }: KernelDimensionCardProps) {
   const { store, kernel } = useWorkspace();
   const { expandedKernelCard, setExpandedKernelCard, isKernelLoading, kernelOptions } = kernel;
-  const isExpanded = expandedKernelCard === cardKey;
+  const isExpanded = alwaysExpanded || expandedKernelCard === cardKey;
 
   // 自动保存：value 变化时 debounce 2s 保存
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -73,13 +75,17 @@ export function KernelDimensionCard({
     >
       {/* 卡片头部 */}
       <div
-        onClick={() => setExpandedKernelCard(isExpanded ? null : cardKey)}
+        onClick={() => {
+          if (!alwaysExpanded) {
+            setExpandedKernelCard(isExpanded ? null : cardKey);
+          }
+        }}
         style={{
           padding: '16px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          cursor: 'pointer',
+          cursor: alwaysExpanded ? 'default' : 'pointer',
           background: isExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
           transition: 'background 0.2s ease',
         }}
@@ -92,7 +98,7 @@ export function KernelDimensionCard({
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             {value ? '已设定' : '待补充设定'}
           </span>
-          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {!alwaysExpanded && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
         </div>
       </div>
 

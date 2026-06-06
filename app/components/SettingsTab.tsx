@@ -5,6 +5,7 @@ import { useWorkspace } from '../workspace-context';
 import { KernelDimensionCard } from './KernelDimensionCard';
 import { CharacterCard, AddCharacterCard, WorldRuleCard, AddWorldRuleCard } from './AssetCards';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
+import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
 export function SettingsTab() {
   const { store, kernel } = useWorkspace();
@@ -79,6 +80,7 @@ export function SettingsTab() {
             setValue={setTempStyleSetting}
             cardType="styleSetting"
             placeholder="例如：都市超能体裁，快节奏神豪爽文，整体色调轻松幽默，节奏明快..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -89,6 +91,7 @@ export function SettingsTab() {
             setValue={setTempWorldSetting}
             cardType="worldSetting"
             placeholder="例如：一个灵气衰退的仙侠世界，修行者寿元大减，凡人建立的机械帝国与修士宗门共存..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -99,6 +102,7 @@ export function SettingsTab() {
             setValue={setTempPowerSystem}
             cardType="powerSystem"
             placeholder="例如：练气、筑基、金丹、元婴、化神..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -109,6 +113,7 @@ export function SettingsTab() {
             setValue={setTempGoldFinger}
             cardType="goldFinger"
             placeholder="例如：可以复制万物的神秘古镜，或者属性加点的诸天面板..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -119,6 +124,7 @@ export function SettingsTab() {
             setValue={setTempCoreConflict}
             cardType="coreConflict"
             placeholder="例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -129,6 +135,7 @@ export function SettingsTab() {
             setValue={setTempFactionsMap}
             cardType="factionsMap"
             placeholder="例如：东荒三宗、西漠佛国、北海妖域，各方势力犬牙交错..."
+            alwaysExpanded={true}
           />
 
           <KernelDimensionCard
@@ -139,6 +146,7 @@ export function SettingsTab() {
             setValue={setTempSellingPoints}
             cardType="sellingPoints"
             placeholder="例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派..."
+            alwaysExpanded={true}
           />
 
           {/* 反 AI 写作控制与文风微调卡片 */}
@@ -308,6 +316,14 @@ export function SettingsTab() {
                     character={char}
                     onSave={async (id, updates) => {
                       await store.updateCharacter(id, updates);
+                      createVersionSnapshot({
+                        projectId: store.currentProject!.id,
+                        type: 'character',
+                        key: id,
+                        label: `${updates.name || char.name}`,
+                        data: updates,
+                        source: 'auto',
+                      });
                     }}
                     onDelete={async (id) => {
                       await store.deleteCharacter(id);
@@ -390,6 +406,14 @@ export function SettingsTab() {
                     rule={rule}
                     onSave={async (id, updates) => {
                       await store.updateWorldRule(id, updates);
+                      createVersionSnapshot({
+                        projectId: store.currentProject!.id,
+                        type: 'worldRule',
+                        key: id,
+                        label: `${updates.name || rule.name}`,
+                        data: updates,
+                        source: 'auto',
+                      });
                     }}
                     onDelete={async (id) => {
                       await store.deleteWorldRule(id);
