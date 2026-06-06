@@ -377,21 +377,37 @@ export const autoWriteChapterTool = tool(
   }
 );
 
-// ─── 11. 润色文本 ─────────────────────────────────────────────────────────────
+// ─── 11. 润色文本 ─────────────────────────────────────────────────────────────────
 export const polishTextTool = tool(
-  async ({ text, instruction }, config) => {
+  async ({ projectId, text, instruction }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
     const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
     const configStr = getAgentConfig('editor', apiConfig);
-    const result = await ai.polish(text, instruction || '', configStr, getAgentModelName('editor', apiConfig, modelName));
+
+    // 读取项目的反 AI 写作规则，注入到润色指令中
+    let antiAiNote = '';
+    if (projectId) {
+      const project = await db.getProject(projectId);
+      if (project?.antiAiStyleRules && project.antiAiStyleRules.length > 0) {
+        const { DEFAULT_ANTI_AI_RULES } = await import('../rules');
+        const activeRules = DEFAULT_ANTI_AI_RULES.filter(r => project.antiAiStyleRules?.includes(r.key));
+        if (activeRules.length > 0) {
+          antiAiNote = '\n' + activeRules.map((r, i) => `${i + 1}. [${r.name}] ${r.promptInstruction}`).join('\n');
+        }
+      }
+    }
+
+    const fullInstruction = (instruction || '') + antiAiNote;
+    const result = await ai.polish(text, fullInstruction || '', configStr, getAgentModelName('editor', apiConfig, modelName));
     return result;
   },
   {
     name: 'polish_text',
-    description: '对提供的文本进行润色修改，可指定润色方向（如：加强环境描写、改为古风文笔、增加节奏感等）。',
+    description: '对提供的文本进行润色修改，可指定润色方向（如：加强环境描写、改为古风文笔、增加节奏感等）。如果提供了 projectId，会自动应用项目的反 AI 写作规则。',
     schema: z.object({
+      projectId: z.string().optional().describe('小说项目ID，可选；提供时会自动应用项目的反 AI 写作规则'),
       text: z.string().describe('需要润色的原文'),
-      instruction: z.string().optional().describe('润色方向 and 要求'),
+      instruction: z.string().optional().describe('润色方向和要求'),
     }),
   }
 );
@@ -476,7 +492,7 @@ export const addAntiAiRuleTool = tool(
   }
 );
 
-// ─── 14. 生成角色/设定灵感 ────────────────────────────────────────────────────
+// ─── 15. 生成角色/设定灵感 ────────────────────────────────────────────────────
 export const generateInspirationsTool = tool(
   async ({ projectId }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';

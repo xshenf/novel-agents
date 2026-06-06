@@ -51,9 +51,17 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(payload));
       };
 
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
       try {
         // 构建图
         const graph = buildNovelAgentGraph(packedApiKey, modelName || 'gemini-2.5-flash', projectId);
+
+        // 心跳机制：每 15 秒发送一歡 SSE 注释行，防止代理/网关因长时间无数据而断开连接
+        heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': keepalive\n\n'));
+          } catch { /* controller 已关闭时忽略 */ }
+        }, 15000);
 
         send('start', { message: '多 Agent 系统启动...' });
 
@@ -183,6 +191,7 @@ export async function POST(request: NextRequest) {
           tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送“请继续刚才未完成的工作”来续跑。'
         });
       } finally {
+        if (heartbeat) clearInterval(heartbeat);
         controller.close();
       }
     },

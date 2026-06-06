@@ -23,6 +23,40 @@ export interface AICheckResult {
 
 
 
+// 清洗并安全解析 LLM 返回的 JSON 字符串。
+// LLM 经常返回带 markdown 代码块标记、尾部注释或其它非法 JSON，直接 JSON.parse 会崩溃。
+function safeParseJSON<T = any>(raw: string, fallback?: T): T {
+  // 1. 先直接尝试
+  try {
+    return JSON.parse(raw);
+  } catch { /* continue */ }
+
+  // 2. 剥离 markdown 代码块标记（```json ... ```）
+  let cleaned = raw.trim();
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* continue */ }
+
+  // 3. 尝试提取第一个完整的 JSON 对象或数组
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0]);
+    } catch { /* continue */ }
+  }
+  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      return JSON.parse(arrMatch[0]);
+    } catch { /* continue */ }
+  }
+
+  // 4. 全部失败：抛出或返回 fallback
+  if (fallback !== undefined) return fallback;
+  throw new Error(`Failed to parse JSON from LLM response: ${raw.slice(0, 200)}...`);
+}
+
 // 判断调用方是否提供了「可用」的 API Key（兼容原始字符串与打包后的 JSON 配置）。
 // 仅当返回 false（未配置 Key）时才使用本地 mock；配置了 Key 时一律走真实接口，
 // 真实接口的错误会向上抛出而不再被静默吞掉伪装成 mock 结果。
@@ -728,7 +762,7 @@ export const ai = {
 
     if (hasUsableKey(apiKey)) {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      return JSON.parse(jsonStr);
+      return safeParseJSON(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -837,7 +871,7 @@ export const ai = {
 
     if (hasUsableKey(apiKey)) {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      return JSON.parse(jsonStr);
+      return safeParseJSON(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -873,7 +907,7 @@ export const ai = {
 
     if (hasUsableKey(apiKey)) {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      return JSON.parse(jsonStr);
+      return safeParseJSON(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -992,7 +1026,7 @@ ${memory.contextText}
 
     if (hasUsableKey(apiKey)) {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      return JSON.parse(jsonStr) as AICheckResult;
+      return safeParseJSON<AICheckResult>(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1018,7 +1052,7 @@ ${memory.contextText}
 
     if (hasUsableKey(apiKey)) {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
-      return JSON.parse(jsonStr) as AISummaryResult;
+      return safeParseJSON<AISummaryResult>(jsonStr);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
