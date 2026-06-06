@@ -101,9 +101,9 @@ export function SettingsDrawer() {
                               className="model-card-delete-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`确定要删除模型「${model.alias}」吗？`)) {
+                                store.showConfirm(`确定要删除模型「${model.alias}」吗？`, () => {
                                   store.deleteModel(model.id);
-                                }
+                                });
                               }}
                             >
                               删除

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Character, WorldRule } from '@/lib/db';
+import { useWorkspace } from '../workspace-context';
 
 export const CharacterCard = ({
   character,
@@ -12,6 +13,7 @@ export const CharacterCard = ({
   onSave: (id: string, updates: any) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) => {
+  const { store } = useWorkspace();
   const [name, setName] = useState(character.name);
   const [role, setRole] = useState(character.role);
   const [age, setAge] = useState(character.age);
@@ -95,7 +97,7 @@ export const CharacterCard = ({
           <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ padding: '4px 10px', fontSize: '11px', border: 'none' }}>
             {isSaving ? '保存中' : '保存'}
           </button>
-          <button className="btn btn-secondary" onClick={() => { if(confirm(`确定删除角色 ${name} 吗？`)) onDelete(character.id) }} style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
+          <button className="btn btn-secondary" onClick={() => { store.showConfirm(`确定删除角色 ${name} 吗？`, () => onDelete(character.id)) }} style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
             删除
           </button>
         </div>
@@ -225,6 +227,7 @@ export const WorldRuleCard = ({
   onSave: (id: string, updates: any) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) => {
+  const { store } = useWorkspace();
   const [name, setName] = useState(rule.name);
   const [type, setType] = useState(rule.type);
   const [description, setDescription] = useState(rule.description);
@@ -285,7 +288,7 @@ export const WorldRuleCard = ({
           <button className="btn btn-primary" onClick={handleSave} disabled={isSaving} style={{ padding: '3px 8px', fontSize: '11px', border: 'none' }}>
             {isSaving ? '保存中' : '保存'}
           </button>
-          <button className="btn btn-secondary" onClick={() => { if(confirm(`确定删除设定项 ${name} 吗？`)) onDelete(rule.id) }} style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
+          <button className="btn btn-secondary" onClick={() => { store.showConfirm(`确定删除设定项 ${name} 吗？`, () => onDelete(rule.id)) }} style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--accent-warning)', border: 'none' }}>
             删除
           </button>
         </div>

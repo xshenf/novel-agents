@@ -23,7 +23,8 @@ import { Dashboard } from './components/Dashboard';
 import { WizardPanel } from './components/WizardPanel';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { InspirationsModal } from './components/InspirationsModal';
-import { NewChapterModal, NewCharModal, NewRuleModal, EditProjectModal } from './components/Modals';
+import { NewChapterModal, NewCharModal, NewRuleModal, EditProjectModal, GlobalPromptModal } from './components/Modals';
+import { useEffect } from 'react';
 import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceTabBar } from './components/WorkspaceTabBar';
 import { WriteTab } from './components/WriteTab';
@@ -33,6 +34,15 @@ import { AgentPanel } from './components/AgentPanel';
 
 export default function Home() {
   const store = useNovelStore();
+
+  // 劫持浏览器默认的 alert 弹窗，替换为美观的主题提示模态框
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.alert = (message: string) => {
+        store.showAlert(message);
+      };
+    }
+  }, [store]);
   const callAIApi = useAiClient();
   const routing = useWorkspaceRouting(store);
   const { mounted, activeWorkspaceTab } = routing;
@@ -129,6 +139,7 @@ export default function Home() {
         <NewCharModal />
         <NewRuleModal />
         <EditProjectModal />
+        <GlobalPromptModal />
       </main>
     </WorkspaceProvider>
   );

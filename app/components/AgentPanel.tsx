@@ -51,7 +51,7 @@ export function AgentPanel() {
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => {
-                  if (confirm('确定清除当前的协作对话历史吗？')) {
+                  store.showConfirm('确定清除当前的协作对话历史吗？', () => {
                     setAgentMessages([]);
                     if (store.currentProject) {
                       localStorage.removeItem(`agent_messages_${store.currentProject.id}`);
@@ -61,7 +61,7 @@ export function AgentPanel() {
                         console.error('Failed to delete agent history from database:', err);
                       });
                     }
-                  }
+                  });
                 }}
                 style={{ padding: '2px 8px', fontSize: '10.5px', border: 'none', background: 'rgba(244,63,94,0.08)', color: '#fda4af', cursor: 'pointer' }}
               >

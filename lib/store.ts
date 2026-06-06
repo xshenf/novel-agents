@@ -72,6 +72,11 @@ export interface NovelStore {
   createWorldRule: (rule: Omit<WorldRule, 'id'>) => Promise<WorldRule>;
   updateWorldRule: (id: string, updates: Partial<Omit<WorldRule, 'id' | 'projectId'>>) => Promise<void>;
   deleteWorldRule: (id: string) => Promise<void>;
+
+  globalModal: { title?: string; message: string; type: 'alert' | 'confirm'; onConfirm?: () => void; onCancel?: () => void } | null;
+  showAlert: (message: string, title?: string) => void;
+  showConfirm: (message: string, onConfirm: () => void, onCancel?: () => void, title?: string) => void;
+  closeGlobalModal: () => void;
 }
 
 export const useNovelStore = create<NovelStore>((set, get) => {
@@ -696,6 +701,37 @@ export const useNovelStore = create<NovelStore>((set, get) => {
       } catch (err: any) {
         set({ error: err.message });
       }
+    },
+
+    globalModal: null,
+    showAlert: (message, title = '系统提示') => {
+      set({
+        globalModal: {
+          title,
+          message,
+          type: 'alert',
+        }
+      });
+    },
+    showConfirm: (message, onConfirm, onCancel, title = '确认操作') => {
+      set({
+        globalModal: {
+          title,
+          message,
+          type: 'confirm',
+          onConfirm: () => {
+            onConfirm();
+            get().closeGlobalModal();
+          },
+          onCancel: () => {
+            if (onCancel) onCancel();
+            get().closeGlobalModal();
+          }
+        }
+      });
+    },
+    closeGlobalModal: () => {
+      set({ globalModal: null });
     },
   };
 });

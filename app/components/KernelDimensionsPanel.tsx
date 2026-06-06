@@ -4,6 +4,7 @@ import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { KernelDimensionCard } from './KernelDimensionCard';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
 import { MATERIALS_LIST } from '../hooks/useMaterialTabs';
+import { useWorkspace } from '../workspace-context';
 
 interface KernelDimensionsPanelProps {
   activeMaterial: string;
@@ -34,6 +35,7 @@ interface KernelDimensionsPanelProps {
  * 以及 specialSetting 下的"反 AI 文风特征过滤器"折叠面板。
  */
 export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
+  const { store } = useWorkspace();
   const {
     activeMaterial,
     tempWorldSetting, setTempWorldSetting,
@@ -198,11 +200,11 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
                     {activeRules.length > 0 && (
                       <button
                         className="btn btn-secondary"
-                        onClick={async () => {
+                        onClick={() => {
                           if (!currentProject) return;
-                          if (confirm('是否清空所有已启用的反 AI 规则？')) {
+                          store.showConfirm('是否清空所有已启用的反 AI 规则？', async () => {
                             await updateProject(currentProject.id, { antiAiStyleRules: [] });
-                          }
+                          });
                         }}
                         style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
                       >

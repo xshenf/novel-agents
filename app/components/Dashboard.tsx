@@ -30,9 +30,9 @@ export function Dashboard() {
                 className="btn-icon"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm(`确认要彻底删除小说《${project.title}》吗？这将无法恢复。`)) {
+                  store.showConfirm(`确认要彻底删除小说《${project.title}》吗？这将无法恢复。`, () => {
                     store.deleteProject(project.id);
-                  }
+                  });
                 }}
                 style={{ color: 'rgba(239, 68, 68, 0.6)' }}
               >

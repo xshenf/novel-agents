@@ -209,3 +209,53 @@ export function EditProjectModal() {
     </div>
   );
 }
+
+export function GlobalPromptModal() {
+  const { store } = useWorkspace();
+  const m = store.globalModal;
+  if (!m) return null;
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+      <div className="modal-content glass-card animate-fade-in" style={{ maxWidth: '400px', padding: '24px' }}>
+        <div className="modal-title" style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '12px' }}>
+          {m.title}
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '20px', whiteSpace: 'pre-wrap' }}>
+          {m.message}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          {m.type === 'confirm' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                if (m.onCancel) m.onCancel();
+                else store.closeGlobalModal();
+              }}
+              style={{ fontSize: '12px', padding: '6px 14px' }}
+            >
+              取消
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              if (m.onConfirm) m.onConfirm();
+              else store.closeGlobalModal();
+            }}
+            style={{
+              fontSize: '12px',
+              padding: '6px 14px',
+              background: m.type === 'confirm' ? '#ef4444' : 'var(--accent)',
+              border: 'none'
+            }}
+          >
+            确定
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

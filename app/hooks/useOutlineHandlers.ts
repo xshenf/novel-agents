@@ -90,15 +90,16 @@ export function useOutlineHandlers(params: OutlineHandlersParams): OutlineHandle
 
   // 删除分卷
   const handleDeleteVolume = useCallback((volIdx: number) => {
-    if (!confirm('确定要删除该分卷吗？删除分卷会连同删除该分卷下的所有章节！')) return;
-    const newSections = [...localSections];
-    newSections.splice(volIdx, 1);
-    syncSections(newSections);
-    if (editingVolumeIdx === volIdx) {
-      setEditingVolumeIdx(null);
-      setEditVolumeForm(null);
-    }
-  }, [localSections, syncSections, editingVolumeIdx, setEditingVolumeIdx, setEditVolumeForm]);
+    store.showConfirm('确定要删除该分卷吗？删除分卷会连同删除该分卷下的所有章节！', () => {
+      const newSections = [...localSections];
+      newSections.splice(volIdx, 1);
+      syncSections(newSections);
+      if (editingVolumeIdx === volIdx) {
+        setEditingVolumeIdx(null);
+        setEditVolumeForm(null);
+      }
+    });
+  }, [localSections, syncSections, editingVolumeIdx, setEditingVolumeIdx, setEditVolumeForm, store]);
 
   // 分卷位置上下移位
   const handleMoveVolume = useCallback((volIdx: number, direction: 'up' | 'down') => {
@@ -137,19 +138,20 @@ export function useOutlineHandlers(params: OutlineHandlersParams): OutlineHandle
 
   // 删除某章细纲
   const handleDeleteChapter = useCallback((volIdx: number, chapIdx: number) => {
-    if (!confirm('确定要删除本章节大纲吗？此后序号会自动全书重新递增。')) return;
-    const newSections = localSections.map((vol, vIdx) => {
-      if (vIdx !== volIdx) return vol;
-      const newChapters = [...vol.chapters];
-      newChapters.splice(chapIdx, 1);
-      return { ...vol, chapters: newChapters };
+    store.showConfirm('确定要删除本章节大纲吗？此后序号会自动全书重新递增。', () => {
+      const newSections = localSections.map((vol, vIdx) => {
+        if (vIdx !== volIdx) return vol;
+        const newChapters = [...vol.chapters];
+        newChapters.splice(chapIdx, 1);
+        return { ...vol, chapters: newChapters };
+      });
+      syncSections(newSections);
+      if (editingChapterPath && editingChapterPath.volIdx === volIdx && editingChapterPath.chapIdx === chapIdx) {
+        setEditingChapterPath(null);
+        setEditChapterForm(null);
+      }
     });
-    syncSections(newSections);
-    if (editingChapterPath && editingChapterPath.volIdx === volIdx && editingChapterPath.chapIdx === chapIdx) {
-      setEditingChapterPath(null);
-      setEditChapterForm(null);
-    }
-  }, [localSections, syncSections, editingChapterPath, setEditingChapterPath, setEditChapterForm]);
+  }, [localSections, syncSections, editingChapterPath, setEditingChapterPath, setEditChapterForm, store]);
 
   // 章节位置上下移位
   const handleMoveChapter = useCallback((volIdx: number, chapIdx: number, direction: 'up' | 'down') => {

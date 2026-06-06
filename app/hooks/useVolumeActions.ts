@@ -210,14 +210,11 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       const sections = getLocalSections();
       const target = sections[volIdx];
       if (!target) return;
-      if (target.chapters.length > 0) {
-        if (!confirm(`分卷「${target.title || `第 ${volIdx + 1} 卷`}」已有 ${target.chapters.length} 个章节，AI 重建将清空这些章节细纲。是否继续？`)) {
-          return;
-        }
-      }
-      setIsAiOutlineLoading(true);
-      try {
-        const prompt = `${buildContext()}
+
+      const run = async () => {
+        setIsAiOutlineLoading(true);
+        try {
+          const prompt = `${buildContext()}
 
 【任务】请为「第 ${volIdx + 1} 卷」一次性规划分卷的标题、概要与 ${numChapters} 个章节细纲。
 ${target.content ? `【原有概要参考】: ${target.content}` : ''}
@@ -262,11 +259,21 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
             : vol
         );
         persist(next);
-        alert(`已重建分卷「${newVol.title || target.title}」，含 ${newVol.chapters.length} 章大纲`);
-      } catch (err: any) {
-        alert('AI 一键生成本卷失败: ' + (err?.message || String(err)));
-      } finally {
-        setIsAiOutlineLoading(false);
+          alert(`已重建分卷「${newVol.title || target.title}」，含 ${newVol.chapters.length} 章大纲`);
+        } catch (err: any) {
+          alert('AI 一键生成本卷失败: ' + (err?.message || String(err)));
+        } finally {
+          setIsAiOutlineLoading(false);
+        }
+      };
+
+      if (target.chapters.length > 0) {
+        store.showConfirm(
+          `分卷「${target.title || `第 ${volIdx + 1} 卷`}」已有 ${target.chapters.length} 个章节，AI 重建将清空这些章节细纲。是否继续？`,
+          run
+        );
+      } else {
+        run();
       }
     },
     [store, getLocalSections, callOutlineAssistant, persist]
@@ -365,13 +372,12 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
       const sections = getLocalSections();
       const target = sections[volIdx];
       if (!target) return;
-      if (!confirm(`确定要删除分卷「${target.title || `第 ${volIdx + 1} 卷`}」及其全部章节大纲吗？`)) {
-        return;
-      }
-      const next = sections.filter((_, i) => i !== volIdx);
-      persist(next);
+      store.showConfirm(`确定要删除分卷「${target.title || `第 ${volIdx + 1} 卷`}」及其全部章节大纲吗？`, () => {
+        const next = sections.filter((_, i) => i !== volIdx);
+        persist(next);
+      });
     },
-    [getLocalSections, persist]
+    [getLocalSections, persist, store]
   );
 
   // 切换分卷锁定标记
