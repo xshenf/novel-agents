@@ -50,7 +50,8 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
 
   const subtitle =
     activeMaterial === 'worldSetting' ? '定义小说主舞台的大陆疆域、宏观规则、历史背景与社会法则'
-    : activeMaterial === 'coreConflict' ? '推动小说主线发展的主要矛盾，以及网文吸引读者的爽点卖点设计'
+    : activeMaterial === 'coreConflict' ? '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机'
+    : activeMaterial === 'sellingPoints' ? '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计'
     : activeMaterial === 'powerSystem' ? '定义主角及世界的修炼境界、超自然等级，以及主角的特殊外挂金手指设定'
     : activeMaterial === 'specialSetting' ? '小说的体裁定位、情感基调偏好，以及绑定写作模型时的反 AI 底层约束'
     : '';
@@ -84,28 +85,29 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
         )}
 
         {activeMaterial === 'coreConflict' && (
-          <>
-            <KernelDimensionCard
-              cardKey="coreConflict"
-              title="核心矛盾与冲突线"
-              subtitle="推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机"
-              value={tempCoreConflict}
-              setValue={setTempCoreConflict}
-              cardType="coreConflict"
-              placeholder="例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印..."
-              alwaysExpanded={true}
-            />
-            <KernelDimensionCard
-              cardKey="sellingPoints"
-              title="爽点与核心卖点"
-              subtitle="网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计"
-              value={tempSellingPoints}
-              setValue={setTempSellingPoints}
-              cardType="sellingPoints"
-              placeholder="例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派..."
-              alwaysExpanded={true}
-            />
-          </>
+          <KernelDimensionCard
+            cardKey="coreConflict"
+            title="核心矛盾与冲突线"
+            subtitle="推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机"
+            value={tempCoreConflict}
+            setValue={setTempCoreConflict}
+            cardType="coreConflict"
+            placeholder="例如：真仙下凡灭族之仇，或是主角身上的天劫诅咒，需不断打破封印..."
+            alwaysExpanded={true}
+          />
+        )}
+
+        {activeMaterial === 'sellingPoints' && (
+          <KernelDimensionCard
+            cardKey="sellingPoints"
+            title="爽点与核心卖点"
+            subtitle="网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计"
+            value={tempSellingPoints}
+            setValue={setTempSellingPoints}
+            cardType="sellingPoints"
+            placeholder="例如：扮猪吃老虎，极限反杀，创建宗门幕后操控世界流派..."
+            alwaysExpanded={true}
+          />
         )}
 
         {activeMaterial === 'powerSystem' && (
