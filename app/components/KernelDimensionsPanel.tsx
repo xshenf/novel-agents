@@ -161,10 +161,24 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
         )}
 
         {activeMaterial === 'styleSetting' && (
-          <StyleSettingPanel
-            tempStyleSetting={tempStyleSetting}
-            setTempStyleSetting={setTempStyleSetting}
-          />
+          <>
+            <StyleSettingPanel
+              tempStyleSetting={tempStyleSetting}
+              setTempStyleSetting={setTempStyleSetting}
+            />
+            <div style={{ marginTop: '16px' }}>
+              <KernelDimensionCard
+                cardKey="forbiddenSetting"
+                title="禁止出现的设定/桥段"
+                subtitle="自定义负向约束，定义小说正文及大纲生成中严禁出现的毒点、剧情或词汇"
+                value={tempForbiddenSetting}
+                setValue={setTempForbiddenSetting}
+                cardType="forbiddenSetting"
+                placeholder="例如：严禁主角舔狗、送女行为；禁止出现无脑降智反派；禁止出现长篇大论的心理描写..."
+                alwaysExpanded={true}
+              />
+            </div>
+          </>
         )}
 
         {activeMaterial === 'skillSystem' && (
@@ -242,17 +256,6 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
               setValue={setTempStyleSetting}
               cardType="styleSetting"
               placeholder="例如：都市超能体裁，快节奏神豪爽文，整体色调轻松幽默，节奏明快..."
-              alwaysExpanded={true}
-            />
-
-            <KernelDimensionCard
-              cardKey="forbiddenSetting"
-              title="禁止出现的设定/桥段"
-              subtitle="自定义负向约束，定义小说正文及大纲生成中严禁出现的毒点、剧情或词汇"
-              value={tempForbiddenSetting}
-              setValue={setTempForbiddenSetting}
-              cardType="forbiddenSetting"
-              placeholder="例如：严禁主角舔狗、送女行为；禁止出现无脑降智反派；禁止出现长篇大论的心理描写..."
               alwaysExpanded={true}
             />
 
