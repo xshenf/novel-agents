@@ -306,14 +306,18 @@ export const WorldRuleCard = ({
 export const AddWorldRuleCard = ({ 
   projectId, 
   onAdd, 
-  onCancel 
+  onCancel,
+  defaultType,
+  defaultName
 }: { 
   projectId: string; 
   onAdd: (rule: any) => Promise<void>; 
   onCancel: () => void; 
+  defaultType?: 'location' | 'faction' | 'rule' | 'item' | 'other';
+  defaultName?: string;
 }) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<'location' | 'faction' | 'rule' | 'item' | 'other'>('location');
+  const [name, setName] = useState(defaultName || '');
+  const [type, setType] = useState<'location' | 'faction' | 'rule' | 'item' | 'other'>(defaultType || 'location');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
