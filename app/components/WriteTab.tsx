@@ -186,6 +186,33 @@ export function WriteTab() {
                 </div>
               </div>
 
+              {/* AI 运行状态提示条 */}
+              {(locked || busy) && (
+                <div className="animate-fade-in" style={{
+                  margin: '5px 40px 10px',
+                  padding: '10px 16px',
+                  background: 'rgba(99, 102, 241, 0.06)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '12px',
+                  color: 'var(--text-primary)',
+                }}>
+                  <Loader2 size={13} className="animate-spin" style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontWeight: '600', color: '#fff', whiteSpace: 'nowrap' }}>AI 状态提示：</span>
+                  <span style={{ color: '#c7d2fe' }}>
+                    {isAutoWriting && '正在提取大纲与上下文记忆，自动撰写当前章节正文...'}
+                    {inlineBusy === 'continue' && '正在分析全文剧情，在末尾为您进行续写...'}
+                    {inlineBusy === 'polish' && '正在润色精雕您选中的正文段落...'}
+                    {inlineBusy === 'expand' && '正在丰富细节描写，为您扩写选中正文段落...'}
+                    {inlineBusy === 'rewrite' && '正在对您选中的正文段落进行换法改写...'}
+                    {busy && !isAutoWriting && '正在读取世界设定与人物卡记忆，进行逻辑一致性检测或重新复盘本章记忆...'}
+                  </span>
+                </div>
+              )}
+
               <div className="editor-body" style={{ flexGrow: 0, overflowY: 'visible', paddingBottom: '80px' }}>
                 <textarea
                   ref={textareaRef}
@@ -200,13 +227,14 @@ export function WriteTab() {
 
               <div className="editor-footer">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="pulse-dot" style={{ background: locked ? 'var(--accent-success)' : 'var(--accent-warning)' }}></span>
+                  <span className="pulse-dot" style={{ background: (locked || busy) ? 'var(--accent-success)' : 'var(--accent-warning)' }}></span>
                   <span>
                     {isAutoWriting && 'AI 正在全力写作并保存至数据库...'}
                     {inlineBusy && !isAutoWriting && 'AI 内联处理中...'}
-                    {!locked && saveStatus === 'saved' && '已保存到云端数据库'}
-                    {!locked && saveStatus === 'saving' && '正在保存到云端数据库...'}
-                    {!locked && saveStatus === 'dirty' && '草稿已被修改'}
+                    {busy && !isAutoWriting && 'AI 正在分析记忆/校验逻辑...'}
+                    {!locked && !busy && saveStatus === 'saved' && '已保存到云端数据库'}
+                    {!locked && !busy && saveStatus === 'saving' && '正在保存到云端数据库...'}
+                    {!locked && !busy && saveStatus === 'dirty' && '草稿已被修改'}
                   </span>
                 </div>
                 <div>字数统计: {countChineseChars(editorContent)} 字</div>
