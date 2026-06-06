@@ -803,6 +803,17 @@ export const ai = {
       ? `\n请务必严格遵守以下文风控制与反AI写作控制规则（极其重要）：\n` + antiAiLines
       : '';
 
+    // few-shot：取本书最近一章有实质内容的正文片段作为文风范例（模仿笔触，不照抄情节）
+    const allChapters = await db.getChapters(projectId);
+    let styleExemplar = '';
+    for (let i = allChapters.length - 1; i >= 0; i--) {
+      const c = (allChapters[i].content || '').trim();
+      if (c.length >= 200) { styleExemplar = c.slice(0, 400); break; }
+    }
+    const exemplarBlock = styleExemplar
+      ? `\n\n【本书已有正文片段（请揣摩并模仿其笔触、语感与节奏，但不要照抄其情节）】：\n${styleExemplar}`
+      : '';
+
     const systemInstruction = `你是一个网络小说全职写手，擅长撰写情节跌宕起伏、伏笔连贯、人物塑造深刻的网络小说。
 你的任务是根据提供的小说设定、相关人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
 要求：
@@ -812,7 +823,7 @@ export const ai = {
 4. 行文文风必须与本书既定文风严格一致。${styleBlock}${antiAiInstructions}
 5. 仅输出章节的正文内容，不要包含任何多余的引言、前言或总结。`;
 
-    const prompt = `【小说设定与长期记忆】:\n${memory.contextText}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
+    const prompt = `【小说设定与长期记忆】:\n${memory.contextText}${exemplarBlock}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
 
     if (hasUsableKey(apiKey)) {
       return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
