@@ -3,7 +3,7 @@
 import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useWorkspace } from '../workspace-context';
-import { findWritten, statusOf, chapterWordCount, collectOrphans, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
+import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
 
 // 章节写作状态徽标颜色
 const STATUS_COLOR: Record<ChapterStatus, string> = {
@@ -41,10 +41,25 @@ export function WorkspaceSidebar() {
     setSelectedChapterIdx(cIdx);
   };
 
-  const handleEnterWriting = (chapterId: string | null) => {
+  const handleEnterWriting = async (vIdx: number, cIdx: number, chapterId: string | null) => {
     if (!store.currentProject) return;
     setActiveWorkspaceTab('write');
-    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', chapterId ?? undefined));
+    let realId = chapterId;
+    if (!realId) {
+      const sec = localSections[vIdx]?.chapters[cIdx];
+      const title = sec?.title || '新章节';
+      try {
+        const newChap = await store.createChapter(store.currentProject.id, title);
+        realId = newChap.id;
+        store.setCurrentChapter(newChap);
+      } catch (e) {
+        console.error('手动创建新章节失败:', e);
+      }
+    } else {
+      const dbChap = store.chapters.find((c: any) => c.id === chapterId);
+      store.setCurrentChapter(dbChap || null);
+    }
+    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', realId ?? undefined));
   };
 
   const toggleCollapsed = (vIdx: number) => {
@@ -110,7 +125,7 @@ export function WorkspaceSidebar() {
                           <div
                             key={`chap-${vIdx}-${cIdx}`}
                             className={`sidebar-item ${isActive ? 'active' : ''}`}
-                            onClick={() => { handleSelectChapter(vIdx, cIdx); handleEnterWriting(writtenMatch?.id ?? null); }}
+                            onClick={() => { handleSelectChapter(vIdx, cIdx); handleEnterWriting(vIdx, cIdx, writtenMatch?.id ?? null); }}
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '24px', cursor: 'pointer' }}
                           >
                             <span
@@ -144,57 +159,6 @@ export function WorkspaceSidebar() {
                     </div>
                   );
                 })}
-
-                {/* 未编入大纲的自由章节（按章号匹配后仍找不到的） */}
-                {(() => {
-                  const orphans = collectOrphans(localSections, store.chapters);
-                  if (orphans.length === 0) return null;
-                  return (
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 10px 4px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                        <BookOpen size={11} />
-                        <span>未编入大纲</span>
-                      </div>
-                      {orphans.map((chap) => {
-                        const status = statusOf(chap);
-                        const words = chapterWordCount(chap);
-                        return (
-                        <div
-                          key={chap.id}
-                          className={`sidebar-item ${store.currentChapter?.id === chap.id && selectedVolumeIdx === null ? 'active' : ''}`}
-                          onClick={() => { setSelectedVolumeIdx(null); setSelectedChapterIdx(null); store.setCurrentChapter(chap); handleEnterWriting(chap.id); }}
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '24px', cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredMenuKey(chap.id)}
-                          onMouseLeave={() => setHoveredMenuKey(null)}
-                        >
-                          <span
-                            style={{ width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0, background: STATUS_COLOR[status] }}
-                            title={STATUS_LABEL[status]}
-                          />
-                          <FileText size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
-                          <span style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '12px' }}>{chap.title}</span>
-                          {words > 0 && hoveredMenuKey !== chap.id && <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>{words}字</span>}
-                          {hoveredMenuKey === chap.id && (
-                            <button
-                              className="btn-icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`确定要删除章节"${chap.title}"吗？`)) {
-                                  store.deleteChapter(chap.id);
-                                }
-                              }}
-                              style={{ padding: '2px', opacity: 0.6 }}
-                              title="删除章节"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
 
                 {localSections.length === 0 && store.chapters.length === 0 && (
                   <div style={{ padding: '16px 12px 8px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>

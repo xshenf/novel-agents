@@ -71,15 +71,28 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
     setIsSaved(false);
   };
 
-  const handleEnterWriting = (cIdx: number, chapterId: string | null) => {
+  const handleEnterWriting = async (cIdx: number, chapterId: string | null) => {
     if (!store.currentProject) return;
     setSelectedVolumeIdx(vIdx);
     setSelectedChapterIdx(cIdx);
     
-    const dbChap = store.chapters.find((c: any) => c.id === chapterId);
-    store.setCurrentChapter(dbChap || null);
+    let realId = chapterId;
+    if (!realId) {
+      const sec = vol.chapters[cIdx];
+      const title = sec?.title || '新章节';
+      try {
+        const newChap = await store.createChapter(store.currentProject.id, title);
+        realId = newChap.id;
+        store.setCurrentChapter(newChap);
+      } catch (e) {
+        console.error('手动创建新章节失败:', e);
+      }
+    } else {
+      const dbChap = store.chapters.find((c: any) => c.id === chapterId);
+      store.setCurrentChapter(dbChap || null);
+    }
     
-    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', chapterId ?? undefined));
+    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', realId ?? undefined));
   };
 
   return (
