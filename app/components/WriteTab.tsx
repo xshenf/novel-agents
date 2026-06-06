@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2, ShieldCheck } from 'lucide-react';
+import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2, ShieldCheck, MessageCircle } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { countChineseChars } from '@/lib/textStats';
 import { MemoryPanel } from './write/MemoryPanel';
@@ -11,7 +11,7 @@ import { ChapterOutlinePreview } from './write/ChapterOutlinePreview';
 import { generateMarkdownFromSections } from '@/lib/outlineParser';
 
 export function WriteTab() {
-  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui } = useWorkspace();
+  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui, wizard } = useWorkspace();
   const { router, buildWorkspaceUrl, urlChapterId } = routing;
   const { handleConsistencyCheck, handleAutoSummarize } = assist;
   const busy = ui.isAiLoading;
@@ -100,16 +100,29 @@ export function WriteTab() {
       <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflowY: 'auto' }}>
 
         {/* 新书完善设定 Banner */}
-        {store.currentProject && store.currentProject.title === '未命名故事' && (
-          <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+        {store.currentProject && (() => {
+          const p = store.currentProject;
+          const desc = (p.description || '').trim();
+          const tone = (p.styleSetting || '').trim();
+          const needsSetup = !desc || desc.includes('补充') || !tone || tone === '待补充';
+          return needsSetup;
+        })() && (
+          <div className="glass-card animate-fade-in" style={{ margin: '15px 30px 5px', padding: '16px 20px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>新书已直接建立！</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>当前使用默认模板。您可以前往左侧「设定库」慢慢添加人物与世界观，或点击右侧按钮完善核心世界观、题材与文风。</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '4px' }}>项目尚未完善设定</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>完善题材、文风与世界观后，AI 将为您推演完整的世界设定与大纲。</div>
             </div>
-            <button className="btn btn-primary" onClick={handleOpenEditProject} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none' }}>
-              <Save size={13} />
-              完善新书设定
-            </button>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => { routing.setActiveWorkspaceTab('outline'); routing.router.push(routing.buildWorkspaceUrl(store.currentProject!.id, 'outline', undefined, undefined, 'styleSetting')); }} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, var(--accent) 0%, #a5b4fc 100%)', border: 'none' }}>
+                <Sparkles size={13} />
+                完善设定
+              </button>
+              <button className="btn" onClick={() => { const el = document.querySelector<HTMLInputElement>('.chat-input-area .input'); el?.focus(); }} style={{ fontSize: '12px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', color: '#a5b4fc' }}>
+                <MessageCircle size={13} />
+                对话生成设定
+              </button>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.6' }}>提示：点击"对话生成设定"后，在右侧对话框输入您的想法即可。例如："帮我生成一个仙侠修真题材的世界设定，主角是废材逆袭路线，文风偏热血爽文"，AI 将根据您的描述推演完整的世界观、功法体系和核心冲突。</div>
           </div>
         )}
 

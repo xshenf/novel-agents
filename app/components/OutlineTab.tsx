@@ -13,7 +13,7 @@ import { useMaterialTabs, MATERIALS_LIST } from '../hooks/useMaterialTabs';
 import { OutlineSidebar } from './OutlineSidebar';
 
 export function OutlineTab() {
-  const { store, kernel } = useWorkspace();
+  const { store, kernel, routing } = useWorkspace();
   const {
     tempStyleSetting, setTempStyleSetting,
     tempWorldSetting, setTempWorldSetting,
@@ -32,7 +32,7 @@ export function OutlineTab() {
   const {
     activeMaterial,
     handleSelectMaterial,
-  } = useMaterialTabs();
+  } = useMaterialTabs(routing.urlMaterial);
 
   const [initingMaterial, setInitingMaterial] = useState<string | null>(null);
 
@@ -122,7 +122,7 @@ export function OutlineTab() {
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {['worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'specialSetting'].includes(activeMaterial) && (
+        {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'specialSetting'].includes(activeMaterial) && (
           <KernelDimensionsPanel
             activeMaterial={activeMaterial}
             tempWorldSetting={tempWorldSetting}

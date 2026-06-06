@@ -2,6 +2,7 @@
 
 import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { KernelDimensionCard } from './KernelDimensionCard';
+import { StyleSettingPanel } from './StyleSettingPanel';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
 import { MATERIALS_LIST } from '../hooks/useMaterialTabs';
 import { useWorkspace } from '../workspace-context';
@@ -58,6 +59,7 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     powerSystem: setTempPowerSystem,
     skillSystem: setTempPowerSystem, // skillSystem 复用 powerSystem setter
     goldFinger: setTempGoldFinger,
+    styleSetting: setTempStyleSetting,
     location: setTempWorldSetting,   // location 复用 worldSetting setter
     faction: setTempWorldSetting,    // faction 复用 worldSetting setter
     currency: setTempWorldSetting,   // currency 复用 worldSetting setter
@@ -81,6 +83,7 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     : activeMaterial === 'coreConflict' ? '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机'
     : activeMaterial === 'sellingPoints' ? '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计'
     : activeMaterial === 'powerSystem' ? '定义主角及世界的修炼境界、超自然等级，以及主角的特殊外挂金手指设定'
+    : activeMaterial === 'styleSetting' ? '定义小说的体裁定位、情感色调与写作偏好'
     : activeMaterial === 'specialSetting' ? '小说的体裁定位、情感基调偏好，以及绑定写作模型时的反 AI 底层约束'
     : '';
 
@@ -161,6 +164,13 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
               alwaysExpanded={true}
             />
           </>
+        )}
+
+        {activeMaterial === 'styleSetting' && (
+          <StyleSettingPanel
+            tempStyleSetting={tempStyleSetting}
+            setTempStyleSetting={setTempStyleSetting}
+          />
         )}
 
         {activeMaterial === 'specialSetting' && (

@@ -166,8 +166,34 @@ export async function POST(request: Request) {
         if (!projectTitle || !genre || !tone) {
           return NextResponse.json({ error: '缺少 projectTitle, genre 或 tone' }, { status: 400 });
         }
-        const result = await ai.generateKernelSettings(projectTitle, genre, tone, apiKey, modelName);
-        return NextResponse.json(result);
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            const send = (event: string, data: unknown) => {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+            };
+            try {
+              const result = await ai.generateKernelSettings(
+                projectTitle, genre, tone, apiKey, modelName,
+                (dimKey, dimLabel, index, total) => {
+                  send('progress', { dimKey, dimLabel, index, total });
+                }
+              );
+              send('done', result);
+            } catch (err: any) {
+              send('error', { error: err.message || 'AI 操作执行失败' });
+            } finally {
+              controller.close();
+            }
+          }
+        });
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
       }
 
       default:

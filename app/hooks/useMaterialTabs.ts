@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers, Globe
+  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers, Globe, Palette
 } from 'lucide-react';
 
 export type OutlineSubTab = 'kernel' | 'volume' | 'chapter' | 'assets';
@@ -25,6 +25,7 @@ export const MATERIAL_GROUPS: Array<{ key: string; label: string }> = [
 // 左侧 WorkspaceSidebar 仅做分卷-章节的浏览与跳转。
 export const MATERIALS_LIST: MaterialItem[] = [
   // 核心设定
+  { id: 'styleSetting', label: '风格基调', icon: Palette, color: '#a78bfa', group: 'kernel' },
   { id: 'worldSetting', label: '世界观设定', icon: Compass, color: '#38bdf8', group: 'kernel' },
   { id: 'coreConflict', label: '核心冲突', icon: Activity, color: '#f43f5e', group: 'kernel' },
   { id: 'sellingPoints', label: '爽点卖点', icon: Trophy, color: '#eab308', group: 'kernel' },
@@ -54,9 +55,9 @@ const ASSET_MATERIAL_IDS = new Set([
 ]);
 
 // 管理素材磁贴选中态、当前子 Tab 与大纲搜索
-export function useMaterialTabs() {
+export function useMaterialTabs(urlMaterial?: string | null) {
   const [outlineSubTab, setOutlineSubTab] = useState<OutlineSubTab>('kernel');
-  const [activeMaterial, setActiveMaterial] = useState<string>('worldSetting');
+  const [activeMaterial, setActiveMaterial] = useState<string>(urlMaterial || 'styleSetting');
   const [collapsedVolumes, setCollapsedVolumes] = useState<Record<number, boolean>>({});
   const [outlineSearchQuery, setOutlineSearchQuery] = useState('');
 

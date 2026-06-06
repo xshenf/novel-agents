@@ -20,17 +20,19 @@ export function useWorkspaceRouting(store: NovelStore) {
   const urlProjectId = pathname.startsWith('/project/') ? pathname.split('/project/')[1] : null;
   const urlTab = searchParams.get('tab') as WorkspaceTab | null;
   const urlChapterId = searchParams.get('chapter');
+  const urlMaterial = searchParams.get('material') || null;
   
   const volumeParam = searchParams.get('volume');
   const urlVolumeIdx = volumeParam !== null ? parseInt(volumeParam, 10) : null;
 
   // 构建工作区 URL
-  const buildWorkspaceUrl = useCallback((projectId: string, tab?: string, chapterId?: string, volumeIdx?: number | null) => {
+  const buildWorkspaceUrl = useCallback((projectId: string, tab?: string, chapterId?: string, volumeIdx?: number | null, material?: string) => {
     const url = `/project/${projectId}`;
     const params = new URLSearchParams();
     if (tab) params.set('tab', tab);
     if (chapterId) params.set('chapter', chapterId);
     if (volumeIdx !== undefined && volumeIdx !== null) params.set('volume', String(volumeIdx));
+    if (material) params.set('material', material);
     const qs = params.toString();
     return qs ? `${url}?${qs}` : url;
   }, []);
@@ -163,6 +165,7 @@ export function useWorkspaceRouting(store: NovelStore) {
     urlProjectId,
     urlTab,
     urlChapterId,
+    urlMaterial,
     urlVolumeIdx,
     buildWorkspaceUrl,
     mounted,

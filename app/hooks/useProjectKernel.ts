@@ -15,6 +15,7 @@ export type ProjectKernelApi = ReturnType<typeof useProjectKernel>;
 export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [kernelOptions, setKernelOptions] = useState<any>(null);
   const [isKernelLoading, setIsKernelLoading] = useState(false);
+  const [kernelProgress, setKernelProgress] = useState<string>('');
   const [expandedKernelCard, setExpandedKernelCard] = useState<string | null>('powerSystem');
 
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<'kernel' | 'assets'>('kernel');
@@ -66,10 +67,19 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
     }
   }, [store.currentProject]);
 
-  // AI 设定与大纲推演请求
-  const fetchKernelOptions = async () => {
-    if (!store.currentProject) return;
+  // AI 设定与大纲推演请求（SSE 流式进度）
+  // 返回 true 表示需要向导补全，'needStyle' 表示需要先配置风格基调，false 表示正常执行
+  const fetchKernelOptions = async (): Promise<boolean | string> => {
+    if (!store.currentProject) return false;
+
+    // 风格基调未设置时，提示用户先配置
+    const styleSetting = (store.currentProject.styleSetting || '').trim();
+    if (!styleSetting) {
+      return 'needStyle';
+    }
+
     setIsKernelLoading(true);
+    setKernelProgress('正在准备推演...');
     try {
       const response = await callAIApi({
         action: 'generateKernel',
@@ -77,16 +87,67 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         genre: store.currentProject.description || '仙侠修真',
         tone: store.currentProject.styleSetting || '传统正剧'
       });
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: '请求失败' }));
+        throw new Error(errData.error || '请求失败');
       }
-      setKernelOptions(data);
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        // SSE 流式处理
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult: any = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              try {
+                const data = JSON.parse(dataStr);
+                if (currentEvent === 'progress') {
+                  setKernelProgress(`正在推演第 ${data.index}/${data.total} 维度：${data.dimLabel}`);
+                } else if (currentEvent === 'done') {
+                  finalResult = data;
+                } else if (currentEvent === 'error') {
+                  throw new Error(data.error || 'AI 操作执行失败');
+                }
+              } catch (e: any) {
+                if (e.message && !e.message.includes('JSON')) throw e;
+              }
+              currentEvent = '';
+            }
+          }
+        }
+
+        if (finalResult) {
+          setKernelOptions(finalResult);
+        }
+      } else {
+        // 降级为普通 JSON 响应
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        setKernelOptions(data);
+      }
     } catch (err: any) {
       alert('AI 设定推演失败: ' + err.message);
     } finally {
       setIsKernelLoading(false);
+      setKernelProgress('');
     }
+    return false;
   };
 
   const handleOpenEditProject = () => {
@@ -147,7 +208,6 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
 
   const isOutlineMissing = !!(store.currentProject && (!store.currentProject.outlineFull || !store.currentProject.outlineFull.trim()));
   const isSettingsMissing = !!(store.currentProject && (
-    !store.currentProject.styleSetting || !store.currentProject.styleSetting.trim() ||
     !store.currentProject.worldSetting || !store.currentProject.worldSetting.trim() ||
     !store.currentProject.powerSystem || !store.currentProject.powerSystem.trim() ||
     !store.currentProject.goldFinger || !store.currentProject.goldFinger.trim() ||
@@ -221,6 +281,7 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     kernelOptions,
     setKernelOptions,
     isKernelLoading,
+    kernelProgress,
     fetchKernelOptions,
     expandedKernelCard,
     setExpandedKernelCard,

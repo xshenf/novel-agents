@@ -1,12 +1,12 @@
 'use client';
 
-import { Loader2, Sparkles, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 
 export function WorkspaceTabBar() {
   const { store, routing, kernel } = useWorkspace();
   const { router, activeWorkspaceTab, setActiveWorkspaceTab, buildWorkspaceUrl } = routing;
-  const { isKernelLoading, fetchKernelOptions, isOutlineMissing, isSettingsMissing } = kernel;
+  const { isOutlineMissing, isSettingsMissing } = kernel;
 
   return (
     <div style={{ display: 'flex', gap: '8px', padding: '16px 30px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255, 255, 255, 0.02)', alignItems: 'center', flexShrink: 0 }}>
@@ -37,18 +37,6 @@ export function WorkspaceTabBar() {
           历史版本
         </button>
       </div>
-
-      {activeWorkspaceTab === 'outline' && (
-        <button
-          className="btn btn-secondary"
-          onClick={fetchKernelOptions}
-          disabled={isKernelLoading}
-          style={{ marginLeft: 'auto', fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          {isKernelLoading ? <Loader2 className="animate-spin" size={13} /> : <Sparkles size={13} style={{ color: 'var(--accent)' }} />}
-          <span>重新推演设定与大纲</span>
-        </button>
-      )}
     </div>
   );
 }

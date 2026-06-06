@@ -51,8 +51,8 @@ export default function Home() {
   const autoWriter = useAutoWriter({ store, callAIApi, setEditorContent: editor.setEditorContent, setSaveStatus: editor.setSaveStatus });
   const [isAiLoading, setIsAiLoading] = useState(false);
   const assist = useAiAssist({ store, callAIApi, editorContent: editor.editorContent, setIsAiLoading });
-  const wizard = useWizard({ store, callAIApi, router: routing.router, buildWorkspaceUrl: routing.buildWorkspaceUrl, setIsAiLoading });
   const kernel = useProjectKernel({ store, callAIApi });
+  const wizard = useWizard({ store, router: routing.router, buildWorkspaceUrl: routing.buildWorkspaceUrl, setIsAiLoading, onExistingProjectComplete: () => { setTimeout(() => kernel.fetchKernelOptions(), 300); } });
   const modals = useCreationModals(store);
   const layout = useResizablePanels();
   const agent = useAgentChat(store);
@@ -105,11 +105,7 @@ export default function Home() {
 
         {/* 1. Dashboard 视图 */}
         {!store.currentProject ? (
-          wizard.isWizardMode ? (
-            <WizardPanel />
-          ) : (
-            <Dashboard />
-          )
+          <Dashboard />
         ) : (
           /* 2. Workspace 写作工作台视图 */
           <div className="workspace-layout" style={{ display: 'flex' }}>
@@ -129,6 +125,13 @@ export default function Home() {
             </div>
 
             <AgentPanel />
+
+            {/* workspace 内的向导弹窗（跳过向导后补全设定时使用） */}
+            {wizard.isWizardMode && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#0b0f19', overflow: 'auto' }}>
+                <WizardPanel />
+              </div>
+            )}
           </div>
         )}
 
