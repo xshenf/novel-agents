@@ -10,36 +10,43 @@ export function useEditor(store: NovelStore) {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const [localDraft, setLocalDraft] = useState<{ content: string; updatedAt: number } | null>(null);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastChapterIdRef = useRef<string | undefined>(undefined);
 
   // 当选择新章节时，同步更新编辑器内容
   useEffect(() => {
     if (store.currentChapter) {
-      setEditorTitle(store.currentChapter.title);
-      setEditorContent(store.currentChapter.content);
-      setSaveStatus('saved');
+      const isChapterSwitched = store.currentChapter.id !== lastChapterIdRef.current;
+      
+      if (isChapterSwitched) {
+        lastChapterIdRef.current = store.currentChapter.id;
+        setEditorTitle(store.currentChapter.title);
+        setEditorContent(store.currentChapter.content);
+        setSaveStatus('saved');
 
-      // 检测是否存在更新的本地草稿
-      if (typeof window !== 'undefined') {
-        const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
-        const saved = localStorage.getItem(localKey);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            // 只有当本地草稿和数据库里的正文内容不一致时，才需要提示恢复
-            if (parsed && parsed.content && parsed.content.trim() !== store.currentChapter.content.trim()) {
-              setLocalDraft(parsed);
-            } else {
-              localStorage.removeItem(localKey);
+        // 检测是否存在更新的本地草稿
+        if (typeof window !== 'undefined') {
+          const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
+          const saved = localStorage.getItem(localKey);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              // 只有当本地草稿和数据库里的正文内容不一致时，才需要提示恢复
+              if (parsed && parsed.content && parsed.content.trim() !== store.currentChapter.content.trim()) {
+                setLocalDraft(parsed);
+              } else {
+                localStorage.removeItem(localKey);
+                setLocalDraft(null);
+              }
+            } catch {
               setLocalDraft(null);
             }
-          } catch {
+          } else {
             setLocalDraft(null);
           }
-        } else {
-          setLocalDraft(null);
         }
       }
     } else {
+      lastChapterIdRef.current = undefined;
       setEditorTitle('');
       setEditorContent('');
       setLocalDraft(null);
@@ -56,20 +63,38 @@ export function useEditor(store: NovelStore) {
     };
   }, []);
 
+  // 监听正文内容变化，自动同步缓存到 localStorage 或在保存成功时清除
+  useEffect(() => {
+    if (!store.currentChapter || typeof window === 'undefined') return;
+
+    // 如果是刚刚切入章节，且编辑器内容刚好等于云端内容，先不进行任何写入或删除操作
+    // 只有当章节 ID 匹配我们当前处理的 lastChapterId 时，才执行本地草稿机制
+    if (store.currentChapter.id !== lastChapterIdRef.current) return;
+
+    const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
+
+    if (editorContent !== store.currentChapter.content) {
+      localStorage.setItem(localKey, JSON.stringify({
+        content: editorContent,
+        updatedAt: Date.now()
+      }));
+      // 一旦产生新改动，则放弃并自动隐藏之前的旧草稿恢复提示
+      if (localDraft !== null) {
+        setLocalDraft(null);
+      }
+    } else {
+      // 只有在没有等待恢复的草稿，且编辑器内容和云端完全一致时，才清理本地草稿
+      if (localDraft === null) {
+        localStorage.removeItem(localKey);
+      }
+    }
+  }, [editorContent, store.currentChapter?.content, store.currentChapter?.id, store.currentProject?.id, localDraft]);
+
   // 编辑器自动保存机制 (Debounce 1.5s)
   const handleEditorChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
     setEditorContent(newVal);
     setSaveStatus('dirty');
-
-    // 实时写入 localStorage 作为紧急本地备份
-    if (store.currentChapter && typeof window !== 'undefined') {
-      const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
-      localStorage.setItem(localKey, JSON.stringify({
-        content: newVal,
-        updatedAt: Date.now()
-      }));
-    }
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
@@ -78,12 +103,6 @@ export function useEditor(store: NovelStore) {
         setSaveStatus('saving');
         store.updateChapter(store.currentChapter.id, { content: newVal }).then(() => {
           setSaveStatus('saved');
-          // 云端保存成功，清除本地缓存
-          if (typeof window !== 'undefined') {
-            const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter!.id}`;
-            localStorage.removeItem(localKey);
-            setLocalDraft(null);
-          }
           createVersionSnapshot({
             projectId: store.currentProject!.id,
             type: 'chapter',
@@ -123,12 +142,6 @@ export function useEditor(store: NovelStore) {
         content: contentToSave
       }).then(() => {
         setSaveStatus('saved');
-        // 清除本地缓存
-        if (typeof window !== 'undefined') {
-          const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter!.id}`;
-          localStorage.removeItem(localKey);
-          setLocalDraft(null);
-        }
       });
     }
   };

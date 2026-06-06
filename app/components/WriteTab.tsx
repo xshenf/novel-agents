@@ -12,7 +12,7 @@ import { generateMarkdownFromSections } from '@/lib/outlineParser';
 
 export function WriteTab() {
   const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui } = useWorkspace();
-  const { router, buildWorkspaceUrl } = routing;
+  const { router, buildWorkspaceUrl, urlChapterId } = routing;
   const { handleConsistencyCheck, handleAutoSummarize } = assist;
   const busy = ui.isAiLoading;
   const { selectedVolumeIdx, selectedChapterIdx } = outlineTree;
@@ -26,7 +26,15 @@ export function WriteTab() {
 
   useEffect(() => {
     const createEmptyChapterIfNeeded = async () => {
-      if (selectedVolumeIdx !== null && selectedChapterIdx !== null && !store.currentChapter && store.currentProject) {
+      // 只有在 URL 中没有章节 ID (urlChapterId 为空) 且当前章节确实为 null 时，才去自动创建新章节。
+      // 这能完美防止在刷新页面时，因数据库章节列表尚未加载完成而造成的重复创建 Bug。
+      if (
+        selectedVolumeIdx !== null &&
+        selectedChapterIdx !== null &&
+        !store.currentChapter &&
+        !urlChapterId &&
+        store.currentProject
+      ) {
         const sec = outlineTree.localSections[selectedVolumeIdx]?.chapters[selectedChapterIdx];
         if (sec) {
           const title = sec.title || '新章节';
@@ -37,7 +45,17 @@ export function WriteTab() {
       }
     };
     createEmptyChapterIfNeeded();
-  }, [selectedVolumeIdx, selectedChapterIdx, store.currentChapter, store.currentProject, outlineTree.localSections, router, buildWorkspaceUrl, store]);
+  }, [
+    selectedVolumeIdx,
+    selectedChapterIdx,
+    store.currentChapter,
+    urlChapterId,
+    store.currentProject,
+    outlineTree.localSections,
+    router,
+    buildWorkspaceUrl,
+    store,
+  ]);
 
   const handleRenameChapter = (newTitle: string) => {
     editor.handleTitleChange({ target: { value: newTitle } } as any);
