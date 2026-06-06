@@ -1,5 +1,5 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import { BaseMessage, SystemMessage, AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
@@ -156,6 +156,84 @@ const MAX_DELEGATIONS = 5;
 const MAX_SPECIALIST_TOOL_CALLS = 10;
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
+// ─── 消息过滤辅助函数（用于优化历史对话处理与消息隔离） ─────────────────────────
+export function filterSpecialistMessages(role: string, messages: BaseMessage[]): BaseMessage[] {
+  const filteredMessages: BaseMessage[] = [];
+  let delegateIndex = -1;
+  const delegatePattern = new RegExp(`^\\[DELEGATE:${role}\\]`);
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg._getType() === 'tool') {
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      if (delegatePattern.test(content)) {
+        delegateIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (delegateIndex !== -1) {
+    const delegateMsg = messages[delegateIndex];
+    const delegateContent = typeof delegateMsg.content === 'string' ? delegateMsg.content : '';
+    const taskContent = delegateContent.replace(delegatePattern, '').trim();
+
+    filteredMessages.push(new HumanMessage(`请执行编导委派给你的任务：\n${taskContent}`));
+
+    // 追加该委托之后的消息（专家在这一轮内部交互产生的 tool / ai 消息）
+    for (let i = delegateIndex + 1; i < messages.length; i++) {
+      filteredMessages.push(messages[i]);
+    }
+  } else {
+    // 降级防御：如果由于某种原因未找到委托标记，则保留原本的消息历史
+    filteredMessages.push(...messages);
+  }
+
+  return filteredMessages;
+}
+
+export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage[] {
+  const orchestratorToolNames = [
+    'query_memory',
+    'get_project_overview',
+    'delegate_to_planner',
+    'delegate_to_lore_builder',
+    'delegate_to_writer',
+    'delegate_to_editor'
+  ];
+
+  const filteredMessages: BaseMessage[] = [];
+  for (const msg of messages) {
+    if (msg._getType() === 'tool') {
+      const toolMsg = msg as any;
+      const toolName = toolMsg.name || '';
+      if (orchestratorToolNames.includes(toolName)) {
+        filteredMessages.push(msg);
+      }
+    } else if (msg._getType() === 'ai') {
+      const aiMsg = msg as any;
+      if (aiMsg.tool_calls && aiMsg.tool_calls.length > 0) {
+        // 如果包含任何非编导拥有的工具调用，说明是专家的中间思考过程，予以过滤
+        const hasSpecialistTool = aiMsg.tool_calls.some(
+          (tc: any) => !orchestratorToolNames.includes(tc.name)
+        );
+        if (!hasSpecialistTool) {
+          filteredMessages.push(aiMsg);
+        }
+      } else {
+        // 无工具调用的 AIMessage 是专家的最终回答或编导自己的总结，必须保留
+        filteredMessages.push(msg);
+      }
+    } else {
+      // HumanMessage (用户提问、对话历史) 和 SystemMessage 必须保留
+      filteredMessages.push(msg);
+    }
+  }
+
+  return filteredMessages;
+}
+
+// ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
 function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: string, globalSystemInstruction: string) {
   const bound = llm.bindTools(tools);
   const systemPrompt = AGENT_PROMPTS[role];
@@ -167,7 +245,10 @@ function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: str
       finalPrompt += `\n\n用户全局系统指令（你必须严格遵守）：\n${globalSystemInstruction}`;
     }
     const sysMsg = new SystemMessage(finalPrompt);
-    const response = await bound.invoke([sysMsg, ...state.messages]);
+
+    const filteredMessages = filterSpecialistMessages(role, state.messages);
+
+    const response = await bound.invoke([sysMsg, ...filteredMessages]);
     return { messages: [response], currentAgent: role };
   };
 }
@@ -192,7 +273,10 @@ function createOrchestratorNode(llm: any, projectId: string, globalSystemInstruc
         ? '\n\n【收尾阶段】已多次委托专家，请立即综合现有所有成果，用简洁专业的语言给用户最终汇报，不要再委托任何任务。'
         : '\n\n【汇总阶段】专家已返回阶段性成果（见上文工具结果）。若任务已完成，请综合各专家成果向用户做最终汇报并给出下一步建议；只有确有必要时才继续委托其他专家。';
     }
-    const response = await bound.invoke([new SystemMessage(sys), ...state.messages]);
+
+    const filteredMessages = filterOrchestratorMessages(state.messages);
+
+    const response = await bound.invoke([new SystemMessage(sys), ...filteredMessages]);
     return { messages: [response], currentAgent: 'orchestrator' };
   };
 }
