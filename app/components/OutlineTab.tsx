@@ -835,7 +835,7 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
               {localSections.map((vol, vIdx) => {
                 const isVolRegening = regeningVolumeIdx === vIdx;
                 const isEditing = editingVolumeIdx === vIdx;
@@ -1088,31 +1088,44 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                     <span>Markdown文本</span>
                   </button>
                 </div>
-                {viewMode === 'structure' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
+                 {viewMode === 'structure' && localSections.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginLeft: '16px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷筛选:</span>
-                    <select
-                      value={selectedVolumeIdx === null ? 'all' : selectedVolumeIdx}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setSelectedVolumeIdx(val === 'all' ? null : parseInt(val, 10));
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVolumeIdx(null)}
                       style={{
-                        background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: '6px',
-                        padding: '4px 10px',
-                        color: '#fff',
-                        fontSize: '12px',
+                        fontSize: '11px',
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        border: '1px solid ' + (selectedVolumeIdx === null ? 'var(--accent)' : 'rgba(255,255,255,0.06)'),
+                        background: selectedVolumeIdx === null ? 'rgba(99,102,241,0.1)' : 'transparent',
+                        color: selectedVolumeIdx === null ? '#fff' : 'var(--text-muted)',
                         cursor: 'pointer',
-                        outline: 'none'
+                        transition: 'all 0.2s'
                       }}
                     >
-                      <option value="all">全部卷</option>
-                      {localSections.map((vol, vIdx) => (
-                        <option key={vIdx} value={vIdx}>{vol.title}</option>
-                      ))}
-                    </select>
+                      全部卷
+                    </button>
+                    {localSections.map((vol, vIdx) => (
+                      <button
+                        key={vIdx}
+                        type="button"
+                        onClick={() => setSelectedVolumeIdx(selectedVolumeIdx === vIdx ? null : vIdx)}
+                        style={{
+                          fontSize: '11px',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          border: '1px solid ' + (selectedVolumeIdx === vIdx ? 'var(--accent)' : 'rgba(255,255,255,0.06)'),
+                          background: selectedVolumeIdx === vIdx ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.02)',
+                          color: selectedVolumeIdx === vIdx ? '#fff' : 'var(--text-dark)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {vol.title.split(/[：:]/)[0] || vol.title}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
