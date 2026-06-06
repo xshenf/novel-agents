@@ -32,7 +32,7 @@ function parseStructureOutline(text: string): OutlineVolume[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
+    if (/^#[^#]/.test(trimmed)) {
       // 匹配一级标题作为分卷
       let titleText = trimmed.replace(/^#\s+/, '').trim();
       let isLocked = false;
@@ -339,8 +339,9 @@ export function OutlineTab() {
 
   // 切换分卷的锁定标记
   const toggleLockVolume = (volIdx: number) => {
-    const newSections = [...localSections];
-    newSections[volIdx].isLocked = !newSections[volIdx].isLocked;
+    const newSections = localSections.map((vol, vIdx) =>
+      vIdx === volIdx ? { ...vol, isLocked: !vol.isLocked } : vol
+    );
     setLocalSections(newSections);
     const md = generateMarkdownFromSections(newSections);
     setTempOutlineFull(md);
@@ -373,8 +374,13 @@ export function OutlineTab() {
         { key: '相关人物', value: '主角' }
       ]
     };
-    const newSections = [...localSections];
-    newSections[volIdx].chapters.splice(chapIdx + 1, 0, newSec);
+    const insertIdx = chapIdx < 0 ? localSections[volIdx].chapters.length : chapIdx + 1;
+    const newSections = localSections.map((vol, vIdx) => {
+      if (vIdx !== volIdx) return vol;
+      const newChapters = [...vol.chapters];
+      newChapters.splice(insertIdx, 0, newSec);
+      return { ...vol, chapters: newChapters };
+    });
     const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
@@ -384,8 +390,12 @@ export function OutlineTab() {
   // 删除某章细纲
   const handleDeleteChapter = (volIdx: number, chapIdx: number) => {
     if (!confirm('确定要删除本章节大纲吗？此后序号会自动全书重新递增。')) return;
-    const newSections = [...localSections];
-    newSections[volIdx].chapters.splice(chapIdx, 1);
+    const newSections = localSections.map((vol, vIdx) => {
+      if (vIdx !== volIdx) return vol;
+      const newChapters = [...vol.chapters];
+      newChapters.splice(chapIdx, 1);
+      return { ...vol, chapters: newChapters };
+    });
     const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
     const md = generateMarkdownFromSections(renumbered);
@@ -403,10 +413,14 @@ export function OutlineTab() {
     if (direction === 'down' && chapIdx === chapters.length - 1) return;
     
     const targetIdx = direction === 'up' ? chapIdx - 1 : chapIdx + 1;
-    const newSections = [...localSections];
-    const temp = newSections[volIdx].chapters[chapIdx];
-    newSections[volIdx].chapters[chapIdx] = newSections[volIdx].chapters[targetIdx];
-    newSections[volIdx].chapters[targetIdx] = temp;
+    const newSections = localSections.map((vol, vIdx) => {
+      if (vIdx !== volIdx) return vol;
+      const newChapters = [...vol.chapters];
+      const temp = newChapters[chapIdx];
+      newChapters[chapIdx] = newChapters[targetIdx];
+      newChapters[targetIdx] = temp;
+      return { ...vol, chapters: newChapters };
+    });
     
     const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
@@ -416,8 +430,13 @@ export function OutlineTab() {
 
   // 切换章节锁定标记
   const toggleLockChapter = (volIdx: number, chapIdx: number) => {
-    const newSections = [...localSections];
-    newSections[volIdx].chapters[chapIdx].isLocked = !newSections[volIdx].chapters[chapIdx].isLocked;
+    const newSections = localSections.map((vol, vIdx) => {
+      if (vIdx !== volIdx) return vol;
+      const newChapters = vol.chapters.map((ch, cIdx) =>
+        cIdx === chapIdx ? { ...ch, isLocked: !ch.isLocked } : ch
+      );
+      return { ...vol, chapters: newChapters };
+    });
     setLocalSections(newSections);
     const md = generateMarkdownFromSections(newSections);
     setTempOutlineFull(md);
@@ -427,8 +446,12 @@ export function OutlineTab() {
   const saveChapterEditing = () => {
     if (editingChapterPath === null || !editChapterForm) return;
     const { volIdx, chapIdx } = editingChapterPath;
-    const newSections = [...localSections];
-    newSections[volIdx].chapters[chapIdx] = editChapterForm;
+    const newSections = localSections.map((vol, vIdx) => {
+      if (vIdx !== volIdx) return vol;
+      const newChapters = [...vol.chapters];
+      newChapters[chapIdx] = editChapterForm;
+      return { ...vol, chapters: newChapters };
+    });
     
     const renumbered = renumberVolumesAndChapters(newSections);
     setLocalSections(renumbered);
@@ -486,13 +509,16 @@ export function OutlineTab() {
 
     mergedFlat.forEach(ch => {
       let targetVolIdx = ch.volIdx !== undefined ? ch.volIdx : mergedVolumes.length - 1;
-      if (targetVolIdx < 0) {
+      // 如果目标卷索引超出已有分卷范围，追加新分卷
+      while (targetVolIdx >= mergedVolumes.length) {
         mergedVolumes.push({
-          title: '第一卷：正文',
+          title: '新分卷',
           content: '',
           chapters: []
         });
-        targetVolIdx = mergedVolumes.length - 1;
+      }
+      if (targetVolIdx < 0) {
+        targetVolIdx = 0;
       }
       mergedVolumes[targetVolIdx].chapters.push({
         title: ch.title,
@@ -552,16 +578,26 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
 
       const reply = data.reply;
       const parsedRegen = parseStructureOutline(reply);
-      // 提取解析结果中的第一章覆盖
-      if (parsedRegen.length > 0 && parsedRegen[0].chapters.length > 0) {
-        const newCh = parsedRegen[0].chapters[0];
+      // 从解析结果中查找第一个章节（可能位于任意分卷中）
+      let newCh: OutlineChapter | null = null;
+      for (const vol of parsedRegen) {
+        if (vol.chapters.length > 0) {
+          newCh = vol.chapters[0];
+          break;
+        }
+      }
+      if (newCh) {
         const mergedCh = {
           ...newCh,
           title: sec.title,
           isLocked: sec.isLocked
         };
-        const newSections = [...localSections];
-        newSections[volIdx].chapters[chapIdx] = mergedCh;
+        const newSections = localSections.map((vol, vIdx) => {
+          if (vIdx !== volIdx) return vol;
+          const newChapters = [...vol.chapters];
+          newChapters[chapIdx] = mergedCh;
+          return { ...vol, chapters: newChapters };
+        });
 
         const md = generateMarkdownFromSections(newSections);
         setLocalSections(newSections);
@@ -606,8 +642,9 @@ ${localSections.map((v, vIdx) => vIdx !== volIdx ? `- ${v.title}: ${v.content}` 
 
       const reply = data.reply.trim();
       if (reply) {
-        const newSections = [...localSections];
-        newSections[volIdx].content = reply;
+        const newSections = localSections.map((v, vIdx) =>
+          vIdx === volIdx ? { ...v, content: reply } : v
+        );
         setLocalSections(newSections);
         const md = generateMarkdownFromSections(newSections);
         setTempOutlineFull(md);
@@ -1676,49 +1713,6 @@ Please output in Chinese. 请直接输出推荐的【${fieldLabel}】的具体�
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </div>
-
-      {/* 右栏：AI 推演的 3 套备选方案卡片 */}
-      <div style={{ width: '420px', display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
-        <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>AI 大纲备选推荐（点击一键选用）</span>
-        </h3>
-
-        {isKernelLoading ? (
-          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 0', gap: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '10px' }}>
-            <Loader2 className="animate-spin" size={24} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>正在利用 AI 深度推演 3 套故事大纲...</span>
-          </div>
-        ) : kernelOptions?.outlineFull ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {kernelOptions.outlineFull.map((opt: any, idx: number) => (
-              <div
-                key={idx}
-                className="glass-card animate-fade-in"
-                style={{ padding: '16px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.015)' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <strong style={{ color: 'var(--accent)', fontSize: '13px' }}>{opt.name}</strong>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => handleSelectRecommendedOutline(opt)}
-                    style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--accent)', border: 'none' }}
-                  >
-                    选用此大纲
-                  </button>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
-                  {opt.description}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dark)', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '12px' }}>
-            当前尚未生成方案，请点击顶部按钮发起 AI 推演！
           </div>
         )}
       </div>
