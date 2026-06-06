@@ -23,7 +23,7 @@ export function WorkspaceTabBar() {
           onClick={() => { setActiveWorkspaceTab('outline'); router.push(buildWorkspaceUrl(store.currentProject!.id, 'outline')); }}
           style={{ position: 'relative', borderRadius: '16px', padding: '6px 16px', fontSize: '12px', border: 'none', background: activeWorkspaceTab === 'outline' ? 'var(--accent)' : 'transparent', color: activeWorkspaceTab === 'outline' ? '#fff' : 'var(--text-muted)' }}
         >
-          大纲与设定
+          世界设定
           {(isOutlineMissing || isSettingsMissing) && (
             <span style={{ position: 'absolute', top: '4px', right: '4px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
           )}

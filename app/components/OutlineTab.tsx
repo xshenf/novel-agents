@@ -271,12 +271,6 @@ export function OutlineTab() {
       <OutlineSidebar
         activeMaterial={activeMaterial}
         onSelectMaterial={handleSelectMaterial}
-        onAddRule={() => setIsAddingRule(true)}
-        onAddCharacter={() => setIsAddingChar(true)}
-        onAddCharacterAndJump={() => {
-          handleSelectMaterial('character');
-          setIsAddingChar(true);
-        }}
       />
 
       {/* 右侧动态主面板 */}

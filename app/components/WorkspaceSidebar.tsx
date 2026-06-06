@@ -199,7 +199,7 @@ export function WorkspaceSidebar() {
 
                 {localSections.length === 0 && store.chapters.length === 0 && (
                   <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    暂无章节，请在大纲与设定中创建
+                    暂无章节，请在世界设定中创建
                   </div>
                 )}
               </div>

@@ -6,35 +6,16 @@ import { MATERIALS_LIST } from '../hooks/useMaterialTabs';
 interface OutlineSidebarProps {
   activeMaterial: string;
   onSelectMaterial: (id: string) => void;
-  onAddRule: () => void;
-  onAddCharacter: () => void;
-  onAddCharacterAndJump: () => void;
 }
 
 /**
  * 大纲 Tab 左侧的 18 宫格世界素材磁贴栏。
- * 负责：素材磁贴的渲染、选中态高亮、添加按钮（按当前 activeMaterial 决定是新增规则还是角色）。
+ * 负责：素材磁贴的渲染、选中态高亮。
  */
 export function OutlineSidebar({
   activeMaterial,
   onSelectMaterial,
-  onAddRule,
-  onAddCharacter,
-  onAddCharacterAndJump,
 }: OutlineSidebarProps) {
-  const handleAdd = () => {
-    if ([
-      'location', 'faction', 'item', 'currency', 'skillSystem',
-      'timeline', 'foreshadow', 'plot', 'subPlot', 'events', 'relation'
-    ].includes(activeMaterial)) {
-      onAddRule();
-    } else if (activeMaterial === 'character') {
-      onAddCharacter();
-    } else {
-      onAddCharacterAndJump();
-    }
-  };
-
   return (
     <div style={{
       width: '320px',
@@ -47,35 +28,7 @@ export function OutlineSidebar({
       flexShrink: 0,
       overflowY: 'auto'
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#fff', margin: 0 }}>世界设定</h3>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>管理小说的世界观、角色关系和剧情时间线</span>
-      </div>
 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: '8px',
-        borderBottom: '1px solid var(--border-light)',
-        paddingBottom: '8px'
-      }}>
-        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>世界素材</span>
-        <button
-          onClick={handleAdd}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--accent)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '4px'
-          }}
-        >
-          <Plus size={16} />
-        </button>
-      </div>
 
       {/* 18 宫格磁贴网格 */}
       <div style={{

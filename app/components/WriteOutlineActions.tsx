@@ -297,7 +297,7 @@ export function WriteOutlineActions({ variant = 'card' }: WriteOutlineActionsPro
 
       {!hasVolume && localSections.length === 0 && (
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          当前项目尚无大纲分卷，可点击上方按钮创建，或前往「大纲与设定」编辑。
+          当前项目尚无大纲分卷，可点击上方按钮创建，或前往「世界设定」编辑。
         </div>
       )}
     </div>

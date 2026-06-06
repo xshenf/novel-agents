@@ -141,7 +141,7 @@ export function WriteOutlinePreview({ variant = 'card' }: WriteOutlinePreviewPro
           )}
           {chap && chap.details.length === 0 && !location && !targetWords && (
             <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              尚未填写章节细纲，可前往"大纲与设定"补充
+              尚未填写章节细纲，可前往"世界设定"补充
             </div>
           )}
         </div>
