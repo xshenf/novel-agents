@@ -1286,453 +1286,885 @@ ${userHintSection}
         {/* 2. 大纲设定视图 (outline) */}
         {activeMaterial === 'outline' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
-            {/* 顶栏控制组 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* 顶部标题统计栏 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   width: '36px',
                   height: '36px',
                   borderRadius: '8px',
-                  background: 'rgba(99, 102, 241, 0.1)',
-                  color: '#6366f1'
+                  background: 'rgba(99, 102, 241, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid rgba(99, 102, 241, 0.25)'
                 }}>
-                  <BookOpen size={20} />
+                  <BookOpen size={18} color="#6366f1" />
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>大纲设定</h4>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {totalChapters} 章节 · {completionRate}% 完成
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>规划各卷的情节走向与章节结构</span>
+                  <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#fff', margin: 0 }}>大纲设定</h4>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {totalChapters} 章节 · {completionRate}% 完成
+                  </span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  className="btn btn-secondary"
-                  onClick={() => handleInsertVolume(localSections.length - 1)}
-                  style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-light)' }}
+                  className="btn"
+                  onClick={async () => {
+                    if (!store.currentProject) return;
+                    try {
+                      await store.updateProject(store.currentProject.id, { outlineFull: tempOutlineFull });
+                      alert('小说大纲已成功保存至项目！');
+                    } catch (e) {
+                      alert('大纲保存失败');
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#fff',
+                    fontSize: '12px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                  }}
                 >
-                  <Plus size={13} />
+                  <Save size={14} />
+                  <span>保存</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => handleSelectMaterial('worldSetting')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: 'var(--text-muted)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  title="关闭大纲设定，返回世界观设定"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* 功能操作工具行 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.04)',
+              borderRadius: '10px',
+              padding: '10px 16px',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleInsertVolume(localSections.length)}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#a5b4fc',
+                    fontSize: '12px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Plus size={14} />
                   <span>添加卷</span>
                 </button>
 
+                <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.08)' }} />
+
+                {/* 展开/折叠全部 */}
                 <button
                   type="button"
                   onClick={() => {
-                    const nextCollapsed: Record<number, boolean> = {};
-                    localSections.forEach((_, idx) => {
-                      nextCollapsed[idx] = true;
-                    });
-                    setCollapsedVolumes(nextCollapsed);
+                    const allCollapsed = localSections.every((_, idx) => collapsedVolumes[idx]);
+                    if (allCollapsed) {
+                      setCollapsedVolumes({});
+                    } else {
+                      const next: Record<number, boolean> = {};
+                      localSections.forEach((_, idx) => { next[idx] = true; });
+                      setCollapsedVolumes(next);
+                    }
                   }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                  title="全部折叠"
-                >
-                  <ChevronUp size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCollapsedVolumes({});
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s'
                   }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                  title="全部展开"
+                  title={localSections.every((_, idx) => collapsedVolumes[idx]) ? "展开全部" : "折叠全部"}
                 >
-                  <ChevronDown size={16} />
+                  {localSections.every((_, idx) => collapsedVolumes[idx]) ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                 </button>
 
+                {/* 撤销 AI 推演 */}
                 <button
                   type="button"
                   onClick={undoLastAiRegen}
                   disabled={aiUndoStack.length === 0}
                   style={{
-                    background: 'none',
+                    background: 'transparent',
                     border: 'none',
-                    color: aiUndoStack.length > 0 ? '#38bdf8' : 'var(--text-dark)',
+                    color: aiUndoStack.length > 0 ? '#38bdf8' : 'rgba(255,255,255,0.2)',
                     cursor: aiUndoStack.length > 0 ? 'pointer' : 'not-allowed',
-                    padding: '4px'
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s'
                   }}
-                  title="撤销 AI 推演"
+                  title={aiUndoStack.length > 0 ? `撤销上一次 AI 推演: ${aiUndoStack[aiUndoStack.length - 1].label}` : "无撤销步骤"}
                 >
                   <Undo2 size={16} />
                 </button>
+              </div>
 
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--text-dark)' }} />
-                  <input
-                    type="text"
-                    placeholder="搜索..."
-                    value={outlineSearchQuery}
-                    onChange={e => setOutlineSearchQuery(e.target.value)}
+              {/* 搜索框 */}
+              <div style={{ position: 'relative', width: '220px' }}>
+                <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)' }} />
+                <input
+                  type="text"
+                  value={outlineSearchQuery}
+                  onChange={e => setOutlineSearchQuery(e.target.value)}
+                  placeholder="搜索..."
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: '6px',
+                    padding: '6px 10px 6px 30px',
+                    fontSize: '12px',
+                    color: '#fff',
+                    outline: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                />
+                {outlineSearchQuery && (
+                  <button
+                    onClick={() => setOutlineSearchQuery('')}
                     style={{
-                      padding: '6px 10px 6px 30px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-light)',
-                      background: 'rgba(0,0,0,0.2)',
-                      color: '#fff',
-                      fontSize: '12px',
-                      width: '180px',
-                      outline: 'none'
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'rgba(255,255,255,0.4)',
+                      cursor: 'pointer',
+                      padding: 0
                     }}
-                  />
-                </div>
+                  >
+                    <X size={10} />
+                  </button>
+                )}
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flexGrow: 1 }}>
-              {localSections.map((vol, vIdx) => {
-                const matchSearch = (
-                  vol.title.toLowerCase().includes(outlineSearchQuery.toLowerCase()) ||
-                  vol.content.toLowerCase().includes(outlineSearchQuery.toLowerCase()) ||
-                  vol.chapters.some(ch => ch.title.toLowerCase().includes(outlineSearchQuery.toLowerCase()) || ch.content.toLowerCase().includes(outlineSearchQuery.toLowerCase()))
-                );
-                if (outlineSearchQuery && !matchSearch) return null;
+            {/* 大纲卷章核心树状列表 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flexGrow: 1, paddingRight: '4px' }}>
+              {(() => {
+                // 执行搜索过滤
+                const query = outlineSearchQuery.trim().toLowerCase();
+                const matchedVols = localSections.map((vol, vIdx) => {
+                  if (!query) return { vol, vIdx, matches: true, matchedChaps: vol.chapters.map((ch, cIdx) => ({ ch, cIdx, matches: true })) };
+                  
+                  const volTitleMatches = vol.title.toLowerCase().includes(query);
+                  const volContentMatches = vol.content.toLowerCase().includes(query);
+                  
+                  const matchedChaps = vol.chapters.map((ch, cIdx) => {
+                    const chTitleMatches = ch.title.toLowerCase().includes(query);
+                    const chContentMatches = ch.content.toLowerCase().includes(query);
+                    return { ch, cIdx, matches: chTitleMatches || chContentMatches };
+                  });
+                  
+                  const anyChapMatches = matchedChaps.some(c => c.matches);
+                  
+                  return {
+                    vol,
+                    vIdx,
+                    matches: volTitleMatches || volContentMatches || anyChapMatches,
+                    matchedChaps
+                  };
+                }).filter(item => item.matches);
 
-                const isCollapsed = collapsedVolumes[vIdx] || false;
-                const isVolRegening = regeningVolumeIdx === vIdx;
-                const isEditing = editingVolumeIdx === vIdx;
-
-                return (
-                  <div
-                    key={vIdx}
-                    className="glass-card animate-fade-in"
-                    style={{
-                      padding: '20px',
-                      background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
-                      border: isEditing
-                        ? '1px solid rgba(99,102,241,0.45)'
-                        : vol.isLocked
-                          ? '1px solid rgba(251,191,36,0.35)'
-                          : '1px solid rgba(255,255,255,0.04)',
+                if (matchedVols.length === 0) {
+                  return (
+                    <div style={{
+                      padding: '40px',
+                      textAlign: 'center',
+                      background: 'rgba(255,255,255,0.01)',
+                      border: '1px dashed rgba(255,255,255,0.04)',
                       borderRadius: '12px',
-                      transition: 'all 0.25s ease',
-                      ...(isVolRegening && {
-                        border: '1px solid rgba(56,189,248,0.5)',
-                        boxShadow: '0 0 0 0 rgba(56,189,248,0.45), 0 4px 24px rgba(56,189,248,0.15)',
-                        animation: 'aiPulse 1.6s ease-in-out infinite',
-                        background: 'linear-gradient(135deg, rgba(56,189,248,0.04) 0%, rgba(56,189,248,0.01) 100%)'
-                      })
-                    }}
-                  >
-                    {/* 分卷头部 */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px', marginBottom: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCollapsedVolumes(prev => ({
-                              ...prev,
-                              [vIdx]: !isCollapsed
-                            }));
-                          }}
-                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                        >
-                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => toggleLockVolume(vIdx)}
-                          style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: vol.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.25)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '2px',
-                            transition: 'all 0.2s'
-                          }}
-                          title={vol.isLocked ? "已锁定（更新推荐大纲时此卷将受到保留）" : "未锁定"}
-                        >
-                          {vol.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                        </button>
-
-                        <h4 style={{ fontSize: '14px', fontWeight: '600', color: vol.isLocked ? '#fbbf24' : '#fff', margin: 0 }}>
-                          {vol.title}
-                        </h4>
-                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px' }}>
-                          {vol.chapters.length} 章
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveVolume(vIdx, 'up')}
-                          disabled={vIdx === 0}
-                          style={{ border: 'none', background: 'transparent', color: vIdx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === 0 ? 'not-allowed' : 'pointer' }}
-                        >
-                          <ArrowUp size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveVolume(vIdx, 'down')}
-                          disabled={vIdx === localSections.length - 1}
-                          style={{ border: 'none', background: 'transparent', color: vIdx === localSections.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === localSections.length - 1 ? 'not-allowed' : 'pointer' }}
-                        >
-                          <ArrowDown size={12} />
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAiPromptVolIdx(vIdx);
-                            setAiPromptText('');
-                          }}
-                          style={{
-                            fontSize: '10.5px',
-                            color: '#38bdf8',
-                            background: 'rgba(56,189,248,0.06)',
-                            border: '1px solid rgba(56,189,248,0.15)',
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                          }}
-                        >
-                          <Sparkles size={10} />
-                          <span>AI推演</span>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingVolumeIdx(vIdx);
-                            setEditVolumeForm(JSON.parse(JSON.stringify(vol)));
-                          }}
-                          style={{ fontSize: '10.5px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                        >
-                          <Edit3 size={10} />
-                          <span>编辑</span>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteVolume(vIdx)}
-                          style={{ fontSize: '10.5px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                        >
-                          <Trash2 size={10} />
-                          <span>删除</span>
-                        </button>
-                      </div>
+                      color: 'var(--text-muted)',
+                      fontSize: '13px'
+                    }}>
+                      未找到符合条件的大纲分卷或章节设定
                     </div>
+                  );
+                }
 
-                    {/* 分卷编辑表单 */}
-                    {isEditing && editVolumeForm ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷名称</label>
-                          <input
-                            type="text"
-                            className="input"
-                            value={editVolumeForm.title}
-                            onChange={e => setEditVolumeForm({ ...editVolumeForm, title: e.target.value })}
-                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px' }}
-                          />
-                        </div>
+                return matchedVols.map(({ vol, vIdx, matchedChaps }) => {
+                  const isCollapsed = collapsedVolumes[vIdx] || false;
+                  const isVolRegening = regeningVolumeIdx === vIdx;
+                  const isEditing = editingVolumeIdx === vIdx;
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>剧情走向大纲与主要看点</label>
-                          <textarea
-                            className="textarea"
-                            rows={3}
-                            value={editVolumeForm.content}
-                            onChange={e => setEditVolumeForm({ ...editVolumeForm, content: e.target.value })}
-                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px', lineHeight: '1.6' }}
-                          />
-                        </div>
+                  // 计算卷状态
+                  let volStatus = '未开始';
+                  if (vol.chapters.length > 0) {
+                    const totalChaps = vol.chapters.length;
+                    // 在 store.chapters 中寻找标题或章节匹配的
+                    const writtenChaps = vol.chapters.filter(ch => {
+                      const dbCh = store.chapters.find(dbc => dbc.title.includes(ch.title) || ch.title.includes(dbc.title));
+                      return dbCh && dbCh.content && dbCh.content.trim().length > 10;
+                    }).length;
+                    if (writtenChaps === totalChaps) {
+                      volStatus = '已完成';
+                    } else if (writtenChaps > 0) {
+                      volStatus = '进行中';
+                    }
+                  }
 
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button type="button" onClick={saveVolumeEditing} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
-                            <Check size={11} /><span>保存</span>
-                          </button>
-                          <button type="button" onClick={() => { setEditingVolumeIdx(null); setEditVolumeForm(null); }} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer' }}>
-                            <X size={11} /><span>取消</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      !isCollapsed && (
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 16px 0', whiteSpace: 'pre-wrap' }}>
-                          {vol.content || '暂无此分卷的剧情大纲走向，点击"编辑"或"AI推演"进行完善...'}
-                        </p>
-                      )
-                    )}
-
-                    {/* AI 推演输入框 */}
-                    {aiPromptVolIdx === vIdx && (
-                      <div style={{ marginBottom: '16px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                        <input
-                          type="text"
-                          value={aiPromptText}
-                          onChange={e => setAiPromptText(e.target.value)}
-                          placeholder="输入推演要求（可选，如：加入主角觉醒情节）"
-                          style={{ flex: 1, fontSize: '12px', padding: '5px 8px', borderRadius: '4px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.05)', color: 'var(--text-primary)', outline: 'none' }}
-                          autoFocus
-                        />
-                        <button type="button" onClick={() => { setAiPromptVolIdx(null); handleAiRegenVolume(vIdx, aiPromptText); }} style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '4px', border: 'none', background: '#38bdf8', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}>推演</button>
-                        <button type="button" onClick={() => setAiPromptVolIdx(null)} style={{ fontSize: '11px', padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>取消</button>
-                      </div>
-                    )}
-
-                    {/* 卷下的章节列表 */}
-                    {!isCollapsed && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '12px' }}>
-                        {vol.chapters.length === 0 ? (
-                          <div
-                            onClick={() => handleInsertChapter(vIdx, -1)}
-                            style={{
-                              border: '1px dashed rgba(255,255,255,0.1)',
-                              borderRadius: '8px',
-                              padding: '20px',
-                              textAlign: 'center',
-                              cursor: 'pointer',
-                              background: 'rgba(255,255,255,0.01)',
-                              transition: 'background 0.2s',
-                            }}
-                          >
-                            <span style={{ fontSize: '12px', color: 'var(--text-dark)' }}>暂无章节，点击添加章节</span>
+                  return (
+                    <div
+                      key={vIdx}
+                      className="glass-card animate-fade-in"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)',
+                        border: isEditing
+                          ? '1px solid rgba(99,102,241,0.45)'
+                          : vol.isLocked
+                            ? '1px solid rgba(251,191,36,0.35)'
+                            : '1px solid rgba(255,255,255,0.04)',
+                        borderRadius: '12px',
+                        boxShadow: vol.isLocked
+                          ? '0 4px 24px rgba(251,191,36,0.05)'
+                          : '0 4px 20px rgba(0,0,0,0.12)',
+                        transition: 'all 0.25s ease',
+                        overflow: 'hidden',
+                        ...(isVolRegening && {
+                          border: '1px solid rgba(56,189,248,0.5)',
+                          boxShadow: '0 0 0 0 rgba(56,189,248,0.45), 0 4px 24px rgba(56,189,248,0.15)',
+                          animation: 'aiPulse 1.6s ease-in-out infinite',
+                          background: 'linear-gradient(135deg, rgba(56,189,248,0.04) 0%, rgba(56,189,248,0.01) 100%)'
+                        })
+                      }}
+                    >
+                      {/* AI推演分卷加载条 */}
+                      {isVolRegening && (
+                        <div style={{
+                          padding: '6px 12px',
+                          background: 'rgba(56,189,248,0.08)',
+                          borderBottom: '1px solid rgba(56,189,248,0.2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Loader2 size={13} className="spin" color="#38bdf8" />
+                            <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '500' }}>AI 正在推演本卷剧情走向与看点...</span>
                           </div>
-                        ) : (
-                          vol.chapters.map((chap, cIdx) => {
-                            const globalIdx = flatChapters.findIndex(ch => ch.volIdx === vIdx && ch.chapIdx === cIdx);
-                            const isChapRegening = regeningIndex === globalIdx;
-                            const isChapEditing = editingChapterPath && editingChapterPath.volIdx === vIdx && editingChapterPath.chapIdx === cIdx;
-
-                            return (
-                              <div
-                                key={cIdx}
-                                style={{
-                                  background: 'rgba(0,0,0,0.15)',
-                                  border: isChapEditing ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.03)',
-                                  borderRadius: '8px',
-                                  padding: '14px',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '8px',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                {isChapRegening ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', gap: '10px' }}>
-                                    <Loader2 size={16} className="animate-spin" style={{ color: '#38bdf8' }} />
-                                    <span style={{ fontSize: '12px', color: '#38bdf8' }}>AI 正在推演章节细纲...</span>
-                                  </div>
-                                ) : isChapEditing && editChapterForm ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                      <input
-                                        type="text"
-                                        value={editChapterForm.title}
-                                        onChange={e => setEditChapterForm({ ...editChapterForm, title: e.target.value })}
-                                        style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '4px 8px', color: '#fff', fontSize: '12px' }}
-                                      />
-                                    </div>
-                                    <textarea
-                                      rows={2}
-                                      value={editChapterForm.content}
-                                      onChange={e => setEditChapterForm({ ...editChapterForm, content: e.target.value })}
-                                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '6px 8px', color: '#fff', fontSize: '12px', width: '100%', resize: 'vertical' }}
-                                    />
-                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                      <button type="button" onClick={saveChapterEditing} style={{ padding: '2px 8px', fontSize: '11px', color: '#4ade80', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: '4px', cursor: 'pointer' }}>保存</button>
-                                      <button type="button" onClick={() => { setEditingChapterPath(null); setEditChapterForm(null); }} style={{ padding: '2px 8px', fontSize: '11px', color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '4px', cursor: 'pointer' }}>取消</button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleLockChapter(vIdx, cIdx)}
-                                          style={{ background: 'none', border: 'none', color: chap.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
-                                        >
-                                          {chap.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                                        </button>
-                                        <span style={{ fontSize: '13px', fontWeight: '600', color: chap.isLocked ? '#fbbf24' : '#fff' }}>
-                                          {chap.title}
-                                        </span>
-                                      </div>
-
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <button type="button" onClick={() => handleMoveChapter(vIdx, cIdx, 'up')} disabled={cIdx === 0} style={{ border: 'none', background: 'transparent', color: cIdx === 0 ? 'rgba(255,255,255,0.05)' : 'var(--text-muted)', cursor: cIdx === 0 ? 'not-allowed' : 'pointer' }}><ArrowUp size={11} /></button>
-                                        <button type="button" onClick={() => handleMoveChapter(vIdx, cIdx, 'down')} disabled={cIdx === vol.chapters.length - 1} style={{ border: 'none', background: 'transparent', color: cIdx === vol.chapters.length - 1 ? 'rgba(255,255,255,0.05)' : 'var(--text-muted)', cursor: cIdx === vol.chapters.length - 1 ? 'not-allowed' : 'pointer' }}><ArrowDown size={11} /></button>
-                                        
-                                        <button
-                                          type="button"
-                                          onClick={() => handleAiRegenChapter(vIdx, cIdx)}
-                                          style={{ fontSize: '10px', color: '#38bdf8', background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.1)', padding: '2px 6px', borderRadius: '3px', cursor: 'pointer' }}
-                                        >
-                                          AI推演
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditingChapterPath({ volIdx: vIdx, chapIdx: cIdx });
-                                            setEditChapterForm(JSON.parse(JSON.stringify(chap)));
-                                          }}
-                                          style={{ fontSize: '10px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.1)', padding: '2px 6px', borderRadius: '3px', cursor: 'pointer' }}
-                                        >
-                                          编辑
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteChapter(vIdx, cIdx)}
-                                          style={{ fontSize: '10px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: '3px', cursor: 'pointer' }}
-                                        >
-                                          删除
-                                        </button>
-                                      </div>
-                                    </div>
-                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-                                      {chap.content || '暂无剧情描述，点击“编辑”或“AI推演”生成细纲...'}
-                                    </p>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                        
-                        {vol.chapters.length > 0 && (
                           <button
                             type="button"
-                            onClick={() => handleInsertChapter(vIdx, vol.chapters.length - 1)}
+                            onClick={cancelAiRegen}
                             style={{
-                              width: '100%',
-                              padding: '8px',
-                              borderRadius: '6px',
-                              border: '1px dashed rgba(255,255,255,0.05)',
-                              background: 'transparent',
-                              color: 'var(--text-muted)',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px'
+                              fontSize: '10px', color: 'var(--text-muted)',
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              padding: '1px 8px', borderRadius: '4px',
+                              cursor: 'pointer'
                             }}
                           >
-                            <Plus size={12} />
-                            <span>添加章节</span>
+                            取消
                           </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        </div>
+                      )}
+
+                      {/* 行内编辑分卷模式 */}
+                      {isEditing && editVolumeForm ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>
+                              修改分卷大纲
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={saveVolumeEditing}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '11px',
+                                  color: '#4ade80',
+                                  background: 'rgba(74,222,128,0.1)',
+                                  border: '1px solid rgba(74,222,128,0.2)',
+                                  padding: '4px 10px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Check size={11} />
+                                <span>保存</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingVolumeIdx(null);
+                                  setEditVolumeForm(null);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '11px',
+                                  color: '#f87171',
+                                  background: 'rgba(248,113,113,0.1)',
+                                  border: '1px solid rgba(248,113,113,0.2)',
+                                  padding: '4px 10px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <X size={11} />
+                                <span>取消</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷名称</label>
+                            <input
+                              type="text"
+                              className="input"
+                              value={editVolumeForm.title}
+                              onChange={e => setEditVolumeForm({ ...editVolumeForm, title: e.target.value })}
+                              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px' }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>分卷剧情走向描述</label>
+                            <textarea
+                              className="textarea"
+                              rows={4}
+                              value={editVolumeForm.content}
+                              onChange={e => setEditVolumeForm({ ...editVolumeForm, content: e.target.value })}
+                              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '13px', lineHeight: '1.6' }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        /* 分卷卡片常规视图 */
+                        <div style={{ padding: '20px' }}>
+                          {/* 卷头部 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '10px', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setCollapsedVolumes(prev => ({ ...prev, [vIdx]: !isCollapsed }))}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: 0
+                                }}
+                              >
+                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                              </button>
+                              
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <BookOpen size={14} color="#6366f1" />
+                                <h4 style={{ fontSize: '15px', fontWeight: '700', color: vol.isLocked ? '#fbbf24' : '#fff', margin: 0 }}>
+                                  {vol.title}
+                                </h4>
+                                
+                                <span style={{
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  background: volStatus === '已完成' ? 'rgba(74, 222, 128, 0.1)' : volStatus === '进行中' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                                  color: volStatus === '已完成' ? '#4ade80' : volStatus === '进行中' ? '#fb923c' : 'var(--text-muted)',
+                                  fontWeight: '600'
+                                }}>
+                                  {volStatus}
+                                </span>
+
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  {vol.chapters.length} 章
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 卷右侧控制按钮 */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => toggleLockVolume(vIdx)}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: vol.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.25)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: '2px',
+                                  transition: 'all 0.2s'
+                                }}
+                                title={vol.isLocked ? "已锁定（更新大纲时此卷剧情走向将受保护）" : "锁定此分卷"}
+                              >
+                                {vol.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => handleMoveVolume(vIdx, 'up')}
+                                disabled={vIdx === 0}
+                                style={{ border: 'none', background: 'transparent', color: vIdx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === 0 ? 'not-allowed' : 'pointer' }}
+                                title="上移卷"
+                              >
+                                <ArrowUp size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveVolume(vIdx, 'down')}
+                                disabled={vIdx === localSections.length - 1}
+                                style={{ border: 'none', background: 'transparent', color: vIdx === localSections.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: vIdx === 0 || vIdx === localSections.length - 1 ? 'not-allowed' : 'pointer' }}
+                                title="下移卷"
+                              >
+                                <ArrowDown size={12} />
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAiPromptVolIdx(vIdx);
+                                  setAiPromptText('');
+                                }}
+                                style={{
+                                  fontSize: '11px',
+                                  color: '#38bdf8',
+                                  background: 'rgba(56,189,248,0.06)',
+                                  border: '1px solid rgba(56,189,248,0.15)',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                                title="AI 智能为本卷生成/完善大纲剧情走向"
+                              >
+                                <Sparkles size={11} />
+                                <span>AI推演</span>
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingVolumeIdx(vIdx);
+                                  setEditVolumeForm(JSON.parse(JSON.stringify(vol)));
+                                }}
+                                style={{ fontSize: '11px', color: 'var(--accent)', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              >
+                                <Edit3 size={11} />
+                                <span>编辑</span>
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVolume(vIdx)}
+                                style={{ fontSize: '11px', color: '#ef4444', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              >
+                                <Trash2 size={11} />
+                                <span>删除</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 卷剧情走向简述 */}
+                          <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.6', margin: '0 0 14px 0', whiteSpace: 'pre-wrap' }}>
+                            {vol.content || '暂无此分卷的整体走向描述，点击编辑或AI推演来完善走向...'}
+                          </p>
+
+                          {/* AI推演输入框 */}
+                          {aiPromptVolIdx === vIdx && (
+                            <div style={{ marginBottom: '14px', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                              <input
+                                type="text"
+                                value={aiPromptText}
+                                onChange={e => setAiPromptText(e.target.value)}
+                                placeholder="输入推演要求（可选，如：加入主角在此击败魔尊）"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                    setAiPromptVolIdx(null);
+                                    handleAiRegenVolume(vIdx, aiPromptText);
+                                  }
+                                }}
+                                style={{
+                                  flex: 1,
+                                  fontSize: '12px',
+                                  padding: '5px 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(56,189,248,0.3)',
+                                  background: 'rgba(56,189,248,0.05)',
+                                  color: 'var(--text-primary)',
+                                  outline: 'none'
+                                }}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAiPromptVolIdx(null);
+                                  handleAiRegenVolume(vIdx, aiPromptText);
+                                }}
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '5px 10px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: '#38bdf8',
+                                  color: '#000',
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                推演
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAiPromptVolIdx(null)}
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '5px 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--border-light)',
+                                  background: 'transparent',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                取消
+                              </button>
+                            </div>
+                          )}
+
+                          {/* 卷下的章节树状折叠面板 */}
+                          {!isCollapsed && (
+                            <div style={{
+                              background: 'rgba(0, 0, 0, 0.15)',
+                              border: '1px solid rgba(255, 255, 255, 0.03)',
+                              borderRadius: '8px',
+                              padding: '16px',
+                              marginTop: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '12px'
+                            }}>
+                              {/* 章节为空渲染 */}
+                              {vol.chapters.length === 0 ? (
+                                <div
+                                  onClick={() => handleInsertChapter(vIdx, -1)}
+                                  style={{
+                                    border: '1px dashed rgba(255,255,255,0.06)',
+                                    borderRadius: '6px',
+                                    padding: '24px',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-muted)',
+                                    background: 'rgba(255,255,255,0.005)',
+                                    transition: 'all 0.2s',
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = 'var(--accent)';
+                                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.02)';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.005)';
+                                  }}
+                                >
+                                  <div style={{ fontSize: '13px', color: '#c0c0c0', fontWeight: '500', marginBottom: '4px' }}>暂无章节</div>
+                                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>点击在此分卷下添加首个章节</span>
+                                </div>
+                              ) : (
+                                /* 章节列表 */
+                                matchedChaps.filter(c => c.ch).map(({ ch: sec, cIdx }) => {
+                                  const globalIdx = flatChapters.findIndex(ch => ch.volIdx === vIdx && ch.chapIdx === cIdx);
+                                  const isRegening = regeningIndex === globalIdx;
+                                  const isEditingChap = editingChapterPath && editingChapterPath.volIdx === vIdx && editingChapterPath.chapIdx === cIdx;
+
+                                  // 判断是否已写作正文
+                                  const dbChap = store.chapters.find(dbc => dbc.title.includes(sec.title) || sec.title.includes(dbc.title));
+                                  const isWritten = dbChap && dbChap.content && dbChap.content.trim().length > 10;
+
+                                  return (
+                                    <div
+                                      key={cIdx}
+                                      style={{
+                                        border: isEditingChap ? '1px solid rgba(99,102,241,0.35)' : '1px solid rgba(255,255,255,0.03)',
+                                        background: isEditingChap ? 'rgba(99,102,241,0.02)' : 'rgba(255,255,255,0.01)',
+                                        borderRadius: '6px',
+                                        padding: '12px 14px',
+                                        transition: 'all 0.2s',
+                                        position: 'relative'
+                                      }}
+                                    >
+                                      {/* AI单章重写加载状态 */}
+                                      {isRegening && (
+                                        <div style={{
+                                          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                          background: 'rgba(15,15,25,0.85)', borderRadius: '6px',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 10
+                                        }}>
+                                          <Loader2 size={13} className="spin" color="#38bdf8" />
+                                          <span style={{ fontSize: '11px', color: '#38bdf8' }}>AI 正在推演本章细纲...</span>
+                                        </div>
+                                      )}
+
+                                      {/* 章节编辑模式 */}
+                                      {isEditingChap && editChapterForm ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>编辑章节大纲</span>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                              <button
+                                                type="button"
+                                                onClick={saveChapterEditing}
+                                                style={{ fontSize: '10px', color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                                              >
+                                                保存
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingChapterPath(null);
+                                                  setEditChapterForm(null);
+                                                }}
+                                                style={{ fontSize: '10px', color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                                              >
+                                                取消
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>章节名</label>
+                                            <input
+                                              type="text"
+                                              className="input"
+                                              value={editChapterForm.title}
+                                              onChange={e => setEditChapterForm({ ...editChapterForm, title: e.target.value })}
+                                              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '6px', color: '#fff', fontSize: '12px' }}
+                                            />
+                                          </div>
+
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>本章剧情简述与推进</label>
+                                            <textarea
+                                              className="textarea"
+                                              rows={3}
+                                              value={editChapterForm.content}
+                                              onChange={e => setEditChapterForm({ ...editChapterForm, content: e.target.value })}
+                                              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '6px', color: '#fff', fontSize: '12px', lineHeight: '1.5' }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        /* 章节卡片常规视图 */
+                                        <div>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                              <span style={{
+                                                fontSize: '12px',
+                                                fontWeight: '600',
+                                                color: sec.isLocked ? '#fbbf24' : '#fff'
+                                              }}>
+                                                {sec.title}
+                                              </span>
+                                              
+                                              <span style={{
+                                                fontSize: '10px',
+                                                padding: '1px 6px',
+                                                borderRadius: '8px',
+                                                background: isWritten ? 'rgba(74, 222, 128, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                                                color: isWritten ? '#4ade80' : 'var(--text-dark)',
+                                                fontWeight: '500'
+                                              }}>
+                                                {isWritten ? '已写正文' : '未开始'}
+                                              </span>
+                                            </div>
+
+                                            {/* 章级操作按钮组 */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleLockChapter(vIdx, cIdx)}
+                                                style={{ border: 'none', background: 'transparent', color: sec.isLocked ? '#fbbf24' : 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '2px' }}
+                                                title={sec.isLocked ? "章节已锁定（推演时大纲不被覆盖）" : "锁定章节大纲"}
+                                              >
+                                                {sec.isLocked ? <Lock size={11} /> : <Unlock size={11} />}
+                                              </button>
+                                              
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveChapter(vIdx, cIdx, 'up')}
+                                                disabled={cIdx === 0}
+                                                style={{ border: 'none', background: 'transparent', color: cIdx === 0 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: cIdx === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}
+                                              >
+                                                <ArrowUp size={11} />
+                                              </button>
+                                              
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveChapter(vIdx, cIdx, 'down')}
+                                                disabled={cIdx === vol.chapters.length - 1}
+                                                style={{ border: 'none', background: 'transparent', color: cIdx === vol.chapters.length - 1 ? 'rgba(255,255,255,0.1)' : 'var(--text-muted)', cursor: cIdx === vol.chapters.length - 1 ? 'not-allowed' : 'pointer', padding: '2px' }}
+                                              >
+                                                <ArrowDown size={11} />
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => handleAiRegenChapter(vIdx, cIdx)}
+                                                style={{ fontSize: '10px', color: '#38bdf8', background: 'rgba(56,189,248,0.05)', border: '1px solid rgba(56,189,248,0.12)', padding: '1px 6px', borderRadius: '3px', cursor: 'pointer' }}
+                                                title="AI 智能推演重写本章细纲"
+                                              >
+                                                <Sparkles size={9} style={{ marginRight: '2px', display: 'inline-block', verticalAlign: 'middle' }} />
+                                                <span style={{ verticalAlign: 'middle' }}>AI推演</span>
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingChapterPath({ volIdx: vIdx, chapIdx: cIdx });
+                                                  setEditChapterForm(JSON.parse(JSON.stringify(sec)));
+                                                }}
+                                                style={{ fontSize: '10px', color: 'var(--accent)', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.12)', padding: '1px 6px', borderRadius: '3px', cursor: 'pointer' }}
+                                              >
+                                                <Edit3 size={9} style={{ marginRight: '2px', display: 'inline-block', verticalAlign: 'middle' }} />
+                                                <span style={{ verticalAlign: 'middle' }}>编辑</span>
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteChapter(vIdx, cIdx)}
+                                                style={{ fontSize: '10px', color: '#ef4444', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)', padding: '1px 6px', borderRadius: '3px', cursor: 'pointer' }}
+                                              >
+                                                <Trash2 size={9} style={{ marginRight: '2px', display: 'inline-block', verticalAlign: 'middle' }} />
+                                                <span style={{ verticalAlign: 'middle' }}>删除</span>
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5', margin: '0 0 6px 0', whiteSpace: 'pre-wrap' }}>
+                                            {sec.content || '暂无详细的大纲推进说明，点击编辑或AI推演来完善剧情内容...'}
+                                          </p>
+
+                                          {/* 章节其它设定键值对详情展示 */}
+                                          {sec.details.length > 0 && (
+                                            <div style={{
+                                              display: 'flex',
+                                              flexWrap: 'wrap',
+                                              gap: '6px',
+                                              marginTop: '4px',
+                                              borderTop: '1px solid rgba(255,255,255,0.02)',
+                                              paddingTop: '6px'
+                                            }}>
+                                              {sec.details.map((det, dIdx) => (
+                                                <div
+                                                  key={dIdx}
+                                                  style={{
+                                                    fontSize: '10.5px',
+                                                    background: 'rgba(255,255,255,0.02)',
+                                                    border: '1px solid rgba(255,255,255,0.04)',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 8px',
+                                                    color: 'var(--text-dark)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                  }}
+                                                >
+                                                  <strong style={{ color: 'rgba(255,255,255,0.45)' }}>{det.key}:</strong>
+                                                  <span>{det.value}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                              
+                              {/* 章节下的 "+ 添加章节" 按钮 */}
+                              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.03)', paddingTop: '10px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInsertChapter(vIdx, vol.chapters.length - 1)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#a5b4fc',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '4px 12px',
+                                    borderRadius: '4px',
+                                    transition: 'all 0.2s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#a5b4fc'; }}
+                                >
+                                  <Plus size={12} />
+                                  <span>添加章节</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
