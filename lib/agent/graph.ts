@@ -1,6 +1,5 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { BaseMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
@@ -52,26 +51,14 @@ function buildLLMFromConfig(config: {
   const temperature = config.temperature ?? 0.7;
   const maxTokens = config.maxTokens ?? 3000;
 
-  if (provider === 'gemini') {
-    const additionalParams: Record<string, any> = {};
-    if (config.reasoningEnabled) {
-      additionalParams.thinkingConfig = {
-        thinkingBudget: 2048,
-      };
-    }
-    return new ChatGoogleGenerativeAI({
-      apiKey: config.apiKey,
-      model,
-      temperature,
-      maxOutputTokens: maxTokens,
-      ...(config.apiBaseUrl ? { baseUrl: config.apiBaseUrl } : {}),
-      ...additionalParams,
-    });
-  }
-
   let baseUrl = 'https://api.openai.com/v1';
-  if (provider === 'deepseek') baseUrl = 'https://api.deepseek.com/v1';
-  else if (config.apiBaseUrl) baseUrl = config.apiBaseUrl;
+  if (provider === 'gemini') {
+    baseUrl = config.apiBaseUrl || 'https://generativelanguage.googleapis.com/v1beta/openai';
+  } else if (provider === 'deepseek') {
+    baseUrl = 'https://api.deepseek.com/v1';
+  } else if (config.apiBaseUrl) {
+    baseUrl = config.apiBaseUrl;
+  }
 
   return new ChatOpenAI({
     apiKey: config.apiKey,
@@ -83,7 +70,7 @@ function buildLLMFromConfig(config: {
 }
 
 function buildLLM(apiConfig: string, modelName: string) {
-  let config = {
+  const config = {
     apiKey: apiConfig,
     provider: 'gemini',
     name: 'gemini-2.5-flash',
@@ -104,7 +91,7 @@ function buildLLM(apiConfig: string, modelName: string) {
       config.temperature = parsed.temperature !== undefined ? parsed.temperature : config.temperature;
       config.maxTokens = parsed.maxTokens !== undefined ? parsed.maxTokens : config.maxTokens;
       config.reasoningEnabled = parsed.reasoningEnabled === true;
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
   }
 
   return buildLLMFromConfig(config);
@@ -226,7 +213,7 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
         overrides = parsed.agentOverrides || {};
         isMultiModel = true;
       }
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
   }
 
   const getLLMForAgent = (agentRole: string) => {
