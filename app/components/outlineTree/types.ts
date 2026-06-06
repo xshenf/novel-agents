@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react';
+import type { RefObject } from 'react';
 import type { OutlineChapter, OutlineVolume } from '@/lib/outlineParser';
 import type { AiUndoEntry } from '../../hooks/useAiUndoStack';
 import type { OutlineSubTab } from '../../hooks/useMaterialTabs';
@@ -42,7 +42,7 @@ export interface OutlineTreeController {
   regeningIndex: number | null;
   regeningVolumeIdx: number | null;
   regeningField: string | null;
-  aiAbortRef: MutableRefObject<AbortController | null>;
+  aiAbortRef: RefObject<AbortController | null>;
   aiPromptVolIdx: number | null;
   setAiPromptVolIdx: (v: number | null) => void;
   aiPromptText: string;

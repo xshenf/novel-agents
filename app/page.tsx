@@ -14,6 +14,7 @@ import { useProjectKernel } from './hooks/useProjectKernel';
 import { useCreationModals } from './hooks/useCreationModals';
 import { useResizablePanels } from './hooks/useResizablePanels';
 import { useOutlineTreeState } from './hooks/useOutlineTreeState';
+import { useVolumeActions } from './hooks/useVolumeActions';
 import { WorkspaceProvider, type WorkspaceContextValue } from './workspace-context';
 import { TopNav } from './components/TopNav';
 import { Dashboard } from './components/Dashboard';
@@ -44,6 +45,11 @@ export default function Home() {
   const layout = useResizablePanels();
   const agent = useAgentChat(store);
   const outlineTree = useOutlineTreeState({ tempOutlineFull: kernel.tempOutlineFull });
+  const volumeActions = useVolumeActions({
+    store,
+    getLocalSections: () => outlineTree.localSections,
+    setOutlineFull: kernel.setTempOutlineFull,
+  });
 
   const value: WorkspaceContextValue = {
     store,
@@ -59,6 +65,7 @@ export default function Home() {
     modals,
     layout,
     outlineTree,
+    volumeActions,
   };
 
   if (!mounted) {

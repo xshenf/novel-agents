@@ -1,16 +1,18 @@
 'use client';
 
-import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder } from 'lucide-react';
+import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder, MoreHorizontal, Sparkles, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 
 export function WorkspaceSidebar() {
-  const { store, routing, modals, layout, outlineTree } = useWorkspace();
+  const { store, routing, modals, layout, outlineTree, volumeActions } = useWorkspace();
   const { router, setActiveWorkspaceTab, buildWorkspaceUrl } = routing;
   const { setShowNewChapModal } = modals;
   const { sidebarWidth, setSidebarWidth, sidebarCollapsed, setSidebarCollapsed } = layout;
   const { localSections, selectedVolumeIdx, setSelectedVolumeIdx, selectedChapterIdx, setSelectedChapterIdx, collapsedVolumes, setCollapsedVolumes } = outlineTree;
+  const { isAiOutlineLoading, handleAiGenerateVolumeChapters, handleAddChapter, handleDeleteVolume } = volumeActions;
   const [hoveredMenuKey, setHoveredMenuKey] = useState<string | null>(null);
+  const [openVolumeMenu, setOpenVolumeMenu] = useState<number | null>(null);
 
   const handleSelectVolume = (vIdx: number) => {
     setSelectedVolumeIdx(vIdx);
@@ -30,6 +32,21 @@ export function WorkspaceSidebar() {
 
   const toggleCollapsed = (vIdx: number) => {
     setCollapsedVolumes({ ...collapsedVolumes, [vIdx]: !collapsedVolumes[vIdx] });
+  };
+
+  const menuItemStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 8px',
+    fontSize: '12px',
+    color: 'var(--text-primary, #e2e8f0)',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    textAlign: 'left',
+    width: '100%',
   };
 
   return (
@@ -69,7 +86,7 @@ export function WorkspaceSidebar() {
                       <div
                         className={`sidebar-item ${isVolSelected ? 'active' : ''}`}
                         onClick={() => handleSelectVolume(vIdx)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', position: 'relative' }}
                       >
                         <button
                           className="btn-icon"
@@ -83,7 +100,92 @@ export function WorkspaceSidebar() {
                         <span style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '13px', fontWeight: 500 }}>{vol.title || `第 ${vIdx + 1} 卷`}</span>
                         {vol.isLocked && <Lock size={10} style={{ flexShrink: 0, opacity: 0.6 }} />}
                         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{vol.chapters.length}</span>
+                        <button
+                          className="btn-icon"
+                          onClick={(e) => { e.stopPropagation(); setOpenVolumeMenu(openVolumeMenu === vIdx ? null : vIdx); }}
+                          style={{ padding: '2px', opacity: openVolumeMenu === vIdx ? 1 : 0.6 }}
+                          title="分卷操作"
+                        >
+                          <MoreHorizontal size={12} />
+                        </button>
                       </div>
+
+                      {/* 分卷操作菜单 */}
+                      {openVolumeMenu === vIdx && (
+                        <>
+                          <div
+                            onClick={() => setOpenVolumeMenu(null)}
+                            style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: '8px',
+                              marginTop: '-2px',
+                              minWidth: '170px',
+                              zIndex: 10,
+                              background: 'var(--bg-card, #1a1f2e)',
+                              border: '1px solid var(--border-light)',
+                              borderRadius: '8px',
+                              padding: '4px',
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '2px',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--text-muted)' }}>分卷操作</div>
+                            <button
+                              className="sidebar-menu-item"
+                              disabled={isAiOutlineLoading}
+                              onClick={() => { setOpenVolumeMenu(null); handleAiGenerateVolumeChapters(vIdx, 3); }}
+                              style={menuItemStyle}
+                            >
+                              <Sparkles size={12} style={{ color: '#a5b4fc' }} />
+                              <span>AI 生成 3 章大纲</span>
+                            </button>
+                            <button
+                              className="sidebar-menu-item"
+                              disabled={isAiOutlineLoading}
+                              onClick={() => { setOpenVolumeMenu(null); handleAiGenerateVolumeChapters(vIdx, 5); }}
+                              style={menuItemStyle}
+                            >
+                              <Sparkles size={12} style={{ color: '#a5b4fc' }} />
+                              <span>AI 生成 5 章大纲</span>
+                            </button>
+                            <div style={{ height: '1px', background: 'var(--border-light)', margin: '2px 0' }} />
+                            <button
+                              className="sidebar-menu-item"
+                              onClick={() => { setOpenVolumeMenu(null); handleAddChapter(vIdx); }}
+                              style={menuItemStyle}
+                            >
+                              <FileText size={12} />
+                              <span>新建空白章节</span>
+                            </button>
+                            <button
+                              className="sidebar-menu-item"
+                              onClick={() => {
+                                setOpenVolumeMenu(null);
+                                setActiveWorkspaceTab('outline');
+                              }}
+                              style={menuItemStyle}
+                            >
+                              <Pencil size={12} />
+                              <span>编辑本卷大纲</span>
+                            </button>
+                            <div style={{ height: '1px', background: 'var(--border-light)', margin: '2px 0' }} />
+                            <button
+                              className="sidebar-menu-item"
+                              onClick={() => { setOpenVolumeMenu(null); handleDeleteVolume(vIdx); }}
+                              style={{ ...menuItemStyle, color: '#f87171' }}
+                            >
+                              <Trash2 size={12} />
+                              <span>删除分卷</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
 
                       {!isCollapsed && vol.chapters.map((chap, cIdx) => {
                         const isActive = selectedVolumeIdx === vIdx && selectedChapterIdx === cIdx;
@@ -102,6 +204,23 @@ export function WorkspaceSidebar() {
                           </div>
                         );
                       })}
+
+                      {/* 在分卷底部提供「+ 新建章节」快捷入口 */}
+                      {!isCollapsed && isVolSelected && (
+                        <button
+                          className="btn-link"
+                          onClick={() => handleAddChapter(vIdx)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '4px 10px 4px 26px',
+                            fontSize: '11px', color: 'var(--text-muted)',
+                            background: 'none', border: 'none', cursor: 'pointer',
+                          }}
+                          title="在本卷新增一个空白章节"
+                        >
+                          <Plus size={11} /> 新建章节
+                        </button>
+                      )}
                     </div>
                   );
                 })}
