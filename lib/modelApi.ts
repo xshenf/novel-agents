@@ -1,5 +1,5 @@
 // 辅助方法：直接调用大语言模型 API（支持 Gemini 及多种 OpenAI 兼容服务商）
-export async function callModelApi(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false): Promise<string> {
+export async function callModelApi(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false, signal?: AbortSignal): Promise<string> {
   // 默认配置
   let config = {
     apiKey: apiKey,
@@ -30,11 +30,16 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     .filter(Boolean)
     .join('\n');
 
+  // 内部超时 120 秒，并与外部传入的 signal 合并
+  const internalTimeout = AbortSignal.timeout(120_000);
+  const combinedSignal = signal ? AbortSignal.any([internalTimeout, signal]) : internalTimeout;
+
   // 1. 如果是 Gemini 服务商协议
   if (config.apiProvider === 'gemini') {
     const model = modelName || 'gemini-2.5-flash';
     const rawBaseUrl = config.apiBaseUrl ? config.apiBaseUrl.trim() : 'https://generativelanguage.googleapis.com';
-    const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+    // 用户可能配置了含 /v1beta 的 baseUrl，去重避免拼接出 .../v1beta/v1beta/...
+    const baseUrl = (rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl).replace(/\/v1beta$/, '');
     const url = `${baseUrl}/v1beta/models/${model}:generateContent`;
 
     const body: any = {
@@ -76,6 +81,7 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
         'x-goog-api-key': config.apiKey,
       },
       body: JSON.stringify(body),
+      signal: combinedSignal,
     });
 
     if (!response.ok) {
@@ -144,6 +150,7 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
         'Authorization': `Bearer ${config.apiKey}`
       },
       body: JSON.stringify(body),
+      signal: combinedSignal,
     });
 
     if (!response.ok) {
@@ -153,7 +160,7 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
 
     const result = await response.json();
     const text = result?.choices?.[0]?.message?.content;
-    if (text === undefined || text === null) {
+    if (!text) {
       throw new Error(`Empty response from ${config.apiProvider} API`);
     }
     return text;
@@ -171,7 +178,8 @@ export async function fetchModels(apiKey: string, apiProvider: string, apiBaseUr
   try {
     if (apiProvider === 'gemini') {
       const rawBaseUrl = apiBaseUrl ? apiBaseUrl.trim() : 'https://generativelanguage.googleapis.com';
-      const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+      // 用户可能配置了含 /v1beta 的 baseUrl，去重避免拼接出 .../v1beta/v1beta/...
+      const baseUrl = (rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl).replace(/\/v1beta$/, '');
       const url = `${baseUrl}/v1beta/models`;
 
       const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } });

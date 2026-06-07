@@ -75,6 +75,7 @@ import {
 } from './editor';
 
 export const PLANNER_TOOLS = [
+  queryMemoryTool,
   getProjectOverviewTool,
   autoPlanBookTool,
   generateOutlineTool,

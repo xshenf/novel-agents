@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
           if (eventType === 'on_chain_start' && isAgentNode(name)) {
             const agent = name as keyof typeof AGENT_LABELS;
             lastAgent = agent;
+            currentAnswerMsgId = '';  // 切换 agent 时重置，防止消息错位
             send('agent_start', {
               agent,
               label: AGENT_LABELS[agent as keyof typeof AGENT_LABELS] || agent,
@@ -158,7 +159,9 @@ export async function POST(request: NextRequest) {
           if (eventType === 'on_chat_model_stream' && data?.chunk?.content) {
             const content = typeof data.chunk.content === 'string'
               ? data.chunk.content
-              : data.chunk.content?.[0]?.text || '';
+              : Array.isArray(data.chunk.content)
+                ? data.chunk.content.map((c: any) => c.text || '').join('')
+                : '';
             if (content) {
               if (!currentAnswerMsgId) {
                 currentAnswerMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -293,9 +296,11 @@ export async function POST(request: NextRequest) {
         } catch (dbErr) {
           console.error('Failed to save error to DB:', dbErr);
         }
+        // 对客户端展示简化的错误信息，避免泄露 API endpoint URL 等敏感信息
+        const clientMessage = sanitizeErrorMessage(err.message);
         send('error', { 
           id: errorMsgId,
-          message: err.message || 'Agent 执行失败',
+          message: clientMessage,
           tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送“请继续刚才未完成的工作”来续跑。'
         });
       } finally {
@@ -319,6 +324,25 @@ export async function POST(request: NextRequest) {
       'Connection': 'keep-alive',
     },
   });
+}
+
+function sanitizeErrorMessage(raw: string): string {
+  if (!raw) return 'Agent 执行失败';
+  // 提取 API 错误类型，隐藏具体 URL 和参数
+  if (raw.includes('API error')) {
+    const statusMatch = raw.match(/\((\d{3})\)/);
+    const status = statusMatch ? statusMatch[1] : '';
+    if (status === '429') return 'API 配额不足或请求过于频繁，请稍后重试';
+    if (status === '401' || status === '403') return 'API Key 无效或权限不足，请检查设置';
+    if (status === '408' || status === '504') return 'API 请求超时，请稍后重试';
+    if (status.startsWith('5')) return 'AI 服务暂时不可用，请稍后重试';
+    return `API 请求失败 (${status || '未知错误'})`;
+  }
+  if (raw.includes('Empty response')) return 'AI 返回了空内容，请重试';
+  if (raw.includes('ECONNREFUSED') || raw.includes('ENOTFOUND')) return '无法连接 AI 服务，请检查网络和 API 配置';
+  if (raw.includes('timeout') || raw.includes('Timeout')) return '请求超时，请稍后重试';
+  // 兜底：截取前100字符，避免长错误信息泄露过多细节
+  return raw.length > 100 ? raw.slice(0, 100) + '...' : raw;
 }
 
 function isAgentNode(name: string): boolean {

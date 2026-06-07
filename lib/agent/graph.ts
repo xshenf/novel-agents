@@ -5,6 +5,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { resolveAgentModelConfig, resolveApiConfig } from './config';
 
 // 持久化 Checkpointer：落盘到 data/agent-checkpoints.db，进程重启/热重载后对话与断点状态仍可恢复。
 // 用全局单例复用同一个 better-sqlite3 连接，避免开发环境热重载反复打开文件句柄。
@@ -68,7 +69,7 @@ function buildLLMFromConfig(config: {
   const provider = config.provider || 'gemini';
   const model = config.name || 'gemini-2.5-flash';
   const temperature = config.temperature ?? 0.7;
-  const maxTokens = config.maxTokens ?? 3000;
+  const maxTokens = config.maxTokens ?? 4000;
 
   let baseUrl = 'https://api.openai.com/v1';
   if (provider === 'gemini') {
@@ -89,30 +90,11 @@ function buildLLMFromConfig(config: {
 }
 
 function buildLLM(apiConfig: string, modelName: string) {
-  const config = {
-    apiKey: apiConfig,
-    provider: 'gemini',
-    name: 'gemini-2.5-flash',
-    apiBaseUrl: '',
-    temperature: 0.7,
-    maxTokens: 4000,
-    reasoningEnabled: false,
-  };
-
-  if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
-    try {
-      const parsed = JSON.parse(apiConfig);
-      // 兼容老版本的字段名 apiProvider -> provider 等
-      config.apiKey = parsed.apiKey || config.apiKey;
-      config.provider = parsed.apiProvider || parsed.provider || config.provider;
-      config.name = parsed.modelName || parsed.name || modelName || config.name;
-      config.apiBaseUrl = parsed.apiBaseUrl || config.apiBaseUrl;
-      config.temperature = parsed.temperature !== undefined ? parsed.temperature : config.temperature;
-      config.maxTokens = parsed.maxTokens !== undefined ? parsed.maxTokens : config.maxTokens;
-      config.reasoningEnabled = parsed.reasoningEnabled === true;
-    } catch (e) { console.warn('[agent] apiConfig JSON 解析失败:', e); }
+  const config = resolveAgentModelConfig('', apiConfig);
+  // 兼容：如果传入了 modelName 且 config 没有解析出特定模型名，使用传入的
+  if (modelName && config.name === 'gemini-2.5-flash') {
+    config.name = modelName;
   }
-
   return buildLLMFromConfig(config);
 }
 
@@ -353,32 +335,16 @@ const afterSpecialistToolNode = async (state: typeof AgentState.State) => ({
 // llmFactory 为可选的测试注入点：传入时用它按角色构造 LLM（桩模型），
 // 不传则走正常的 apiConfig 解析逻辑。生产调用无需传入，行为不变。
 export function buildNovelAgentGraph(apiConfig: string, modelName: string, projectId: string, llmFactory?: (role: string) => any) {
-  let models: any[] = [];
-  let bindings: Record<string, string> = {};
-  let overrides: Record<string, any> = {};
-  let isMultiModel = false;
-  let globalSystemInstruction = '';
-
-  if (apiConfig && apiConfig.trim().startsWith('{') && apiConfig.trim().endsWith('}')) {
-    try {
-      const parsed = JSON.parse(apiConfig);
-      globalSystemInstruction = parsed.systemInstruction || '';
-      if (Array.isArray(parsed.models) && parsed.agentModelBindings) {
-        models = parsed.models;
-        bindings = parsed.agentModelBindings;
-        overrides = parsed.agentOverrides || {};
-        isMultiModel = true;
-      }
-    } catch (e) { console.warn('[agent] apiConfig JSON 解析失败:', e); }
-  }
+  const resolved = resolveApiConfig(apiConfig, modelName);
+  const globalSystemInstruction = resolved.systemInstruction;
 
   const getLLMForAgent = (agentRole: string) => {
     if (llmFactory) return llmFactory(agentRole);
-    if (isMultiModel) {
-      const modelId = bindings[agentRole];
-      const modelConfig = models.find(m => m.id === modelId) || models[0];
+    if (resolved.isMultiModel) {
+      const modelId = resolved.bindings[agentRole];
+      const modelConfig = resolved.models.find(m => m.id === modelId) || resolved.models[0];
       if (modelConfig) {
-        const agentOverride = overrides[agentRole] || {};
+        const agentOverride = resolved.overrides[agentRole] || {};
         const mergedConfig = {
           apiKey: modelConfig.apiKey,
           provider: modelConfig.provider,

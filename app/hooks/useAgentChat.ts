@@ -260,11 +260,6 @@ export function useAgentChat(store: NovelStore) {
                 streaming: false,
               }]);
             }
-            if (store.currentProject) {
-              store.fetchCharacters(store.currentProject.id);
-              store.fetchWorldRules(store.currentProject.id);
-              store.fetchChapters(store.currentProject.id);
-            }
             scrollToBottom('smooth');
             break;
 
@@ -309,14 +304,16 @@ export function useAgentChat(store: NovelStore) {
   };
 
   // 组装当前模型配置请求体的公共部分
+  // 多模型模式下 systemInstruction 必须打入 JSON 内，否则 route.ts 检测到 apiKey 已是 JSON 后不再重新打包，
+  // 导致外部独立传入的 systemInstruction 被丢弃
   const buildRequestBase = () => ({
     apiKey: JSON.stringify({
       models: store.models,
       agentModelBindings: store.agentModelBindings,
       agentOverrides: store.agentOverrides,
+      systemInstruction: store.systemInstruction,
     }),
     modelName: store.modelName,
-    systemInstruction: store.systemInstruction,
   });
 
   const handleSendAgentMessage = async (e: React.FormEvent) => {
