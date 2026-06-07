@@ -55,7 +55,7 @@ export const Markdown = ({ content }: { content: string }) => {
             code = codeContent.slice(firstLineBreak + 1);
           }
           return (
-            <pre key={index} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '10px', overflowX: 'auto', fontSize: '11.5px', fontFamily: 'monospace', margin: '4px 0', color: '#e2e8f0' }}>
+            <pre key={`p-${index}`} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '10px', overflowX: 'auto', fontSize: '11.5px', fontFamily: 'monospace', margin: '4px 0', color: '#e2e8f0' }}>
               {lang && <div style={{ fontSize: '9px', color: 'var(--text-muted)', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px', marginBottom: '6px', textTransform: 'uppercase', fontFamily: 'sans-serif', fontWeight: 'bold' }}>{lang}</div>}
               <code>{code}</code>
             </pre>
@@ -65,25 +65,25 @@ export const Markdown = ({ content }: { content: string }) => {
         // 普通文本解析
         const lines = part.split('\n');
         return (
-          <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div key={`p-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {lines.map((line, lineIdx) => {
               const trimmed = line.trim();
               
               // 多级标题
               if (trimmed.startsWith('### ')) {
-                return <h5 key={lineIdx} style={{ fontSize: '13px', fontWeight: 'bold', margin: '6px 0 2px', color: '#fff' }}>{trimmed.slice(4)}</h5>;
+                return <h5 key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ fontSize: '13px', fontWeight: 'bold', margin: '6px 0 2px', color: '#fff' }}>{trimmed.slice(4)}</h5>;
               }
               if (trimmed.startsWith('## ')) {
-                return <h4 key={lineIdx} style={{ fontSize: '14px', fontWeight: 'bold', margin: '8px 0 4px', color: '#fff' }}>{trimmed.slice(3)}</h4>;
+                return <h4 key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ fontSize: '14px', fontWeight: 'bold', margin: '8px 0 4px', color: '#fff' }}>{trimmed.slice(3)}</h4>;
               }
               if (trimmed.startsWith('# ')) {
-                return <h3 key={lineIdx} style={{ fontSize: '15px', fontWeight: 'bold', margin: '10px 0 6px', color: '#fff' }}>{trimmed.slice(2)}</h3>;
+                return <h3 key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ fontSize: '15px', fontWeight: 'bold', margin: '10px 0 6px', color: '#fff' }}>{trimmed.slice(2)}</h3>;
               }
               
               // 无序列表
               if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                 return (
-                  <div key={lineIdx} style={{ display: 'flex', gap: '6px', paddingLeft: '8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  <div key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ display: 'flex', gap: '6px', paddingLeft: '8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
                     <span>•</span>
                     <span>{parseInlineMarkdown(trimmed.slice(2))}</span>
                   </div>
@@ -92,12 +92,12 @@ export const Markdown = ({ content }: { content: string }) => {
               
               // 空行
               if (!trimmed) {
-                return <div key={lineIdx} style={{ height: '4px' }} />;
+                return <div key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ height: '4px' }} />;
               }
               
               // 普通段落
               return (
-                <p key={lineIdx} style={{ margin: 0, fontSize: '12.5px', lineHeight: '1.6' }}>
+                <p key={`l-${lineIdx}-${line.slice(0, 20).replace(/\s/g, '_')}`} style={{ margin: 0, fontSize: '12.5px', lineHeight: '1.6' }}>
                   {parseInlineMarkdown(line)}
                 </p>
               );

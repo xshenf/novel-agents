@@ -182,3 +182,14 @@ export const SETTING_LENGTH_GUIDE =
   `按设定的信息密度控制篇幅：世界观、力量体系、核心冲突等骨架级设定约 ${SETTING_LENGTH_TIERS.skeleton.min}-${SETTING_LENGTH_TIERS.skeleton.max} 字；` +
   `功法体系、势力阵营、地理地图、爽点卖点、文风等常规设定约 ${SETTING_LENGTH_TIERS.standard.min}-${SETTING_LENGTH_TIERS.standard.max} 字；` +
   `金手指、货币体系、关键物品等单点设定约 ${SETTING_LENGTH_TIERS.atomic.min}-${SETTING_LENGTH_TIERS.atomic.max} 字。过长会稀释长期记忆、增加跑偏风险。`;
+
+// 默认模型配置
+export const DEFAULT_MODEL_NAME = 'gemini-2.5-flash';
+export const DEFAULT_API_PROVIDER = 'gemini';
+export const DEFAULT_TEMPERATURE = 0.7;
+export const DEFAULT_MAX_TOKENS = 4000;
+
+// 大纲默认标签
+export const OUTLINE_DEFAULT_VOLUME_NAME = '新分卷';
+export const OUTLINE_DEFAULT_CHAPTER_NAME = '新章节';
+export const OUTLINE_DEFAULT_FIRST_VOLUME = '第一卷：正文';

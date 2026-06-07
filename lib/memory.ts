@@ -91,7 +91,7 @@ function scoreRelevantChapters(chapters: Chapter[], queryTokens: string[]): Chap
 // 这从根本上避免了「只给最近/命中的 top-3 章」导致的长篇跑偏。
 export async function searchMemory(projectId: string, query: string, chapterTitle?: string): Promise<MemorySearchResult> {
   const [chapters, characters, worldRules, worldStates, project] = await Promise.all([
-    db.getChapters(projectId),
+    db.getChapterMetadata(projectId),
     db.getCharacters(projectId),
     db.getWorldRules(projectId),
     db.getWorldStates(projectId),

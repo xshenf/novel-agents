@@ -38,6 +38,44 @@ export function findWritten(outlineTitle: string, chapters: Chapter[]): Chapter 
   return chapters.find(c => titlesMatch(outlineTitle, c.title)) ?? null;
 }
 
+// 预构建多维度索引，将 findWritten 的 O(m) 线性扫描降为 O(1) 哈希查找
+function buildChapterIndex(chapters: Chapter[]): Map<string, Chapter> {
+  const index = new Map<string, Chapter>();
+  for (const c of chapters) {
+    // 精确标题
+    if (!index.has(`t:${c.title}`)) index.set(`t:${c.title}`, c);
+    // 去掉「第N章/节/回」前缀后的标题
+    const stripped = c.title.replace(/^第.+(?:章|节|回|折)[：: ]\s*/, '');
+    if (stripped && !index.has(`s:${stripped}`)) index.set(`s:${stripped}`, c);
+    // 章节序号
+    const num = extractChapterNumber(c.title);
+    if (num !== null && !index.has(`n:${num}`)) index.set(`n:${num}`, c);
+  }
+  return index;
+}
+
+// 使用预构建索引做 O(1) 查找，优先级与 titlesMatch 一致
+function findWrittenIndexed(outlineTitle: string, index: Map<string, Chapter>): Chapter | null {
+  if (!outlineTitle) return null;
+  // 1) 精确匹配
+  const exact = index.get(`t:${outlineTitle}`);
+  if (exact) return exact;
+  // 2) 去前缀匹配
+  const stripped = outlineTitle.replace(/^第.+(?:章|节|回|折)[：: ]\s*/, '');
+  if (stripped) {
+    const m = index.get(`s:${stripped}`);
+    if (m) return m;
+  }
+  // 3) 章节序号匹配
+  const num = extractChapterNumber(outlineTitle);
+  if (num !== null) {
+    const m = index.get(`n:${num}`);
+    if (m) return m;
+  }
+  // 4) 占位标题（空/「新章节」/「新卷」）——按序号已在步骤 3 处理
+  return null;
+}
+
 // 章节写作状态：无正文/空 => 待写；有正文无摘要 => 草稿；有正文且有摘要 => 已完成
 export function statusOf(written: Chapter | null): ChapterStatus {
   if (!written || written.content.trim() === '') return 'unwritten';
@@ -58,9 +96,10 @@ export function chapterWordCount(written: Chapter | null): number {
 
 // 收集「未被任何大纲章节匹配」的自由正文章节
 export function collectOrphans(sections: OutlineVolume[], chapters: Chapter[]): Chapter[] {
+  const index = buildChapterIndex(chapters);
   const matched = new Set<string>();
   sections.forEach(vol => vol.chapters.forEach(chap => {
-    const m = findWritten(chap.title, chapters);
+    const m = findWrittenIndexed(chap.title, index);
     if (m) matched.add(m.id);
   }));
   return chapters.filter(c => !matched.has(c.id));
@@ -76,11 +115,12 @@ export interface NextTarget {
 // 找出「下一个待写章节」：大纲顺序中第一个匹配正文为空/缺失的章节。
 // 用于生成控制展示「下一章是 X」。
 export function nextUnwritten(sections: OutlineVolume[], chapters: Chapter[]): NextTarget | null {
+  const index = buildChapterIndex(chapters);
   for (let v = 0; v < sections.length; v++) {
     const vol = sections[v];
     for (let c = 0; c < vol.chapters.length; c++) {
       const chap = vol.chapters[c];
-      const written = findWritten(chap.title, chapters);
+      const written = findWrittenIndexed(chap.title, index);
       if (statusOf(written) === 'unwritten') {
         return { volIdx: v, chapIdx: c, title: chap.title || `第 ${c + 1} 章`, written };
       }

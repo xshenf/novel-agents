@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { NovelProject, Chapter, Character, WorldRule, WorldState } from './db';
+import { DEFAULT_MODEL_NAME } from './constants';
 
 export interface ModelConfig {
   id: string;
@@ -90,7 +91,7 @@ export interface NovelStore {
 export const useNovelStore = create<NovelStore>((set, get) => {
   // 仅在客户端运行时读取 localStorage
   const initialApiKey = typeof window !== 'undefined' ? localStorage.getItem('novel_api_key') || '' : '';
-  const initialModel = typeof window !== 'undefined' ? localStorage.getItem('novel_model_name') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
+  const initialModel = typeof window !== 'undefined' ? localStorage.getItem('novel_model_name') || DEFAULT_MODEL_NAME : DEFAULT_MODEL_NAME;
   const initialProvider = typeof window !== 'undefined' ? localStorage.getItem('novel_api_provider') || 'gemini' : 'gemini';
   const initialBaseUrl = typeof window !== 'undefined' ? localStorage.getItem('novel_api_base_url') || '' : '';
   const initialTemp = typeof window !== 'undefined' ? Number(localStorage.getItem('novel_temperature') || '0.7') : 0.7;

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
-    const projects = await db.getProjects();
+    const projects = await db.getProjectList();
     return NextResponse.json(projects);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '获取项目失败';

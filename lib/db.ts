@@ -191,6 +191,20 @@ export const db = {
     return list.map(formatProject);
   },
 
+  async getProjectList(): Promise<Pick<NovelProject, 'id' | 'title' | 'description' | 'createdAt' | 'updatedAt'>[]> {
+    const list = await prisma.novelProject.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true, description: true, createdAt: true, updatedAt: true },
+    });
+    return list.map(p => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }));
+  },
+
   async getProject(id: string): Promise<NovelProject | undefined> {
     const item = await prisma.novelProject.findUnique({ where: { id } });
     return item ? formatProject(item) : undefined;
@@ -270,6 +284,31 @@ export const db = {
       select: { id: true, title: true, summary: true, createdAt: true },
     });
     return list.map(c => ({ id: c.id, title: c.title, summary: c.summary || '', createdAt: c.createdAt.toISOString() }));
+  },
+
+  // 元数据查询：排除 content 大字段，包含 summary + 伏笔/人物变更/时间线等结构化元数据，
+  // 供 searchMemory 等只需章节元信息的场景使用，避免加载全部章节正文。
+  async getChapterMetadata(projectId: string): Promise<Omit<Chapter, 'content'>[]> {
+    const list = await prisma.chapter.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true, projectId: true, title: true, summary: true,
+        characterChanges: true, newForeshadowing: true,
+        resolvedForeshadowing: true, timelineEvents: true,
+        createdAt: true, updatedAt: true,
+      },
+    });
+    return list.map(ch => ({
+      ...ch,
+      content: '', // 不加载正文
+      characterChanges: ch.characterChanges ? JSON.parse(ch.characterChanges) : [],
+      newForeshadowing: ch.newForeshadowing ? JSON.parse(ch.newForeshadowing) : [],
+      resolvedForeshadowing: ch.resolvedForeshadowing ? JSON.parse(ch.resolvedForeshadowing) : [],
+      timelineEvents: ch.timelineEvents ? JSON.parse(ch.timelineEvents) : [],
+      createdAt: ch.createdAt.toISOString(),
+      updatedAt: ch.updatedAt.toISOString(),
+    }));
   },
 
   async getChapter(id: string): Promise<Chapter | undefined> {

@@ -55,7 +55,9 @@ export function useOutlineAutoSave({
   const prevMacroRef = useRef(macro);
   useEffect(() => {
     const prev = prevMacroRef.current;
-    if (JSON.stringify(prev) === JSON.stringify(macro)) return;
+    const keys = Object.keys(macro) as (keyof typeof macro)[];
+    const changed = keys.some(k => prev[k] !== macro[k]);
+    if (!changed) return;
     prevMacroRef.current = macro;
     if (!projectId) return;
     if (macroTimer.current) clearTimeout(macroTimer.current);
