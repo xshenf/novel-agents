@@ -6,6 +6,7 @@ import { searchMemory } from '../memory';
 import { ai } from '../ai';
 import { formatAntiAiInstructions } from '../rules';
 import { interrupt } from '@langchain/langgraph';
+import { SETTING_LENGTH_GUIDE } from '../constants';
 
 // 锁定项的破坏性操作：用 LangGraph interrupt 暂停整张图，等待用户经 Command({resume}) 回传决定。
 // resume 传 true / 'confirm' / 'yes' 视为确认继续，其它（含 false / 取消）一律视为取消。
@@ -264,7 +265,7 @@ export const createWorldRuleTool = tool(
       projectId: z.string().describe('小说项目ID'),
       name: z.string().describe('设定名称'),
       type: z.enum(['location', 'faction', 'rule', 'item', 'other']).describe('设定类型：location=地点, faction=势力, rule=法则, item=物品, other=其他'),
-      description: z.string().describe('设定描述，控制在 150-300 字，精炼具体、突出与主线的关联，不堆砌冗余背景'),
+      description: z.string().describe(`设定描述，按类型控制篇幅（${SETTING_LENGTH_GUIDE}），突出与主线的关联`),
     }),
   }
 );
@@ -289,7 +290,7 @@ export const updateProjectFieldTool = tool(
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
       field: z.string().describe('要更新的字段名，可选：title, description, styleSetting, worldSetting, powerSystem, goldFinger, coreConflict, factionsMap, sellingPoints, outlineFull, forbiddenSetting'),
-      value: z.string().describe('新的字段值；单个设定字段控制在 150-300 字，精炼概括核心信息，避免长篇铺陈'),
+      value: z.string().describe(`新的字段值，按设定维度控制篇幅（${SETTING_LENGTH_GUIDE}）`),
     }),
   }
 );

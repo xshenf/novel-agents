@@ -138,3 +138,47 @@ export const PRESET_TAG_GROUPS = [
     tags: ['架空历史', '灵气复苏', '末世生存', '规则怪谈', '赛博朋克', '克苏鲁神话', '魔法学院']
   }
 ];
+
+// ─── 设定字数分档 ───────────────────────────────────────────────────────────
+// 不同设定维度的信息密度差异很大：骨架级（世界观/力量体系/核心冲突）需要更长篇幅
+// 才能交代清楚，单点设定（金手指/货币/关键物品）写长了反而注水、稀释长期记忆。
+// 字数标准统一在此定义，供推演（批量/单项）与对话链路共用，避免散落各处漂移。
+export const SETTING_LENGTH_TIERS = {
+  skeleton: { min: 300, max: 500 },
+  standard: { min: 200, max: 350 },
+  atomic: { min: 100, max: 200 },
+} as const;
+
+export type SettingLengthTier = keyof typeof SETTING_LENGTH_TIERS;
+
+// 维度/字段键 → 档位。键覆盖推演维度 key、项目核心字段名与 world_rule 类型。
+export const SETTING_LENGTH_TIER_BY_KEY: Record<string, SettingLengthTier> = {
+  worldSetting: 'skeleton',
+  coreConflict: 'skeleton',
+  powerSystem: 'skeleton',
+  skillSystem: 'standard',
+  faction: 'standard',
+  factionsMap: 'standard',
+  location: 'standard',
+  sellingPoints: 'standard',
+  styleSetting: 'standard',
+  rule: 'standard',
+  other: 'standard',
+  goldFinger: 'atomic',
+  currency: 'atomic',
+  item: 'atomic',
+  forbiddenSetting: 'atomic',
+};
+
+// 取某维度的字数范围文案（如 "300-500"），未知键回退到常规档。
+export function settingLengthHint(key?: string): string {
+  const tier = (key && SETTING_LENGTH_TIER_BY_KEY[key]) || 'standard';
+  const { min, max } = SETTING_LENGTH_TIERS[tier];
+  return `${min}-${max}`;
+}
+
+// 给 agent 提示词与工具参数用的分档说明（数字由 TIERS 生成，保持单一真相）。
+export const SETTING_LENGTH_GUIDE =
+  `按设定的信息密度控制篇幅：世界观、力量体系、核心冲突等骨架级设定约 ${SETTING_LENGTH_TIERS.skeleton.min}-${SETTING_LENGTH_TIERS.skeleton.max} 字；` +
+  `功法体系、势力阵营、地理地图、爽点卖点、文风等常规设定约 ${SETTING_LENGTH_TIERS.standard.min}-${SETTING_LENGTH_TIERS.standard.max} 字；` +
+  `金手指、货币体系、关键物品等单点设定约 ${SETTING_LENGTH_TIERS.atomic.min}-${SETTING_LENGTH_TIERS.atomic.max} 字。过长会稀释长期记忆、增加跑偏风险。`;
