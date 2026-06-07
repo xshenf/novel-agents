@@ -99,7 +99,7 @@ export function OutlineTab() {
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'skillSystem', 'location', 'faction', 'currency', 'item', 'specialSetting'].includes(activeMaterial) && (
+        {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'specialSetting'].includes(activeMaterial) && (
           <KernelDimensionsPanel activeMaterial={activeMaterial} />
         )}
 

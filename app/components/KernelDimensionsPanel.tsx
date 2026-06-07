@@ -32,11 +32,6 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
     tempGoldFinger, setTempGoldFinger,
     tempStyleSetting, setTempStyleSetting,
     tempSellingPoints, setTempSellingPoints,
-    tempSkillSystem, setTempSkillSystem,
-    tempLocation, setTempLocation,
-    tempFaction, setTempFaction,
-    tempCurrency, setTempCurrency,
-    tempItem, setTempItem,
     tempForbiddenSetting, setTempForbiddenSetting,
     expandedKernelCard, setExpandedKernelCard,
   } = kernel;
@@ -48,11 +43,6 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
     : activeMaterial === 'coreConflict' ? '推动小说主线发展的主要矛盾，以及主角面临的终极敌对势力或危机'
     : activeMaterial === 'sellingPoints' ? '网文吸引读者的商业爽点，如打脸、越级挑战、幕后黑手等节奏设计'
     : activeMaterial === 'powerSystem' ? '定义主角及世界的修炼境界、超自然等级，以及主角的特殊外挂金手指设定'
-    : activeMaterial === 'skillSystem' ? '定义世界的功法、技能、神通体系与修炼路径'
-    : activeMaterial === 'location' ? '定义世界中的地理区域、城市、秘境与地标'
-    : activeMaterial === 'faction' ? '定义世界中的势力组织、宗门、家族与阵营关系'
-    : activeMaterial === 'currency' ? '定义世界的货币、交易体系与资源流通方式'
-    : activeMaterial === 'item' ? '定义世界中的法宝、丹药、材料与特殊物品'
     : activeMaterial === 'styleSetting' ? '定义小说的体裁定位、情感色调与写作偏好'
     : activeMaterial === 'specialSetting' ? '绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的"AI 鸡汤味"与"模板腔"'
     : '';
@@ -166,76 +156,6 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
               />
             </div>
           </>
-        )}
-
-        {activeMaterial === 'skillSystem' && (
-          <KernelDimensionCard
-            cardKey="skillSystem"
-            title="功法与技能体系"
-            subtitle="定义世界的功法、技能、神通体系与修炼路径"
-            value={tempSkillSystem}
-            setValue={setTempSkillSystem}
-            cardType="skillSystem"
-            placeholder="例如：剑道三十六式、天罡七十二变、九转玄功..."
-            alwaysExpanded={true}
-            hideHeader={true}
-          />
-        )}
-
-        {activeMaterial === 'location' && (
-          <KernelDimensionCard
-            cardKey="location"
-            title="地理与地图设定"
-            subtitle="定义世界中的地理区域、城市、秘境与地标"
-            value={tempLocation}
-            setValue={setTempLocation}
-            cardType="location"
-            placeholder="例如：东荒大陆、天剑城、万妖山脉、幽冥深渊..."
-            alwaysExpanded={true}
-            hideHeader={true}
-          />
-        )}
-
-        {activeMaterial === 'faction' && (
-          <KernelDimensionCard
-            cardKey="faction"
-            title="势力与阵营设定"
-            subtitle="定义世界中的势力组织、宗门、家族与阵营关系"
-            value={tempFaction}
-            setValue={setTempFaction}
-            cardType="faction"
-            placeholder="例如：天剑宗、万妖殿、散修联盟、暗影商会..."
-            alwaysExpanded={true}
-            hideHeader={true}
-          />
-        )}
-
-        {activeMaterial === 'currency' && (
-          <KernelDimensionCard
-            cardKey="currency"
-            title="货币与交易体系"
-            subtitle="定义世界的货币、交易体系与资源流通方式"
-            value={tempCurrency}
-            setValue={setTempCurrency}
-            cardType="currency"
-            placeholder="例如：灵石为通用货币，上品灵石=100中品灵石，仙晶为高阶硬通货..."
-            alwaysExpanded={true}
-            hideHeader={true}
-          />
-        )}
-
-        {activeMaterial === 'item' && (
-          <KernelDimensionCard
-            cardKey="item"
-            title="物品与道具设定"
-            subtitle="定义世界中的法宝、丹药、材料与特殊物品"
-            value={tempItem}
-            setValue={setTempItem}
-            cardType="item"
-            placeholder="例如：天罡剑（仙器）、九转金丹、龙血草、虚空令..."
-            alwaysExpanded={true}
-            hideHeader={true}
-          />
         )}
 
         {activeMaterial === 'specialSetting' && (
