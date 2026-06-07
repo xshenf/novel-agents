@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -11,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     const chapters = await db.getChapters(projectId);
-    return NextResponse.json(chapters);
+    return NextResponse.json(chapters, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '获取章节列表失败';
     return NextResponse.json({ error: msg }, { status: 500 });

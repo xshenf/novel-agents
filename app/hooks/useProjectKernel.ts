@@ -19,6 +19,7 @@ export type ProjectKernelApi = ReturnType<typeof useProjectKernel>;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 type TempState = {
+  tempDescription: string;
   tempWorldSetting: string;
   tempStyleSetting: string;
   tempPowerSystem: string;
@@ -36,6 +37,7 @@ type TempState = {
 };
 
 const INITIAL_TEMP_STATE: TempState = {
+  tempDescription: '',
   tempWorldSetting: '',
   tempStyleSetting: '',
   tempPowerSystem: '',
@@ -54,6 +56,7 @@ const INITIAL_TEMP_STATE: TempState = {
 
 /** Map from project field key to the corresponding temp state key. */
 const TEMP_KEY_BY_PROJECT_FIELD: Record<string, keyof TempState> = {
+  description: 'tempDescription',
   worldSetting: 'tempWorldSetting',
   styleSetting: 'tempStyleSetting',
   powerSystem: 'tempPowerSystem',
@@ -210,6 +213,10 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [tempState, tempDispatch] = useReducer(tempReducer, INITIAL_TEMP_STATE);
 
   // Backward-compatible individual setters (preserve return API shape)
+  const setTempDescription = useCallback(
+    (v: string) => tempDispatch({ type: 'SET_FIELD', field: 'tempDescription', value: v }),
+    [],
+  );
   const setTempWorldSetting = useCallback(
     (v: string) => tempDispatch({ type: 'SET_FIELD', field: 'tempWorldSetting', value: v }),
     [],
@@ -287,6 +294,7 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   // ─── Refs ────────────────────────────────────────────────────────────────
 
   const prevProjectIdRef = useRef<string | null>(null);
+  const prevProjectRef = useRef<typeof store.currentProject>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const projectId = store.currentProject?.id ?? null;
@@ -298,14 +306,19 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
     };
   }, []);
 
-  // 切换项目时同步设定状态（仅在项目 ID 变化时重置）
+  // 当 store.currentProject 变化时同步设定状态
+  // - 项目 ID 变化：完整重置（切换项目）
+  // - 项目 ID 不变但对象引用变化：仅同步 temp 字段（agent 写入 DB 后 refreshProject 触发）
   useEffect(() => {
-    if (projectId === prevProjectIdRef.current) return;
-    prevProjectIdRef.current = projectId;
-
     const project = store.currentProject;
-    if (project) {
-      // Build partial payload from project fields → temp state keys
+    const prevId = prevProjectIdRef.current;
+    const prevProject = prevProjectRef.current;
+    prevProjectRef.current = project;
+
+    if (project && projectId !== prevId) {
+      // 切换到不同项目：完整重置
+      prevProjectIdRef.current = projectId;
+
       const payload: Partial<TempState> = {};
       for (const [projField, tempKey] of Object.entries(TEMP_KEY_BY_PROJECT_FIELD)) {
         const value = (project as unknown as Record<string, unknown>)[projField];
@@ -320,8 +333,32 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setActiveSettingsSubTab('kernel');
       setIsAddingChar(false);
       setIsAddingRule(false);
+    } else if (project && project !== prevProject && projectId === prevId) {
+      // 同一项目但数据已更新（如 agent 写入后 refreshProject 触发）：
+      // 仅同步 DB 中比本地 temp 更新/非空的字段，避免覆盖用户正在编辑的内容
+      const payload: Partial<TempState> = {};
+      for (const [projField, tempKey] of Object.entries(TEMP_KEY_BY_PROJECT_FIELD)) {
+        const dbValue = (project as unknown as Record<string, unknown>)[projField];
+        if (typeof dbValue === 'string') {
+          const localValue = tempState[tempKey];
+          // 如果本地为空或本地与 DB 相同（用户未修改），则从 DB 同步
+          // 如果本地非空且与 DB 不同（用户正在编辑），保留本地值
+          if (!localValue || localValue === dbValue) {
+            payload[tempKey] = dbValue;
+          } else if (dbValue && dbValue !== localValue && !localValue.trim()) {
+            // 本地有内容但全是空白字符，DB 有实质内容，以 DB 为准
+            payload[tempKey] = dbValue;
+          } else if (dbValue && dbValue.length > localValue.length * 2) {
+            // DB 内容远长于本地（agent 生成了大量新内容），以 DB 为准
+            payload[tempKey] = dbValue;
+          }
+        }
+      }
+      if (Object.keys(payload).length > 0) {
+        tempDispatch({ type: 'SET_ALL', payload });
+      }
     }
-  }, [projectId, store.currentProject]);
+  }, [projectId, store.currentProject, tempState]);
 
   // ─── AI 设定与大纲推演请求（SSE 流式进度）──────────────────────────────────
 
@@ -552,6 +589,8 @@ Please output in Chinese. 请推演出这 3 套备选方案。
     setTempStyleSetting,
     tempWorldSetting: tempState.tempWorldSetting,
     setTempWorldSetting,
+    tempDescription: tempState.tempDescription,
+    setTempDescription,
     tempSkillSystem: tempState.tempSkillSystem,
     setTempSkillSystem,
     tempLocation: tempState.tempLocation,

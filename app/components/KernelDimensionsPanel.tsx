@@ -25,6 +25,7 @@ interface KernelDimensionsPanelProps {
 export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelProps) {
   const { store, kernel } = useWorkspace();
   const {
+    tempDescription, setTempDescription,
     tempWorldSetting, setTempWorldSetting,
     tempCoreConflict, setTempCoreConflict,
     tempPowerSystem, setTempPowerSystem,
@@ -71,16 +72,28 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flexGrow: 1 }}>
         {activeMaterial === 'worldSetting' && (
-          <KernelDimensionCard
-            cardKey="worldSetting"
-            title="核心世界观背景描述"
-            subtitle="定义小说主舞台的大陆疆域、宏观规则、历史背景与微观社会法则"
-            value={tempWorldSetting}
-            setValue={setTempWorldSetting}
-            cardType="worldSetting"
-            placeholder="例如：一个灵气衰退的仙侠世界，修行者寿元大减，凡人建立的机械帝国与修士宗门共存..."
-            alwaysExpanded={true}
-          />
+          <>
+            <KernelDimensionCard
+              cardKey="description"
+              title="作品简介"
+              subtitle="故事梗概与核心卖点概述，点明主角目标与核心冲突"
+              value={tempDescription}
+              setValue={setTempDescription}
+              cardType="description"
+              placeholder="例如：少年萧天偶得神秘古镜，踏上逆天修仙之路..."
+              alwaysExpanded={true}
+            />
+            <KernelDimensionCard
+              cardKey="worldSetting"
+              title="核心世界观背景描述"
+              subtitle="定义小说主舞台的大陆疆域、宏观规则、历史背景与微观社会法则"
+              value={tempWorldSetting}
+              setValue={setTempWorldSetting}
+              cardType="worldSetting"
+              placeholder="例如：一个灵气衰退的仙侠世界，修行者寿元大减，凡人建立的机械帝国与修士宗门共存..."
+              alwaysExpanded={true}
+            />
+          </>
         )}
 
         {activeMaterial === 'coreConflict' && (
@@ -165,6 +178,7 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
             cardType="skillSystem"
             placeholder="例如：剑道三十六式、天罡七十二变、九转玄功..."
             alwaysExpanded={true}
+            hideHeader={true}
           />
         )}
 
@@ -178,6 +192,7 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
             cardType="location"
             placeholder="例如：东荒大陆、天剑城、万妖山脉、幽冥深渊..."
             alwaysExpanded={true}
+            hideHeader={true}
           />
         )}
 
@@ -191,6 +206,7 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
             cardType="faction"
             placeholder="例如：天剑宗、万妖殿、散修联盟、暗影商会..."
             alwaysExpanded={true}
+            hideHeader={true}
           />
         )}
 
@@ -204,6 +220,7 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
             cardType="currency"
             placeholder="例如：灵石为通用货币，上品灵石=100中品灵石，仙晶为高阶硬通货..."
             alwaysExpanded={true}
+            hideHeader={true}
           />
         )}
 
@@ -217,6 +234,7 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
             cardType="item"
             placeholder="例如：天罡剑（仙器）、九转金丹、龙血草、虚空令..."
             alwaysExpanded={true}
+            hideHeader={true}
           />
         )}
 

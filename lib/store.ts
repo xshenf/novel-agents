@@ -431,7 +431,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     fetchProjects: async () => {
       set({ isLoading: true, error: null });
       try {
-        const res = await fetch('/api/projects');
+        const res = await fetch('/api/projects', { cache: 'no-store' });
         if (!res.ok) throw new Error('获取项目失败');
         const data = await res.json();
         set({ projects: data, isLoading: false });
@@ -506,7 +506,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
     refreshProject: async (id: string) => {
       try {
-        const res = await fetch(`/api/projects/${id}`);
+        const res = await fetch(`/api/projects/${id}`, { cache: 'no-store' });
         if (!res.ok) return;
         const updated = await res.json();
         set(state => ({
@@ -605,10 +605,21 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
     fetchChapters: async (projectId: string) => {
       try {
-        const res = await fetch(`/api/chapters?projectId=${projectId}`);
+        const res = await fetch(`/api/chapters?projectId=${projectId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('获取章节失败');
         const data = await res.json();
-        set({ chapters: data });
+        // 同步更新 currentChapter：如果当前选中的章节在新数据中，更新其内容
+        const current = get().currentChapter;
+        if (current) {
+          const updated = data.find((c: Chapter) => c.id === current.id);
+          if (updated) {
+            set({ chapters: data, currentChapter: updated });
+          } else {
+            set({ chapters: data });
+          }
+        } else {
+          set({ chapters: data });
+        }
       } catch (err: any) {
         set({ error: err.message });
       }
@@ -671,7 +682,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
     fetchCharacters: async (projectId: string) => {
       try {
-        const res = await fetch(`/api/characters?projectId=${projectId}`);
+        const res = await fetch(`/api/characters?projectId=${projectId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('获取角色卡失败');
         const data = await res.json();
         set({ characters: data });
@@ -726,7 +737,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
     fetchWorldRules: async (projectId: string) => {
       try {
-        const res = await fetch(`/api/world-rules?projectId=${projectId}`);
+        const res = await fetch(`/api/world-rules?projectId=${projectId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('获取设定失败');
         const data = await res.json();
         set({ worldRules: data });
@@ -781,7 +792,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
     fetchWorldStates: async (projectId: string) => {
       try {
-        const res = await fetch(`/api/world-states?projectId=${projectId}`);
+        const res = await fetch(`/api/world-states?projectId=${projectId}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('获取世界状态失败');
         const data = await res.json();
         set({ worldStates: data });

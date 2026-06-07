@@ -130,7 +130,17 @@ export const updateProjectFieldTool = tool(
     description: '更新小说项目的全局核心设定字段。注意：此处仅用于宏观全局的框架设定，如果需要添加具体的微观设定要素（如具体的门派详情、地名历史、法宝细节），请使用 create_world_rule 工具，不要污染此处的全局宏观字段。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
-      field: z.string().describe('要更新的字段名，可选：title, description, styleSetting, worldSetting, powerSystem, goldFinger, coreConflict, factionsMap, sellingPoints, forbiddenSetting'),
+      field: z.string().describe(`要更新的字段名，各字段含义如下（请严格按照字段含义写入对应内容）：
+- title: 书名
+- description: 作品简介/故事梗概（100-200字的故事概要，不是世界观设定）
+- styleSetting: 文风题材（行文风格、节奏偏好）
+- worldSetting: 世界观设定（故事背景、大陆格局、社会法则、宏观环境描述）
+- powerSystem: 力量体系/境界体系（修炼等级、能力划分）
+- goldFinger: 金手指（主角的特殊能力或外挂）
+- coreConflict: 核心冲突（主线矛盾、主要对立关系）
+- factionsMap: 大势力板块（主要势力阵营概述）
+- sellingPoints: 卖点（本书的核心爽点和吸引力）
+- forbiddenSetting: 写作禁忌（禁止出现的元素）`),
       value: z.string().describe(`新的字段值，按设定维度控制篇幅（${SETTING_LENGTH_GUIDE}）`),
     }),
   }

@@ -61,18 +61,47 @@ export function useWorkspaceRouting(store: NovelStore) {
   // 初始化获取项目
   // 依赖只有 urlProjectId：storeRef 保证我们总用最新的 store，但 urlProjectId 变化时才重新执行
   useEffect(() => {
-    storeRef.current.fetchProjects().then(() => {
-      const currentProjects = useNovelStore.getState().projects;
-      if (currentProjects.length === 0) {
-        seedRef.current();
-      } else if (urlProjectId && !useNovelStore.getState().currentProject) {
-        // 从 URL 恢复项目
-        const project = currentProjects.find((p: any) => p.id === urlProjectId);
-        if (project) {
-          useNovelStore.getState().setCurrentProject(project);
+    const loadProjects = () => {
+      storeRef.current.fetchProjects().then(() => {
+        const currentProjects = useNovelStore.getState().projects;
+        if (currentProjects.length === 0) {
+          seedRef.current();
+        } else if (urlProjectId) {
+          const currentProject = useNovelStore.getState().currentProject;
+          // 如果 currentProject 未设置，或者 URL 的项目 ID 与当前不一致，则重新加载
+          if (!currentProject || currentProject.id !== urlProjectId) {
+            const project = currentProjects.find((p: any) => p.id === urlProjectId);
+            if (project) {
+              useNovelStore.getState().setCurrentProject(project);
+            }
+          } else {
+            // currentProject 已设置且匹配，但仍需刷新数据（可能是从其他页面返回）
+            storeRef.current.refreshProject(urlProjectId);
+            storeRef.current.fetchChapters(urlProjectId);
+            storeRef.current.fetchCharacters(urlProjectId);
+            storeRef.current.fetchWorldRules(urlProjectId);
+            storeRef.current.fetchWorldStates(urlProjectId);
+          }
         }
+      });
+    };
+
+    loadProjects();
+
+    // 监听页面可见性变化：用户从其他标签页切回时自动刷新数据
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && urlProjectId) {
+        storeRef.current.refreshProject(urlProjectId);
+        storeRef.current.fetchChapters(urlProjectId);
+        storeRef.current.fetchCharacters(urlProjectId);
+        storeRef.current.fetchWorldRules(urlProjectId);
+        storeRef.current.fetchWorldStates(urlProjectId);
       }
-    });
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [urlProjectId]); // intentionally minimal - seedRef always has latest seedDemo
 
   // 从 URL 恢复 tab 和 chapter 选中状态

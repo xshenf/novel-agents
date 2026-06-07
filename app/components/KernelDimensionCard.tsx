@@ -15,6 +15,7 @@ interface KernelDimensionCardProps {
   cardType: string;
   placeholder: string;
   alwaysExpanded?: boolean;
+  hideHeader?: boolean; // 隐藏卡片顶部标题栏（世界资产卡片已在外层显示标题）
 }
 
 export function KernelDimensionCard({
@@ -26,6 +27,7 @@ export function KernelDimensionCard({
   cardType,
   placeholder,
   alwaysExpanded = false,
+  hideHeader = false,
 }: KernelDimensionCardProps) {
   const { store, kernel } = useWorkspace();
   const {
@@ -80,41 +82,43 @@ export function KernelDimensionCard({
 
   return (
     <GlassCard style={{ marginBottom: '16px' }}>
-      {/* 卡片头部 */}
-      <div
-        onClick={() => {
-          if (!alwaysExpanded) {
-            setExpandedKernelCard(isExpanded ? null : cardKey);
-          }
-        }}
-        style={{
-          padding: '16px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          cursor: alwaysExpanded ? 'default' : 'pointer',
-          background: isExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
-          transition: 'background 0.2s ease',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <strong style={{ fontSize: '15px', color: '#fff' }}>{title}</strong>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</span>
+      {/* 卡片头部（世界资产卡片在外层已显示标题，此处可隐藏） */}
+      {!hideHeader && (
+        <div
+          onClick={() => {
+            if (!alwaysExpanded) {
+              setExpandedKernelCard(isExpanded ? null : cardKey);
+            }
+          }}
+          style={{
+            padding: '16px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: alwaysExpanded ? 'default' : 'pointer',
+            background: isExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+            transition: 'background 0.2s ease',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <strong style={{ fontSize: '15px', color: '#fff' }}>{title}</strong>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{subtitle}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {value ? '已设定' : '待补充设定'}
+            </span>
+            {!alwaysExpanded && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            {value ? '已设定' : '待补充设定'}
-          </span>
-          {!alwaysExpanded && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
-        </div>
-      </div>
+      )}
 
       {/* 卡片展开内容 */}
       {isExpanded && (
         <div
           style={{
             padding: '20px',
-            borderTop: '1px solid var(--border-light)',
+            borderTop: hideHeader ? 'none' : '1px solid var(--border-light)',
             display: 'flex',
             flexDirection: 'column',
             minHeight: '260px',

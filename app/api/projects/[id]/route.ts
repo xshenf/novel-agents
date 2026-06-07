@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -11,7 +13,7 @@ export async function GET(
     if (!project) {
       return NextResponse.json({ error: '项目未找到' }, { status: 404 });
     }
-    return NextResponse.json(project);
+    return NextResponse.json(project, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '获取项目失败';
     return NextResponse.json({ error: msg }, { status: 500 });

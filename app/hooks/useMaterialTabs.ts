@@ -30,9 +30,9 @@ export const MATERIALS_LIST: MaterialItem[] = [
   { id: 'coreConflict', label: '核心冲突', icon: Activity, color: '#f43f5e', group: 'kernel' },
   { id: 'sellingPoints', label: '爽点卖点', icon: Trophy, color: '#eab308', group: 'kernel' },
   { id: 'powerSystem', label: '力量体系', icon: Flame, color: '#f97316', group: 'kernel' },
-  { id: 'skillSystem', label: '功法体系', icon: Award, color: '#ec4899', group: 'kernel' },
   { id: 'specialSetting', label: '特殊设定', icon: Lock, color: '#14b8a6', group: 'kernel' },
   // 世界资产
+  { id: 'skillSystem', label: '功法体系', icon: Award, color: '#ec4899', group: 'world' },
   { id: 'location', label: '地理地图', icon: BookOpen, color: '#10b981', group: 'world' },
   { id: 'faction', label: '势力阵营', icon: User, color: '#a855f7', group: 'world' },
   { id: 'currency', label: '货币体系', icon: Tag, color: '#eab308', group: 'world' },

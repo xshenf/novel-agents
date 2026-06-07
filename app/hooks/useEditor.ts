@@ -27,13 +27,13 @@ export function useEditor(store: NovelStore) {
     const s = storeRef.current;
     if (s.currentChapter) {
       const isChapterSwitched = s.currentChapter.id !== lastChapterIdRef.current;
-      
+        
       if (isChapterSwitched) {
         lastChapterIdRef.current = s.currentChapter.id;
         setEditorTitle(s.currentChapter.title);
         setEditorContent(s.currentChapter.content);
         setSaveStatus('saved');
-
+  
         // 检测是否存在更新的本地草稿
         if (typeof window !== 'undefined') {
           const localKey = `novel_draft_${s.currentProject?.id}_${s.currentChapter.id}`;
@@ -41,7 +41,7 @@ export function useEditor(store: NovelStore) {
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              // 只有当本地草稿和数据库里的正文内容不一致时，才需要提示恢复
+              // 只有当本地草稿和数据库里正文内容不一致时，才需要提示恢复
               if (parsed && parsed.content && parsed.content.trim() !== s.currentChapter.content.trim()) {
                 setLocalDraft(parsed);
               } else {
@@ -63,6 +63,21 @@ export function useEditor(store: NovelStore) {
       setLocalDraft(null);
     }
   }, [currentChapterId, currentProjectId]);
+  
+  // 当 currentChapter 内容被外部更新（如 agent 写入后 fetchChapters 刷新）时，
+  // 同步更新编辑器内容（仅在用户未主动编辑时）
+  const prevContentRef = useRef<string>(store.currentChapter?.content ?? '');
+  useEffect(() => {
+    if (store.currentChapter && store.currentChapter.id === lastChapterIdRef.current) {
+      const newContent = store.currentChapter.content;
+      // 如果 DB 内容变了，且编辑器当前内容与旧 DB 内容一致（用户未修改），则更新编辑器
+      if (newContent !== prevContentRef.current && editorContent === prevContentRef.current) {
+        setEditorContent(newContent);
+        setSaveStatus('saved');
+      }
+      prevContentRef.current = newContent;
+    }
+  }, [currentChapterContent, currentChapterId]);
 
   // 卸载时清理待执行的自动保存 timer，避免对已切走的旧章节误写
   useEffect(() => {

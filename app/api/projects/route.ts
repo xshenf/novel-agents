@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const projects = await db.getProjectList();
-    return NextResponse.json(projects);
+    return NextResponse.json(projects, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '获取项目失败';
     return NextResponse.json({ error: msg }, { status: 500 });

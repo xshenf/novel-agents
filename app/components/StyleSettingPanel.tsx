@@ -25,9 +25,6 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
   // 收缩状态：默认全部展开
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  // 题材大类筛选：null 表示全部
-  const [activeGenreCategory, setActiveGenreCategory] = useState<string | null>(null);
-
   const toggleSection = (key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -39,46 +36,27 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
 
   const projectDesc = store.currentProject?.description ?? '';
   const projectStyle = store.currentProject?.styleSetting ?? '';
-  const projectWorld = store.currentProject?.worldSetting ?? '';
   const projectId = store.currentProject?.id;
 
   useEffect(() => {
     if (!store.currentProject) return;
-    const desc = projectDesc.trim();
     const rawStyle = projectStyle.trim();
-    const tags = projectWorld.trim();
 
     // 过滤占位描述
     const isPlaceholder = (s: string) => !s || s.includes('补充') || s.includes('待补充') || s.includes('点击');
 
-    // 解析题材：优先从 description 提取
-    let newGenre = '';
-    if (desc && !isPlaceholder(desc)) {
-      const allGenreNames = GENRE_CATEGORIES.flatMap(c => c.genres.map(g => g.name));
-      const matched = allGenreNames.find(g => desc.includes(g));
-      newGenre = matched || desc;
-    }
+    if (!rawStyle || isPlaceholder(rawStyle)) return;
 
-    // 解析文风：从 styleSetting 中提取 "文风：XXX" 部分，而非把整串当作 tone
-    let newTone = '';
-    if (rawStyle && !isPlaceholder(rawStyle)) {
-      // 尝试从组合字符串中提取文风部分
-      const toneMatch = rawStyle.match(/文风[：:]\s*(.+?)(?:[；;]|$)/);
-      const toneCandidate = toneMatch ? toneMatch[1].trim() : rawStyle;
+    // 从 styleSetting（格式："题材：XXX；文风：YYY；看点：A、B、C"）中解析三个维度
+    const genreMatch = rawStyle.match(/题材[：:]\s*(.+?)(?:[；;]|$)/);
+    const toneMatch = rawStyle.match(/文风[：:]\s*(.+?)(?:[；;]|$)/);
+    const tagMatch = rawStyle.match(/看点[：:]\s*(.+?)(?:[；;]|$)/);
 
-      const matchedTone = TONES.find(t => toneCandidate.includes(t.name));
-      newTone = matchedTone?.name || toneCandidate;
-    }
-
-    // 解析看点：从 worldSetting 提取
-    let newTags: string[] = [];
-    if (tags && !isPlaceholder(tags)) {
-      // 尝试从组合字符串中提取看点部分（worldSetting 可能是"看点：反转、权谋"格式）
-      const tagMatch = tags.match(/看点[：:]\s*(.+?)(?:[；;]|$)/);
-      const tagStr = tagMatch ? tagMatch[1].trim() : tags;
-      const allTags = PRESET_TAG_GROUPS.flatMap(g => g.tags);
-      newTags = allTags.filter(t => tagStr.includes(t));
-    }
+    const newGenre = genreMatch?.[1]?.trim() || '';
+    const newTone = toneMatch?.[1]?.trim() || '';
+    const newTags = tagMatch
+      ? tagMatch[1].split(/[、,，]/).map(s => s.trim()).filter(Boolean)
+      : [];
     const newTagsJoined = newTags.sort().join(',');
 
     // 仅在实际值变化时才更新 state，避免触发自动保存的级联循环
@@ -89,7 +67,7 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
       if (newTone !== prev.tone) setSelectedTone(newTone);
       if (newTagsJoined !== prev.tagsJoined) setSelectedTags(newTags);
     }
-  }, [projectId, projectDesc, projectStyle, projectWorld]);
+  }, [projectId, projectStyle]);
 
   // 任意维度变化时，合成 styleSetting 并保存
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -107,10 +85,9 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
     const combined = parts.join('；');
     setTempStyleSetting(combined);
     try {
+      // 只更新 styleSetting，不要覆盖 description（作品简介）和 worldSetting（世界观设定）
       await store.updateProject(store.currentProject!.id, {
         styleSetting: combined,
-        description: genre || store.currentProject!.description,
-        worldSetting: tags.join('、') || store.currentProject!.worldSetting,
       });
       createVersionSnapshot({
         projectId: store.currentProject!.id,
@@ -169,10 +146,8 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
     }
   };
 
-  // 根据大类筛选显示的题材
-  const filteredGenres = activeGenreCategory
-    ? GENRE_CATEGORIES.find(c => c.id === activeGenreCategory)?.genres || []
-    : GENRE_CATEGORIES.flatMap(c => c.genres);
+  // 全部题材平铺
+  const allGenres = GENRE_CATEGORIES.flatMap(c => c.genres);
 
   const sectionHeaderStyle = (): React.CSSProperties => ({
     display: 'flex',
@@ -233,60 +208,25 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
 
         {!collapsedSections['genre'] && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 20px', border: '1px solid var(--border-light)', borderTop: 'none', borderRadius: '0 0 10px 10px', background: 'rgba(255,255,255,0.01)' }}>
-            {/* 大类 Tab */}
-            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px' }}>
-              <button
-                type="button"
-                onClick={() => setActiveGenreCategory(null)}
-                style={{
-                  padding: '4px 10px', fontSize: '11px', borderRadius: '16px',
-                  border: !activeGenreCategory ? '1px solid var(--accent)' : '1px solid var(--border-light)',
-                  background: !activeGenreCategory ? 'rgba(99,102,241,0.1)' : 'transparent',
-                  color: !activeGenreCategory ? '#fff' : 'var(--text-muted)',
-                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                }}
-              >
-                全部
-              </button>
-              {GENRE_CATEGORIES.map(category => {
-                const isActive = activeGenreCategory === category.id;
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => setActiveGenreCategory(isActive ? null : category.id)}
-                    style={{
-                      padding: '4px 10px', fontSize: '11px', borderRadius: '16px',
-                      border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)',
-                      background: isActive ? 'rgba(99,102,241,0.1)' : 'transparent',
-                      color: isActive ? '#fff' : 'var(--text-muted)',
-                      cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}
-                  >
-                    {category.title}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* 细分卡片网格 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px' }}>
-              {filteredGenres.map(genre => {
+            {/* 全部题材 tag 平铺 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {allGenres.map(genre => {
                 const isSelected = selectedGenre === genre.name;
                 return (
                   <div
                     key={genre.name}
                     onClick={() => setSelectedGenre(isSelected ? '' : genre.name)}
+                    title={genre.desc}
                     style={{
-                      padding: '8px 10px', borderRadius: '8px',
-                      background: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.01)',
+                      padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                      background: isSelected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.02)',
                       border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
                       cursor: 'pointer', transition: 'all 0.15s',
-                      boxShadow: isSelected ? '0 0 8px rgba(99,102,241,0.12)' : 'none',
+                      color: isSelected ? '#fff' : 'var(--text-muted)',
+                      fontWeight: isSelected ? '600' : '400',
                     }}
                   >
-                    <div style={{ fontWeight: '600', fontSize: '12px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '2px' }}>{genre.name}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{genre.desc}</div>
+                    {genre.name}
                   </div>
                 );
               })}
@@ -338,23 +278,24 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
 
         {!collapsedSections['tone'] && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 20px', border: '1px solid var(--border-light)', borderTop: 'none', borderRadius: '0 0 10px 10px', background: 'rgba(255,255,255,0.01)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {TONES.map(tone => {
                 const isSelected = selectedTone === tone.name;
                 return (
                   <div
                     key={tone.name}
                     onClick={() => setSelectedTone(isSelected ? '' : tone.name)}
+                    title={tone.desc}
                     style={{
-                      padding: '10px 12px', borderRadius: '8px',
-                      background: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.01)',
+                      padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                      background: isSelected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.02)',
                       border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
                       cursor: 'pointer', transition: 'all 0.15s',
-                      boxShadow: isSelected ? '0 0 8px rgba(99,102,241,0.12)' : 'none',
+                      color: isSelected ? '#fff' : 'var(--text-muted)',
+                      fontWeight: isSelected ? '600' : '400',
                     }}
                   >
-                    <div style={{ fontWeight: '600', fontSize: '12px', color: isSelected ? '#fff' : 'var(--text-main)', marginBottom: '2px' }}>{tone.name}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.4' }}>{tone.desc}</div>
+                    {tone.name}
                   </div>
                 );
               })}
@@ -417,12 +358,12 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
                         key={tag}
                         onClick={() => handleToggleTag(tag)}
                         style={{
-                          padding: '4px 10px', borderRadius: '14px',
-                          background: isSelected ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.01)',
+                          padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                          background: isSelected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.02)',
                           border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-light)'}`,
                           color: isSelected ? '#fff' : 'var(--text-muted)',
-                          cursor: 'pointer', fontSize: '11px',
-                          fontWeight: isSelected ? '600' : '400', transition: 'all 0.15s',
+                          cursor: 'pointer', fontWeight: isSelected ? '600' : '400',
+                          transition: 'all 0.15s',
                         }}
                       >
                         {tag}
@@ -440,9 +381,9 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
                   key={tag}
                   onClick={() => handleToggleTag(tag)}
                   style={{
-                    padding: '4px 10px', borderRadius: '14px',
-                    background: 'rgba(99,102,241,0.12)', border: '1px solid var(--accent)',
-                    color: '#fff', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                    padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                    background: 'rgba(99,102,241,0.15)', border: '1px solid var(--accent)',
+                    color: '#fff', cursor: 'pointer', fontWeight: '600',
                   }}
                 >
                   {tag}

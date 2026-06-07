@@ -75,12 +75,25 @@ function buildLLMFromConfig(config: {
     baseUrl = config.apiBaseUrl;
   }
 
+  // 思考模型兼容：DeepSeek R1 / Claude extended thinking 需要启用 reasoning 参数
+  const modelKwargs: Record<string, any> = {};
+  if (config.reasoningEnabled) {
+    if (provider === 'deepseek') {
+      // DeepSeek R1 需要在请求体中传 reasoning: { enabled: true }
+      modelKwargs.reasoning = { enabled: true };
+    } else if (provider === 'openai' || provider === 'custom') {
+      // Claude / 其他支持 extended thinking 的模型
+      modelKwargs.thinking = { type: 'enabled', budget_tokens: 2048 };
+    }
+  }
+
   return new ChatOpenAI({
     apiKey: config.apiKey,
     model,
     temperature,
     maxTokens,
     configuration: { baseURL: baseUrl },
+    ...(Object.keys(modelKwargs).length ? { modelKwargs } : {}),
   });
 }
 
@@ -152,9 +165,10 @@ const MAX_SPECIALIST_TOOL_CALLS = 10;
 // ─── 消息过滤辅助函数（用于优化历史对话处理与消息隔离） ─────────────────────────
 export function filterSpecialistMessages(role: string, messages: BaseMessage[]): BaseMessage[] {
   const filteredMessages: BaseMessage[] = [];
-  let delegateIndex = -1;
   const delegatePattern = new RegExp(`^\\[DELEGATE:${role}\\]`);
 
+  // 找到最后一条委托给当前专家的消息
+  let delegateIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg._getType() === 'tool') {
@@ -166,7 +180,7 @@ export function filterSpecialistMessages(role: string, messages: BaseMessage[]):
     }
   }
 
-  // 从历史消息中查找最新获取的 get_project_overview 概览信息，避免专家角色再次重复调用拉取
+  // 从历史消息中查找最新获取的 get_project_overview 概览信息
   let latestOverview = '';
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -190,9 +204,17 @@ export function filterSpecialistMessages(role: string, messages: BaseMessage[]):
 
     filteredMessages.push(new HumanMessage(taskInstruction));
 
-    // 追加该委托之后的消息（专家在这一轮内部交互产生的 tool / ai 消息）
+    // 仅追加本轮委托之后的消息（专家在这一轮内部交互产生的 tool / ai 消息）
+    // 遇到下一个 delegate 消息（无论哪个专家）时停止，避免跨轮污染
     for (let i = delegateIndex + 1; i < messages.length; i++) {
-      filteredMessages.push(messages[i]);
+      const msg = messages[i];
+      if (msg._getType() === 'tool') {
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        if (/^\[DELEGATE:/.test(content)) {
+          break; // 遇到下一个委托消息，停止收集
+        }
+      }
+      filteredMessages.push(msg);
     }
   } else {
     // 降级防御：如果由于某种原因未找到委托标记，则保留原本的消息历史
@@ -308,7 +330,7 @@ function createOrchestratorNode(llm: any, projectId: string, globalSystemInstruc
     if (state.delegationCount > 0) {
       sys += force
         ? '\n\n【收尾阶段】已多次委托专家，请立即综合现有所有成果，用简洁专业的语言给用户最终汇报，不要再委托任何任务。'
-        : '\n\n【汇总阶段】专家已返回阶段性成果（见上文工具结果）。若任务已完成，请综合各专家成果向用户做最终汇报并给出下一步建议；只有确有必要时才继续委托其他专家。';
+        : '\n\n【汇总阶段】专家已返回阶段性成果。请仔细阅读专家的汇报内容，综合各专家成果向用户做最终汇报并给出下一步建议。重要：不要重复委托已经完成工作的专家，直接基于已有成果进行总结汇报即可。';
     }
 
     const filteredMessages = filterOrchestratorMessages(state.messages);

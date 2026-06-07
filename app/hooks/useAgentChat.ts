@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { NovelStore } from '@/lib/store';
+import { useNovelStore } from '@/lib/store';
 
 export type AgentMsgType =
   | 'user'
@@ -122,12 +123,9 @@ export function useAgentChat(store: NovelStore) {
     let streamingMsgId: string | null = null;
     let lastThinkingMsgId: string | null = null;
 
-    const removeLastThinking = () => {
-      if (lastThinkingMsgId) {
-        const tid = lastThinkingMsgId;
-        saveAndSetAgentMessages(prev => prev.filter(m => m.id !== tid));
-        lastThinkingMsgId = null;
-      }
+    // 保留思考消息（含推理内容），只清除 streaming 引用
+    const finalizeThinking = () => {
+      lastThinkingMsgId = null;
     };
 
     const stopStreaming = () => {
@@ -183,7 +181,7 @@ export function useAgentChat(store: NovelStore) {
             break;
 
           case 'token':
-            removeLastThinking();
+            finalizeThinking();
             if (!streamingMsgId) {
               const newId = data.id || msgId();
               streamingMsgId = newId;
@@ -206,7 +204,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'tool_call':
             stopStreaming();
-            removeLastThinking();
+            finalizeThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'tool_call',
@@ -232,7 +230,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'delegate':
             stopStreaming();
-            removeLastThinking();
+            finalizeThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'delegate',
@@ -246,7 +244,7 @@ export function useAgentChat(store: NovelStore) {
             break;
 
           case 'final_answer':
-            removeLastThinking();
+            finalizeThinking();
             if (streamingMsgId) {
               // Content was already streamed via token events — just stop streaming
               const sid = streamingMsgId;
@@ -269,7 +267,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'confirm': {
             stopStreaming();
-            removeLastThinking();
+            finalizeThinking();
             const p = data.payload || {};
             const isStyleRequest = p.type === 'request_style';
             saveAndSetAgentMessages(prev => [...prev, {
@@ -285,21 +283,42 @@ export function useAgentChat(store: NovelStore) {
             break;
           }
 
+          case 'data_changed': {
+            // 专家工具写入数据后实时刷新对应的前端数据
+            const refreshTypes: string[] = data.refreshTypes || [];
+            const changedProject = useNovelStore.getState().currentProject;
+            if (changedProject && refreshTypes.length > 0) {
+              const pid = changedProject.id;
+              const tasks: Promise<void>[] = [];
+              if (refreshTypes.includes('project')) tasks.push(store.refreshProject(pid));
+              if (refreshTypes.includes('chapters')) tasks.push(store.fetchChapters(pid));
+              if (refreshTypes.includes('characters')) tasks.push(store.fetchCharacters(pid));
+              if (refreshTypes.includes('worldRules')) tasks.push(store.fetchWorldRules(pid));
+              if (refreshTypes.includes('worldStates')) tasks.push(store.fetchWorldStates(pid));
+              Promise.all(tasks).catch(() => {});
+            }
+            break;
+          }
+
           case 'done':
             stopStreaming();
-            removeLastThinking();
-            if (store.currentProject) {
-              store.refreshProject(store.currentProject.id);
-              store.fetchCharacters(store.currentProject.id);
-              store.fetchWorldRules(store.currentProject.id);
-              store.fetchWorldStates(store.currentProject.id);
-              store.fetchChapters(store.currentProject.id);
+            finalizeThinking();
+            // 使用 getState() 获取最新的 currentProject，避免闭包捕获旧值
+            const doneProject = useNovelStore.getState().currentProject;
+            if (doneProject) {
+              await Promise.all([
+                store.refreshProject(doneProject.id),
+                store.fetchCharacters(doneProject.id),
+                store.fetchWorldRules(doneProject.id),
+                store.fetchWorldStates(doneProject.id),
+                store.fetchChapters(doneProject.id),
+              ]);
             }
             break;
 
           case 'error':
             stopStreaming();
-            removeLastThinking();
+            finalizeThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'error',
@@ -370,6 +389,19 @@ export function useAgentChat(store: NovelStore) {
       abortControllerRef.current = null;
       setIsAgentLoading(false);
       scrollToBottom('smooth', 100);
+      // Agent 执行完毕后刷新项目数据，确保 DB 写入已在前端体现
+      // 使用 getState() 获取最新 currentProject，避免闭包引用过期
+      const latestProject = useNovelStore.getState().currentProject;
+      if (latestProject) {
+        const pid = latestProject.id;
+        await Promise.all([
+          store.refreshProject(pid),
+          store.fetchChapters(pid),
+          store.fetchCharacters(pid),
+          store.fetchWorldRules(pid),
+          store.fetchWorldStates(pid),
+        ]).catch(() => {});
+      }
     }
   };
 
@@ -415,6 +447,16 @@ export function useAgentChat(store: NovelStore) {
       abortControllerRef.current = null;
       setIsAgentLoading(false);
       scrollToBottom('smooth', 100);
+      if (store.currentProject) {
+        const pid = store.currentProject.id;
+        Promise.all([
+          store.refreshProject(pid),
+          store.fetchChapters(pid),
+          store.fetchCharacters(pid),
+          store.fetchWorldRules(pid),
+          store.fetchWorldStates(pid),
+        ]).catch(() => {});
+      }
     }
   };
 

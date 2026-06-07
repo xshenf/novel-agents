@@ -222,6 +222,28 @@ export async function POST(request: NextRequest) {
                 toolName: name,
                 result: shortResult,
               });
+
+              // 数据修改类工具执行完毕后，发送 data_changed 通知前端实时刷新
+              const PROJECT_TOOLS = new Set([
+                'update_project_field', 'auto_plan_book', 'generate_kernel',
+                'generate_outline', 'add_anti_ai_rule', 'request_user_style',
+                'add_volume', 'delete_volume', 'update_volume',
+                'add_chapter', 'delete_chapter', 'update_chapter', 'move_outline_item',
+              ]);
+              const CHAPTER_TOOLS = new Set(['create_chapter', 'update_chapter', 'delete_chapter']);
+              const CHARACTER_TOOLS = new Set(['create_character', 'update_character', 'delete_character']);
+              const RULE_TOOLS = new Set(['create_world_rule', 'update_world_rule', 'delete_world_rule']);
+              const STATE_TOOLS = new Set(['create_world_state', 'update_world_state', 'delete_world_state']);
+
+              if (PROJECT_TOOLS.has(name) || CHAPTER_TOOLS.has(name) || CHARACTER_TOOLS.has(name) || RULE_TOOLS.has(name) || STATE_TOOLS.has(name)) {
+                const refreshTypes: string[] = [];
+                if (PROJECT_TOOLS.has(name)) refreshTypes.push('project');
+                if (CHAPTER_TOOLS.has(name)) refreshTypes.push('chapters');
+                if (CHARACTER_TOOLS.has(name)) refreshTypes.push('characters');
+                if (RULE_TOOLS.has(name)) refreshTypes.push('worldRules');
+                if (STATE_TOOLS.has(name)) refreshTypes.push('worldStates');
+                send('data_changed', { toolName: name, refreshTypes });
+              }
             } else {
               // delegate 发送路由事件
               const delegateTo = output.match(/\[DELEGATE:(\w+)\]/)?.[1] || '';
@@ -285,16 +307,21 @@ export async function POST(request: NextRequest) {
         if (pending.length > 0) {
           const payload = pending[0]?.value || {};
           const confirmMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          // 根据 interrupt 类型生成不同的确认文案
+          const isStyleRequest = payload.type === 'request_style';
+          const confirmContent = isStyleRequest
+            ? '请选择小说的题材和文风基调'
+            : `需要你确认：${payload.action || '操作'}「${payload.target || ''}」（该项已锁定），是否继续？`;
           await db.appendAgentMessage(projectId, {
             id: confirmMsgId,
             type: 'confirm',
-            content: `需要你确认：${payload.action || '操作'}「${payload.target || ''}」（该项已锁定）`,
+            content: confirmContent,
             toolInput: payload,
           });
           send('confirm', { id: confirmMsgId, payload });
-        } else {
-          send('done', { message: '任务完成' });
         }
+        // 无论是否有 interrupt，都发送 done 事件，确保前端刷新数据
+        send('done', { message: '任务完成' });
       } catch (err: any) {
         console.error('Agent error:', err);
         const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -333,6 +360,8 @@ export async function POST(request: NextRequest) {
             tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送"请继续刚才未完成的工作"来续跑。'
           });
         }
+        // 错误发生后也发送 done 事件，确保前端刷新已写入数据库的部分数据
+        send('done', { message: '任务结束' });
       } finally {
         if (heartbeat) clearInterval(heartbeat);
         controller.close();
