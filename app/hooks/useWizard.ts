@@ -55,15 +55,15 @@ export function useWizard({ store, router, buildWorkspaceUrl, setIsAiLoading, on
     try {
       const newProj = await store.createProject(
         "未命名故事",
-        "点击左侧‘设定库’或‘项目设置’补充简介与背景设定...",
-        "传统正剧",
-        "待补充世界观"
+        "",
+        "",
+        ""
       );
 
       setIsWizardMode(false);
       store.setCurrentProject(newProj);
       router.push(buildWorkspaceUrl(newProj.id, 'outline'));
-      showNotification("已跳过向导！已为您创建一个初始项目《未命名故事》，您可以在世界设定中补充各种故事背景设定。");
+      showNotification("已跳过向导！项目《未命名故事》已创建，可以开始对话生成世界设定。");
     } catch {
       showNotification("直接建书失败");
     } finally {

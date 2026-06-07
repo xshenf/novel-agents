@@ -247,7 +247,29 @@ export const db = {
       data.antiAiStyleRules = JSON.stringify(updates.antiAiStyleRules);
     }
     if (updates.modelsConfig !== undefined) {
-      data.modelsConfig = JSON.stringify(updates.modelsConfig);
+      // 保护 API Key：若前端传来的 model apiKey 是脱敏值（*** 开头），
+      // 则从数据库中读取原始值合并，避免脱敏 key 覆盖真实 key
+      const incoming = updates.modelsConfig as any[];
+      let final = incoming;
+      if (incoming.some((m: any) => m.apiKey && String(m.apiKey).startsWith('***'))) {
+        const existing = await prisma.novelProject.findUnique({ where: { id }, select: { modelsConfig: true } });
+        const rawJson = (existing as any)?.modelsConfig as string | undefined;
+        if (rawJson && rawJson.length > 2) {
+          try {
+            const existingModels = JSON.parse(rawJson) as any[];
+            final = incoming.map((m: any) => {
+              if (m.apiKey && String(m.apiKey).startsWith('***')) {
+                const existingModel = existingModels.find((em: any) => em.id === m.id);
+                if (existingModel?.apiKey && !String(existingModel.apiKey).startsWith('***')) {
+                  return { ...m, apiKey: existingModel.apiKey };
+                }
+              }
+              return m;
+            });
+          } catch { /* JSON 解析失败则按原样保存 */ }
+        }
+      }
+      data.modelsConfig = JSON.stringify(final);
     }
     if (updates.agentBindings !== undefined) {
       data.agentBindings = JSON.stringify(updates.agentBindings);

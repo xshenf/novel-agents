@@ -9,7 +9,7 @@ import { StyleSettingPanel } from './StyleSettingPanel';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
 import { MATERIALS_LIST } from '../hooks/useMaterialTabs';
 import { useWorkspace } from '../workspace-context';
-import { GlassCard, SectionHeader } from './ui/common';
+import { GlassCard } from './ui/common';
 
 interface KernelDimensionsPanelProps {
   activeMaterial: string;
@@ -53,11 +53,10 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
     : activeMaterial === 'currency' ? '定义世界的货币、交易体系与资源流通方式'
     : activeMaterial === 'item' ? '定义世界中的法宝、丹药、材料与特殊物品'
     : activeMaterial === 'styleSetting' ? '定义小说的体裁定位、情感色调与写作偏好'
-    : activeMaterial === 'specialSetting' ? '小说的体裁定位、情感基调偏好，以及绑定写作模型时的反 AI 底层约束'
+    : activeMaterial === 'specialSetting' ? '绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的"AI 鸡汤味"与"模板腔"'
     : '';
 
   const activeRules = currentProject?.antiAiStyleRules || [];
-  const isAntiAiExpanded = expandedKernelCard === 'antiAiStyleRules';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
@@ -222,118 +221,88 @@ export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelP
         )}
 
         {activeMaterial === 'specialSetting' && (
-          <>
-            <KernelDimensionCard
-              cardKey="styleSetting"
-              title="小说文风与题材基调"
-              subtitle="定义小说的体裁定位、情感色调与写作偏好（如：快节奏爽文、热血升级、幽默吐槽等）"
-              value={tempStyleSetting}
-              setValue={setTempStyleSetting}
-              cardType="styleSetting"
-              placeholder="例如：都市超能体裁，快节奏神豪爽文，整体色调轻松幽默，节奏明快..."
-              alwaysExpanded={true}
-            />
+          <GlassCard>
+            <div style={{
+              padding: '20px',
+              background: 'rgba(0,0,0,0.1)',
+            }}>
+              <div style={{
+                marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <span>点击以下文风特征药丸，一键启用或关闭（即时落库生效）：</span>
+                {activeRules.length > 0 && (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      if (!currentProject) return;
+                      store.showConfirm('是否清空所有已启用的反 AI 规则？', async () => {
+                        await updateProject(currentProject.id, { antiAiStyleRules: [] });
+                      });
+                    }}
+                    style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
+                  >
+                    重置全部
+                  </button>
+                )}
+              </div>
 
-            <GlassCard>
-              <SectionHeader
-                title="反 AI 写作控制与文风特征过滤器"
-                subtitle={'绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的"AI 鸡汤味"与"模板腔"'}
-                isExpanded={isAntiAiExpanded}
-                onToggle={() => setExpandedKernelCard(isAntiAiExpanded ? null : 'antiAiStyleRules')}
-                extra={
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    {activeRules.length ? `已启用 ${activeRules.length} 项` : '未启用'}
-                  </span>
-                }
-              />
-
-              {isAntiAiExpanded && (
-                <div
-                  style={{
-                    padding: '20px',
-                    borderTop: '1px solid var(--border-light)',
-                    background: 'rgba(0,0,0,0.1)',
-                  }}
-                >
-                  <div style={{
-                    marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                  }}>
-                    <span>点击以下文风特征药丸，一键启用或关闭（即时落库生效）：</span>
-                    {activeRules.length > 0 && (
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          if (!currentProject) return;
-                          store.showConfirm('是否清空所有已启用的反 AI 规则？', async () => {
-                            await updateProject(currentProject.id, { antiAiStyleRules: [] });
-                          });
-                        }}
-                        style={{ padding: '2px 8px', fontSize: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)' }}
-                      >
-                        重置全部
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
-                    {DEFAULT_ANTI_AI_RULES.map((rule) => {
-                      const isActive = activeRules.includes(rule.key);
-                      return (
-                        <div
-                          key={rule.key}
-                          onClick={async () => {
-                            if (!currentProject) return;
-                            const next = isActive
-                              ? activeRules.filter((k: string) => k !== rule.key)
-                              : [...activeRules, rule.key];
-                            try {
-                              await updateProject(currentProject.id, { antiAiStyleRules: next });
-                            } catch {
-                              alert('更新反 AI 写作规则失败');
-                            }
-                          }}
-                          style={{
-                            padding: '12px 16px',
-                            background: isActive ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)',
-                            border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '6px',
-                            transition: 'all 0.2s ease',
-                            boxShadow: isActive ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong style={{ fontSize: '13px', color: isActive ? '#fff' : 'var(--text-muted)' }}>
-                              {rule.name}
-                            </strong>
-                            <span style={{
-                              width: '14px',
-                              height: '14px',
-                              borderRadius: '50%',
-                              border: isActive ? 'none' : '1px solid var(--border-light)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: isActive ? 'var(--accent)' : 'transparent',
-                            }}>
-                              {isActive && <CheckCircle2 size={10} style={{ color: '#fff' }} />}
-                            </span>
-                          </div>
-                          <p style={{ fontSize: '11px', color: 'var(--text-dark)', margin: 0, lineHeight: '1.5' }}>
-                            {rule.promptInstruction}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </GlassCard>
-          </>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                {DEFAULT_ANTI_AI_RULES.map((rule) => {
+                  const isActive = activeRules.includes(rule.key);
+                  return (
+                    <div
+                      key={rule.key}
+                      onClick={async () => {
+                        if (!currentProject) return;
+                        const next = isActive
+                          ? activeRules.filter((k: string) => k !== rule.key)
+                          : [...activeRules, rule.key];
+                        try {
+                          await updateProject(currentProject.id, { antiAiStyleRules: next });
+                        } catch {
+                          alert('更新反 AI 写作规则失败');
+                        }
+                      }}
+                      style={{
+                        padding: '12px 16px',
+                        background: isActive ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)',
+                        border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-light)',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: isActive ? '0 0 10px rgba(99, 102, 241, 0.15)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '13px', color: isActive ? '#fff' : 'var(--text-muted)' }}>
+                          {rule.name}
+                        </strong>
+                        <span style={{
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '50%',
+                          border: isActive ? 'none' : '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: isActive ? 'var(--accent)' : 'transparent',
+                        }}>
+                          {isActive && <CheckCircle2 size={10} style={{ color: '#fff' }} />}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-dark)', margin: 0, lineHeight: '1.5' }}>
+                        {rule.promptInstruction}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </GlassCard>
         )}
       </div>
     </div>

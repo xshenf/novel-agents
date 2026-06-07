@@ -4,10 +4,10 @@ import { useNovelStore } from '@/lib/store';
 export type CallAIApi = (bodyParams: Record<string, any>, signal?: AbortSignal) => Promise<Response>;
 
 // 统一的 AI 接口调用：根据 action 映射到对应职能智能体，并解析其绑定模型与微调参数
+// 使用 getState() 在调用时刻读取最新配置，callback 本身零依赖、永不重建
 export function useAiClient(): CallAIApi {
-  const store = useNovelStore();
-
   const callAIApi: CallAIApi = useCallback(async (bodyParams, signal) => {
+    const store = useNovelStore.getState();
     const action = bodyParams.action;
 
     // 动作与智能体职能角色的映射
@@ -70,7 +70,7 @@ export function useAiClient(): CallAIApi {
       }),
       signal,
     });
-  }, [store]);
+  }, []);
 
   return callAIApi;
 }

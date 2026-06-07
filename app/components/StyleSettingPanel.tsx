@@ -33,36 +33,63 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
   };
 
   // 初始化：从已有数据解析（过滤占位文本）
+  // 使用原始值依赖避免 store.currentProject 对象引用变化触发不必要的重解析
+  // 用 ref 追踪上次解析值，仅在实际变化时更新 state，打破「解析 → 保存 → 刷新 → 解析」循环
+  const lastParsedRef = useRef<{ genre: string; tone: string; tagsJoined: string }>({ genre: '', tone: '', tagsJoined: '' });
+
+  const projectDesc = store.currentProject?.description ?? '';
+  const projectStyle = store.currentProject?.styleSetting ?? '';
+  const projectWorld = store.currentProject?.worldSetting ?? '';
+  const projectId = store.currentProject?.id;
+
   useEffect(() => {
     if (!store.currentProject) return;
-    const desc = (store.currentProject.description || '').trim();
-    const tone = (store.currentProject.styleSetting || '').trim();
-    const tags = (store.currentProject.worldSetting || '').trim();
+    const desc = projectDesc.trim();
+    const rawStyle = projectStyle.trim();
+    const tags = projectWorld.trim();
 
     // 过滤占位描述
     const isPlaceholder = (s: string) => !s || s.includes('补充') || s.includes('待补充') || s.includes('点击');
 
+    // 解析题材：优先从 description 提取
+    let newGenre = '';
     if (desc && !isPlaceholder(desc)) {
       const allGenreNames = GENRE_CATEGORIES.flatMap(c => c.genres.map(g => g.name));
       const matched = allGenreNames.find(g => desc.includes(g));
-      if (matched) {
-        setSelectedGenre(matched);
-      } else {
-        setSelectedGenre(desc);
-      }
+      newGenre = matched || desc;
     }
 
-    if (tone && !isPlaceholder(tone)) {
-      const matchedTone = TONES.find(t => tone.includes(t.name));
-      setSelectedTone(matchedTone?.name || tone);
+    // 解析文风：从 styleSetting 中提取 "文风：XXX" 部分，而非把整串当作 tone
+    let newTone = '';
+    if (rawStyle && !isPlaceholder(rawStyle)) {
+      // 尝试从组合字符串中提取文风部分
+      const toneMatch = rawStyle.match(/文风[：:]\s*(.+?)(?:[；;]|$)/);
+      const toneCandidate = toneMatch ? toneMatch[1].trim() : rawStyle;
+
+      const matchedTone = TONES.find(t => toneCandidate.includes(t.name));
+      newTone = matchedTone?.name || toneCandidate;
     }
 
+    // 解析看点：从 worldSetting 提取
+    let newTags: string[] = [];
     if (tags && !isPlaceholder(tags)) {
+      // 尝试从组合字符串中提取看点部分（worldSetting 可能是"看点：反转、权谋"格式）
+      const tagMatch = tags.match(/看点[：:]\s*(.+?)(?:[；;]|$)/);
+      const tagStr = tagMatch ? tagMatch[1].trim() : tags;
       const allTags = PRESET_TAG_GROUPS.flatMap(g => g.tags);
-      const matchedTags = allTags.filter(t => tags.includes(t));
-      setSelectedTags(matchedTags);
+      newTags = allTags.filter(t => tagStr.includes(t));
     }
-  }, [store.currentProject?.id, store.currentProject]);
+    const newTagsJoined = newTags.sort().join(',');
+
+    // 仅在实际值变化时才更新 state，避免触发自动保存的级联循环
+    const prev = lastParsedRef.current;
+    if (newGenre !== prev.genre || newTone !== prev.tone || newTagsJoined !== prev.tagsJoined) {
+      lastParsedRef.current = { genre: newGenre, tone: newTone, tagsJoined: newTagsJoined };
+      if (newGenre !== prev.genre) setSelectedGenre(newGenre);
+      if (newTone !== prev.tone) setSelectedTone(newTone);
+      if (newTagsJoined !== prev.tagsJoined) setSelectedTags(newTags);
+    }
+  }, [projectId, projectDesc, projectStyle, projectWorld]);
 
   // 任意维度变化时，合成 styleSetting 并保存
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -99,6 +126,10 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
   const doSaveRef = useRef(doSave);
   doSaveRef.current = doSave;
 
+  // 用 ref 追踪当前 project id，避免 store.currentProject 对象引用变化导致 effect 重新执行
+  const currentProjectIdRef = useRef(store.currentProject?.id);
+  currentProjectIdRef.current = store.currentProject?.id;
+
   useEffect(() => {
     if (selectedGenre === prevGenreRef.current && selectedTone === prevToneRef.current && selectedTags === prevTagsRef.current) return;
     prevGenreRef.current = selectedGenre;
@@ -106,14 +137,14 @@ export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProp
     prevTagsRef.current = selectedTags;
     pendingSaveRef.current = { genre: selectedGenre, tone: selectedTone, tags: selectedTags };
 
-    if (!store.currentProject) return;
+    if (!currentProjectIdRef.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     saveTimer.current = setTimeout(async () => {
       pendingSaveRef.current = null;
-      await doSave(selectedGenre, selectedTone, selectedTags);
+      await doSaveRef.current(selectedGenre, selectedTone, selectedTags);
     }, 1500);
-  }, [selectedGenre, selectedTone, selectedTags, doSave, store.currentProject]);
+  }, [selectedGenre, selectedTone, selectedTags]);
 
   // 组件卸载时立即保存未提交的内容
   useEffect(() => {

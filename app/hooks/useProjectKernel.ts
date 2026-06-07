@@ -350,8 +350,8 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         {
           action: 'generateKernel',
           projectTitle: store.currentProject.title,
-          genre: store.currentProject.description || '仙侠修真',
-          tone: store.currentProject.styleSetting || '传统正剧',
+          genre: store.currentProject.description || '',
+          tone: store.currentProject.styleSetting || '',
           concurrency,
           projectId: store.currentProject.id,
           forbiddenSetting: store.currentProject.forbiddenSetting || '',
@@ -412,8 +412,8 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
     try {
       const res = await callAIApi({
         action: 'autoPlan',
-        genre: editProjTitle ? '基于' + editProjTitle : '玄幻奇幻',
-        tone: editProjStyle || '传统正剧',
+        genre: editProjTitle ? '基于' + editProjTitle : '',
+        tone: editProjStyle || '',
         tags: [],
       });
       if (!res.ok) throw new Error('AI推演失败');

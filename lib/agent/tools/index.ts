@@ -1,7 +1,7 @@
 // Barrel exports for all agent tools
 
 // Shared utilities and tools
-export { confirmLockedAction, queryMemoryTool, getProjectOverviewTool } from './shared';
+export { confirmLockedAction, requestStyleInput, queryMemoryTool, getProjectOverviewTool, requestUserStyleTool } from './shared';
 export type { OutlineVolume, OutlineChapter } from './shared';
 export { parseStructureOutline, generateMarkdownFromSections } from './shared';
 

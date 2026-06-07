@@ -13,6 +13,10 @@ export function useWorkspaceRouting(store: NovelStore) {
   const [mounted, setMounted] = useState(false);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('write');
 
+  // 保持 store 引用稳定，避免 Zustand 状态变化导致 effect 重复触发
+  const storeRef = useRef(store);
+  storeRef.current = store;
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -39,23 +43,25 @@ export function useWorkspaceRouting(store: NovelStore) {
   }, []);
 
   // 预设种子演示小说数据（数据定义见 lib/seedData.ts）
-  const seedDemo = async () => {
+  const seedDemo = useCallback(async () => {
     try {
-      const { demoProj, ch13 } = await seedDemoDataImpl(store);
+      const s = storeRef.current;
+      const { demoProj, ch13 } = await seedDemoDataImpl(s);
       router.push(buildWorkspaceUrl(demoProj.id, 'write'));
-      store.setCurrentChapter(ch13);
+      s.setCurrentChapter(ch13);
     } catch (e) {
       console.error('Failed to seed demo data', e);
     }
-  };
+  }, [router, buildWorkspaceUrl]);
 
   // Use ref to always call the latest seedDemo without re-running the mount effect
   const seedRef = useRef(seedDemo);
   seedRef.current = seedDemo;
 
   // 初始化获取项目
+  // 依赖只有 urlProjectId：storeRef 保证我们总用最新的 store，但 urlProjectId 变化时才重新执行
   useEffect(() => {
-    store.fetchProjects().then(() => {
+    storeRef.current.fetchProjects().then(() => {
       const currentProjects = useNovelStore.getState().projects;
       if (currentProjects.length === 0) {
         seedRef.current();
@@ -67,11 +73,14 @@ export function useWorkspaceRouting(store: NovelStore) {
         }
       }
     });
-  }, [store, urlProjectId]); // intentionally minimal - seedRef always has latest seedDemo
+  }, [urlProjectId]); // intentionally minimal - seedRef always has latest seedDemo
 
   // 从 URL 恢复 tab 和 chapter 选中状态
+  // 依赖 currentProjectId（原始值比较稳定）而非 store 或 store.currentProject 对象引用
+  const currentProjectId = store.currentProject?.id;
   useEffect(() => {
-    if (!store.currentProject) return;
+    const currentProject = useNovelStore.getState().currentProject;
+    if (!currentProject) return;
     if (urlTab) {
       if (urlTab === 'settings') {
         setActiveWorkspaceTab('outline');
@@ -80,16 +89,15 @@ export function useWorkspaceRouting(store: NovelStore) {
       }
     }
     if (urlChapterId) {
-      // Read chapters directly from store to avoid re-running on every chapter add/remove
       const chapters = useNovelStore.getState().chapters;
       if (chapters.length > 0) {
         const chapter = chapters.find(c => c.id === urlChapterId);
         if (chapter) {
-          store.setCurrentChapter(chapter);
+          storeRef.current.setCurrentChapter(chapter);
         }
       }
     }
-  }, [store, store.currentProject?.id, urlTab, urlChapterId]); // removed store.chapters.length - chapters read from getState()
+  }, [currentProjectId, urlTab, urlChapterId]);
 
   return {
     router,

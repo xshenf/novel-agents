@@ -1,7 +1,7 @@
 'use client';
 
-import { Loader2, HelpCircle } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
 
@@ -13,6 +13,12 @@ export function AgentPanel() {
     isAgentLoading, agentBottomRef, handleSendAgentMessage,
     pendingConfirm, resolveConfirm,
   } = agent;
+
+  // 追踪展开的 thinking 消息 ID
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+
+  // 风格基调选择状态（request_style 弹窗用）
+  const [styleSelection, setStyleSelection] = useState<{ genre: string; tone: string }>({ genre: '', tone: '' });
 
   // 拖拽条事件监听器清理（防止组件卸载时监听器泄漏）
   const agentDragCleanupRef = useRef<(() => void) | null>(null);
@@ -135,13 +141,53 @@ export function AgentPanel() {
                         {msg.content}
                       </div>
                     );
-                  case 'thinking':
+                  case 'thinking': {
+                    const hasReasoning = (msg.content || '').length > 0;
+                    const isExpanded = expandedThinking.has(msg.id);
                     return (
-                      <div key={msg.id} className="agent-bubble agent-bubble-thinking">
-                        <Loader2 className="animate-spin" size={12} style={{ marginRight: '6px' }} />
-                        <span>{msg.label || msg.agent} 正在思考中...</span>
+                      <div key={msg.id} className="agent-bubble agent-bubble-thinking" style={{ cursor: hasReasoning ? 'pointer' : 'default' }}>
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                          onClick={() => {
+                            if (hasReasoning) {
+                              setExpandedThinking(prev => {
+                                const next = new Set(prev);
+                                if (next.has(msg.id)) next.delete(msg.id);
+                                else next.add(msg.id);
+                                return next;
+                              });
+                            }
+                          }}
+                        >
+                          {hasReasoning ? (
+                            isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
+                          ) : (
+                            <Loader2 className="animate-spin" size={12} />
+                          )}
+                          <Brain size={12} style={{ opacity: 0.5 }} />
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {msg.label || msg.agent} {hasReasoning ? `思考过程（${msg.content.length}字）` : '思考中...'}
+                          </span>
+                        </div>
+                        {hasReasoning && isExpanded && (
+                          <div style={{
+                            marginTop: '8px',
+                            padding: '10px 12px',
+                            background: 'rgba(0,0,0,0.2)',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            color: 'var(--text-dark)',
+                            lineHeight: '1.6',
+                            whiteSpace: 'pre-wrap',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                          }}>
+                            {msg.content}
+                          </div>
+                        )}
                       </div>
                     );
+                  }
                   case 'tool_call':
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-tool-call">
@@ -220,10 +266,80 @@ export function AgentPanel() {
             </div>
           )}
 
-          {pendingConfirm && (
+          {pendingConfirm && pendingConfirm.payload.type === 'request_style' ? (
+            <div style={{ margin: '0 8px 8px', padding: '14px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+              <div style={{ fontSize: '12px', color: '#a5b4fc', fontWeight: '600', marginBottom: '10px' }}>
+                请选择题材和文风，Agent 将据此生成完整世界设定
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>题材</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {(pendingConfirm.payload.genres as string[] || []).map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setStyleSelection(prev => ({ ...prev, genre: prev.genre === g ? '' : g }))}
+                      style={{
+                        padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                        border: styleSelection.genre === g ? '1px solid var(--accent)' : '1px solid var(--border-light)',
+                        background: styleSelection.genre === g ? 'rgba(99,102,241,0.15)' : 'transparent',
+                        color: styleSelection.genre === g ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>文风</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {(pendingConfirm.payload.tones as string[] || []).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setStyleSelection(prev => ({ ...prev, tone: prev.tone === t ? '' : t }))}
+                      style={{
+                        padding: '3px 10px', borderRadius: '14px', fontSize: '11px',
+                        border: styleSelection.tone === t ? '1px solid var(--accent)' : '1px solid var(--border-light)',
+                        background: styleSelection.tone === t ? 'rgba(99,102,241,0.15)' : 'transparent',
+                        color: styleSelection.tone === t ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                  disabled={isAgentLoading || !styleSelection.genre || !styleSelection.tone}
+                  onClick={() => resolveConfirm({ genre: styleSelection.genre, tone: styleSelection.tone })}
+                >
+                  确定并继续
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                  disabled={isAgentLoading}
+                  onClick={() => resolveConfirm('cancel')}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : pendingConfirm && (
             <div style={{ margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px' }}>
               <div style={{ fontSize: '12px', color: 'var(--accent-warning)', marginBottom: '8px', lineHeight: 1.5 }}>
-                {pendingConfirm.payload.action || '操作'}「{pendingConfirm.payload.target || ''}」属于已锁定项，确认要继续吗？
+                {pendingConfirm.payload.action === 'continue_limit'
+                  ? '执行轮次已达上限，已完成部分已保存。点击继续可从断点处接续执行。'
+                  : `${pendingConfirm.payload.action || '操作'}「${pendingConfirm.payload.target || ''}」属于已锁定项，确认要继续吗？`}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -231,9 +347,9 @@ export function AgentPanel() {
                   className="btn btn-primary"
                   style={{ padding: '6px 14px', fontSize: '12px' }}
                   disabled={isAgentLoading}
-                  onClick={() => resolveConfirm('confirm')}
+                  onClick={() => resolveConfirm(pendingConfirm.payload.action === 'continue_limit' ? 'continue_limit' : 'confirm')}
                 >
-                  确认继续
+                  {pendingConfirm.payload.action === 'continue_limit' ? '继续执行' : '确认继续'}
                 </button>
                 <button
                   type="button"

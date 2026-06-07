@@ -11,9 +11,9 @@ export function Dashboard() {
     try {
       const newProj = await store.createProject(
         "未命名故事",
-        "点击完善设定补充简介与背景设定",
-        "传统正剧",
-        "待补充世界观"
+        "",
+        "",
+        ""
       );
       store.setCurrentProject(newProj);
       router.push(buildWorkspaceUrl(newProj.id, 'write'));

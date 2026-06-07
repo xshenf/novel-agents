@@ -13,26 +13,36 @@ export function useEditor(store: NovelStore) {
   const titleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastChapterIdRef = useRef<string | undefined>(undefined);
 
+  // 保持 store 引用稳定，使用 ref 避免 Zustand 状态变化导致 effect/callback 重复触发
+  const storeRef = useRef(store);
+  storeRef.current = store;
+
+  // 响应式读取（用于判断何时触发 effect）
+  const currentChapterId = store.currentChapter?.id;
+  const currentChapterContent = store.currentChapter?.content;
+  const currentProjectId = store.currentProject?.id;
+
   // 当选择新章节时，同步更新编辑器内容
   useEffect(() => {
-    if (store.currentChapter) {
-      const isChapterSwitched = store.currentChapter.id !== lastChapterIdRef.current;
+    const s = storeRef.current;
+    if (s.currentChapter) {
+      const isChapterSwitched = s.currentChapter.id !== lastChapterIdRef.current;
       
       if (isChapterSwitched) {
-        lastChapterIdRef.current = store.currentChapter.id;
-        setEditorTitle(store.currentChapter.title);
-        setEditorContent(store.currentChapter.content);
+        lastChapterIdRef.current = s.currentChapter.id;
+        setEditorTitle(s.currentChapter.title);
+        setEditorContent(s.currentChapter.content);
         setSaveStatus('saved');
 
         // 检测是否存在更新的本地草稿
         if (typeof window !== 'undefined') {
-          const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
+          const localKey = `novel_draft_${s.currentProject?.id}_${s.currentChapter.id}`;
           const saved = localStorage.getItem(localKey);
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
               // 只有当本地草稿和数据库里的正文内容不一致时，才需要提示恢复
-              if (parsed && parsed.content && parsed.content.trim() !== store.currentChapter.content.trim()) {
+              if (parsed && parsed.content && parsed.content.trim() !== s.currentChapter.content.trim()) {
                 setLocalDraft(parsed);
               } else {
                 localStorage.removeItem(localKey);
@@ -52,7 +62,7 @@ export function useEditor(store: NovelStore) {
       setEditorContent('');
       setLocalDraft(null);
     }
-  }, [store.currentChapter, store.currentProject]);
+  }, [currentChapterId, currentProjectId]);
 
   // 卸载时清理待执行的自动保存 timer，避免对已切走的旧章节误写
   useEffect(() => {
@@ -70,15 +80,16 @@ export function useEditor(store: NovelStore) {
 
   // 监听正文内容变化，自动同步缓存到 localStorage 或在保存成功时清除
   useEffect(() => {
-    if (!store.currentChapter || typeof window === 'undefined') return;
+    const s = storeRef.current;
+    if (!s.currentChapter || typeof window === 'undefined') return;
 
     // 如果是刚刚切入章节，且编辑器内容刚好等于云端内容，先不进行任何写入或删除操作
     // 只有当章节 ID 匹配我们当前处理的 lastChapterId 时，才执行本地草稿机制
-    if (store.currentChapter.id !== lastChapterIdRef.current) return;
+    if (s.currentChapter.id !== lastChapterIdRef.current) return;
 
-    const localKey = `novel_draft_${store.currentProject?.id}_${store.currentChapter.id}`;
+    const localKey = `novel_draft_${s.currentProject?.id}_${s.currentChapter.id}`;
 
-    if (editorContent !== store.currentChapter.content) {
+    if (editorContent !== s.currentChapter.content) {
       localStorage.setItem(localKey, JSON.stringify({
         content: editorContent,
         updatedAt: Date.now()
@@ -93,7 +104,7 @@ export function useEditor(store: NovelStore) {
         localStorage.removeItem(localKey);
       }
     }
-  }, [editorContent, store.currentChapter?.content, store.currentChapter?.id, store.currentProject?.id, localDraft, store.currentChapter]);
+  }, [editorContent, currentChapterContent, currentChapterId, currentProjectId, localDraft]);
 
   // 编辑器自动保存机制 (Debounce 1.5s)
   const handleEditorChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -104,19 +115,20 @@ export function useEditor(store: NovelStore) {
     if (contentTimerRef.current) clearTimeout(contentTimerRef.current);
 
     // 捕获当前章节 ID，避免闭包捕获过时的 store.currentChapter
-    const chapterId = store.currentChapter?.id;
+    const s = storeRef.current;
+    const chapterId = s.currentChapter?.id;
 
     contentTimerRef.current = setTimeout(() => {
       // 校验章节是否仍然是同一个，防止快速切换后写入错误章节
-      if (chapterId && store.currentChapter?.id === chapterId) {
+      if (chapterId && s.currentChapter?.id === chapterId) {
         setSaveStatus('saving');
-        store.updateChapter(chapterId, { content: newVal }).then(() => {
+        s.updateChapter(chapterId, { content: newVal }).then(() => {
           setSaveStatus('saved');
           createVersionSnapshot({
-            projectId: store.currentProject!.id,
+            projectId: s.currentProject!.id,
             type: 'chapter',
             key: chapterId,
-            label: store.currentChapter!.title,
+            label: s.currentChapter!.title,
             data: { content: newVal },
             source: 'auto',
           });
@@ -125,7 +137,7 @@ export function useEditor(store: NovelStore) {
         });
       }
     }, 1500);
-  }, [store]);
+  }, []);
 
   const handleTitleChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setEditorTitle(e.target.value);
@@ -134,21 +146,22 @@ export function useEditor(store: NovelStore) {
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
 
     // 捕获当前章节 ID，避免闭包捕获过时的 store.currentChapter
-    const chapterId = store.currentChapter?.id;
+    const s = storeRef.current;
+    const chapterId = s.currentChapter?.id;
     const newTitle = e.target.value;
 
     titleTimerRef.current = setTimeout(() => {
       // 校验章节是否仍然是同一个
-      if (chapterId && store.currentChapter?.id === chapterId) {
+      if (chapterId && s.currentChapter?.id === chapterId) {
         setSaveStatus('saving');
-        store.updateChapter(chapterId, { title: newTitle }).then(() => {
+        s.updateChapter(chapterId, { title: newTitle }).then(() => {
           setSaveStatus('saved');
         }).catch(() => {
           setSaveStatus('dirty');
         });
       }
     }, 1500);
-  }, [store]);
+  }, []);
 
   // 手动保存章节
   const forceSave = () => {

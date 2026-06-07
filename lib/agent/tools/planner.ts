@@ -82,25 +82,31 @@ export const generateKernelTool = tool(
     if (!project) return '未找到该项目。';
     const configStr = getAgentConfig('planner', apiConfig);
     const result = await ai.generateKernelSettings(project.title, genre, tone, configStr, getAgentModelName('planner', apiConfig, modelName));
-    // 保存到项目
+    // 将 AI 生成的 10 个维度自动落库（取每维度的第一套方案的 description）
     const updates: Record<string, unknown> = {};
-    if (result.powerSystem) updates.powerSystem = result.powerSystem;
-    if (result.goldFinger) updates.goldFinger = result.goldFinger;
-    if (result.coreConflict) updates.coreConflict = result.coreConflict;
-    if (result.factionsMap) updates.factionsMap = result.factionsMap;
-    if (result.sellingPoints) updates.sellingPoints = result.sellingPoints;
+    const dims = [
+      'worldSetting', 'powerSystem', 'skillSystem', 'goldFinger', 'coreConflict',
+      'sellingPoints', 'location', 'faction', 'currency', 'item'
+    ];
+    for (const dim of dims) {
+      const options = result[dim];
+      if (Array.isArray(options) && options.length > 0 && options[0].description) {
+        updates[dim] = options[0].description;
+      }
+    }
     if (Object.keys(updates).length > 0) {
       await db.updateProject(projectId, updates);
     }
-    return `内核设定已生成并保存：\n\n${JSON.stringify(result, null, 2)}`;
+    const savedList = Object.keys(updates).join('、');
+    return `内核设定已生成并保存到项目（${savedList}），共 ${Object.keys(updates).length} 个维度。`;
   },
   {
     name: 'generate_kernel',
-    description: '为小说生成核心内核设定，包括金手指、能力体系、核心冲突、势力图、卖点。',
+    description: '为小说一次性推演全部 10 大维度内核设定（世界观、力量体系、功法体系、金手指、核心冲突、爽点卖点、地理地图、势力阵营、货币体系、关键物品），并自动保存到项目中。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
-      genre: z.string().describe('小说体裁'),
-      tone: z.string().describe('写作风格'),
+      genre: z.string().describe('小说体裁，例如：都市、玄幻、仙侠、科幻、历史'),
+      tone: z.string().describe('写作风格，例如：热血爽文、轻松幽默、黑暗沉重、浪漫唯美'),
     }),
   }
 );

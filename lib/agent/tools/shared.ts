@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { interrupt } from '@langchain/langgraph';
 import { db } from '../../db';
 import { searchMemory } from '../../memory';
+import { GENRE_CATEGORIES, TONES } from '../../constants';
 
 // Re-export outline parser types used by other tool files
 export type { OutlineVolume, OutlineChapter } from '../../outlineParser';
@@ -14,6 +15,24 @@ export { parseStructureOutline, generateMarkdownFromSections } from '../../outli
 export function confirmLockedAction(action: string, target: string): boolean {
   const decision = interrupt({ type: 'confirm_locked', action, target }) as unknown;
   return decision === true || decision === 'confirm' || decision === 'yes';
+}
+
+// 当项目未配置风格基调且用户未在对话中指定时，弹出选项让用户选择题材和文风。
+// 使用 LangGraph interrupt 暂停图，等待前端用户选择后 resume。
+export function requestStyleInput(projectId: string): { genre: string; tone: string } {
+  const allGenres = GENRE_CATEGORIES.flatMap(c => c.genres.map(g => g.name));
+  const allTones = TONES.map(t => t.name);
+  const response = interrupt({
+    type: 'request_style',
+    genres: allGenres.slice(0, 12),  // 取前 12 个常用题材
+    tones: allTones,
+    projectId,
+  }) as unknown;
+  if (response && typeof response === 'object' && (response as any).genre && (response as any).tone) {
+    return response as { genre: string; tone: string };
+  }
+  // 用户取消 → 返回空，调用方应处理
+  return { genre: '', tone: '' };
 }
 
 // ─── 1. 查询记忆 ─────────────────────────────────────────────────────────────
@@ -60,6 +79,29 @@ export const getProjectOverviewTool = tool(
   {
     name: 'get_project_overview',
     description: '获取当前小说项目的完整概览，包括设定、人物列表、章节数等基本信息。',
+    schema: z.object({
+      projectId: z.string().describe('小说项目ID'),
+    }),
+  }
+);
+
+// ─── 3. 请求用户选择风格基调 ───────────────────────────────────────────────────
+export const requestUserStyleTool = tool(
+  async ({ projectId }) => {
+    const result = requestStyleInput(projectId);
+    if (!result.genre || !result.tone) {
+      return '用户取消了风格选择，请询问用户想要的题材和文风后再继续。';
+    }
+    // 保存到项目
+    await db.updateProject(projectId, {
+      description: result.genre,
+      styleSetting: result.tone,
+    });
+    return `用户选择了题材「${result.genre}」和文风「${result.tone}」，已保存到项目设定。请据此继续生成世界设定。`;
+  },
+  {
+    name: 'request_user_style',
+    description: '当项目缺少题材（description）和文风（styleSetting），且用户未在对话中明确指定时，弹出选项交互让用户选择。只有确认缺少风格基调时才调用此工具。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
     }),

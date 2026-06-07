@@ -18,6 +18,7 @@ import {
   EDITOR_TOOLS,
   queryMemoryTool,
   getProjectOverviewTool,
+  requestUserStyleTool,
 } from './tools';
 import { AGENT_PROMPTS, AgentRole } from './prompts';
 import { db } from '../db';
@@ -132,6 +133,7 @@ const delegateToEditorTool = tool(
 const ORCHESTRATOR_TOOLS = [
   queryMemoryTool,
   getProjectOverviewTool,
+  requestUserStyleTool,
   delegateToPlannerTool,
   delegateToLoreBuilderTool,
   delegateToWriterTool,
@@ -139,7 +141,8 @@ const ORCHESTRATOR_TOOLS = [
 ];
 
 // 汇总阶段 orchestrator 可用的工具（去掉所有 delegate_* 工具），从机制上保证不会再次委托而停不下来
-const ORCHESTRATOR_SUMMARY_TOOLS = [queryMemoryTool, getProjectOverviewTool];
+// 保留 requestUserStyleTool：用户可能取消后重新选择
+const ORCHESTRATOR_SUMMARY_TOOLS = [queryMemoryTool, getProjectOverviewTool, requestUserStyleTool];
 // 委托次数上限：达到后强制进入汇总，配合 recursionLimit 作为双重保险
 const MAX_DELEGATIONS = 5;
 // 单个专家的工具调用次数上限：超过后强制结束该专家，回到 orchestrator 汇总
@@ -203,6 +206,7 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
   const orchestratorToolNames = [
     'query_memory',
     'get_project_overview',
+    'request_user_style',
     'delegate_to_planner',
     'delegate_to_lore_builder',
     'delegate_to_writer',

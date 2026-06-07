@@ -3,12 +3,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 
-Geist({
+const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-Geist_Mono({
+const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
@@ -25,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <Suspense fallback={
           <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0b0f19', color: '#94a3b8' }}>
             加载中...

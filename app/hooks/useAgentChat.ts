@@ -29,7 +29,7 @@ export interface AgentMessage {
 
 export interface PendingConfirm {
   id?: string;
-  payload: { type?: string; action?: string; target?: string;[k: string]: unknown };
+  payload: { type?: string; action?: string; target?: string; genres?: string[]; tones?: string[];[k: string]: unknown };
 }
 
 export type AgentChatApi = ReturnType<typeof useAgentChat>;
@@ -166,9 +166,20 @@ export function useAgentChat(store: NovelStore) {
               type: 'thinking',
               agent: data.agent,
               label: data.label,
-              content: '正在思考...',
+              content: '',
             }]);
             scrollToBottom('smooth');
+            break;
+
+          case 'reasoning':
+            // 模型的推理/思考过程流式追加到最近一条 thinking 消息
+            if (lastThinkingMsgId) {
+              const tid = lastThinkingMsgId;
+              saveAndSetAgentMessages(prev => prev.map(m =>
+                m.id === tid ? { ...m, content: (m.content || '') + (data.content || '') } : m
+              ));
+            }
+            scrollToBottom('auto', 20);
             break;
 
           case 'token':
@@ -260,10 +271,13 @@ export function useAgentChat(store: NovelStore) {
             stopStreaming();
             removeLastThinking();
             const p = data.payload || {};
+            const isStyleRequest = p.type === 'request_style';
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'confirm',
-              content: `需要你确认：${p.action || '操作'}「${p.target || ''}」（该项已锁定），是否继续？`,
+              content: isStyleRequest
+                ? '请选择小说的题材和文风基调'
+                : `需要你确认：${p.action || '操作'}「${p.target || ''}」（该项已锁定），是否继续？`,
               toolInput: p,
             }]);
             setPendingConfirm({ id: data.id, payload: p });
@@ -275,8 +289,10 @@ export function useAgentChat(store: NovelStore) {
             stopStreaming();
             removeLastThinking();
             if (store.currentProject) {
+              store.refreshProject(store.currentProject.id);
               store.fetchCharacters(store.currentProject.id);
               store.fetchWorldRules(store.currentProject.id);
+              store.fetchWorldStates(store.currentProject.id);
               store.fetchChapters(store.currentProject.id);
             }
             break;
@@ -358,22 +374,31 @@ export function useAgentChat(store: NovelStore) {
   };
 
   // 用户对锁定项确认弹窗的回传：'confirm' 继续 / 'cancel' 取消，经 resume 恢复被 interrupt 暂停的图
-  const resolveConfirm = async (decision: 'confirm' | 'cancel') => {
+  // 'continue_limit'：recursion limit 达上限后，以新消息续跑
+  // { genre, tone }：风格基调选择，通过 resume 传递回 agent
+  const resolveConfirm = async (decision: 'confirm' | 'cancel' | 'continue_limit' | { genre: string; tone: string }) => {
     if (!store.currentProject || !pendingConfirm) return;
     setPendingConfirm(null);
     setIsAgentLoading(true);
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      let resumeValue: any = decision;
+      if (decision === 'continue_limit') {
+        resumeValue = 'continue_limit';
+      } else if (typeof decision === 'object') {
+        resumeValue = decision;
+      }
+      const body = JSON.stringify({
+        projectId: store.currentProject.id,
+        resume: resumeValue,
+        ...buildRequestBase(),
+      });
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({
-          projectId: store.currentProject.id,
-          resume: decision,
-          ...buildRequestBase(),
-        }),
+        body,
       });
       if (!response.ok || !response.body) {
         throw new Error('Agent 接口连接失败');

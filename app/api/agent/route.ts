@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
 
   const { projectId, message, apiKey, modelName, messageId, resume } = body;
   // resume：用户对锁定项确认弹窗的回传（'confirm'/'cancel' 等真值字符串），用于恢复被 interrupt 暂停的图
+  // 'continue_limit'：recursion limit 达上限后用户点击"继续" → 当作新消息续跑
   const isResume = resume !== undefined && resume !== null && resume !== '';
+  const isContinueLimit = resume === 'continue_limit';
 
   if (!projectId || (!message && !isResume)) {
     return new Response(JSON.stringify({ error: '缺少 projectId 或 message' }), { status: 400 });
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
           controller.close();
         });
 
-        // 初次请求才保存用户消息；resume（确认/取消）不是新的用户输入
+        // 初次请求才保存用户消息；resume（确认/取消/续跑）不是新的用户输入
         if (!isResume) {
           const userMsgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
           await db.appendAgentMessage(projectId, {
@@ -96,19 +98,21 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        send('start', { message: isResume ? '继续执行...' : '多 Agent 系统启动...' });
-
-        // resume 时用 Command 注入用户决定，恢复被 interrupt 暂停的图；否则按新消息正常启动
-        const graphInput: any = isResume
-          ? new Command({ resume })
-          : { messages: [new HumanMessage(message)], projectId };
+        // continue_limit：recursion 达上限后继续 → 以新消息续跑，而非通过 Command.resume
+        // isResume（interrupt 确认）：通过 Command.resume 恢复被中断的图
+        // 正常消息：新的用户输入
+        const graphInput: any = isContinueLimit
+          ? { messages: [new HumanMessage("请继续完成之前因执行轮次达上限而中断的任务，从上次中断处无缝衔接。")], projectId }
+          : isResume
+            ? new Command({ resume })
+            : { messages: [new HumanMessage(message)], projectId };
 
         // 流式执行图，监听每个事件
         const eventStream = await graph.streamEvents(
           graphInput,
           {
             version: 'v2',
-            recursionLimit: 50,
+            recursionLimit: 200,
             configurable: {
               thread_id: projectId,
               apiConfig: packedApiKey,
@@ -156,7 +160,14 @@ export async function POST(request: NextRequest) {
           }
 
           // LLM 流式 token 输出
-          if (eventType === 'on_chat_model_stream' && data?.chunk?.content) {
+          if (eventType === 'on_chat_model_stream' && data?.chunk) {
+            // 推理内容（DeepSeek R1 / Claude thinking 等模型）
+            const reasoning = data.chunk.additional_kwargs?.reasoning_content
+              || data.chunk.reasoning_content;
+            if (typeof reasoning === 'string' && reasoning) {
+              send('reasoning', { agent: lastAgent, content: reasoning });
+            }
+            // 正文 token
             const content = typeof data.chunk.content === 'string'
               ? data.chunk.content
               : Array.isArray(data.chunk.content)
@@ -287,22 +298,41 @@ export async function POST(request: NextRequest) {
       } catch (err: any) {
         console.error('Agent error:', err);
         const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        try {
-          await db.appendAgentMessage(projectId, {
+
+        // 如果是 recursion limit 达到上限，检查点状态已保存，发 confirm 让用户一键续跑
+        const isRecursionLimit = err?.message?.includes('Recursion limit') || err?.name === 'GraphRecursionError';
+        if (isRecursionLimit) {
+          try {
+            await db.appendAgentMessage(projectId, {
+              id: errorMsgId,
+              type: 'confirm',
+              content: '执行轮次已达上限，已完成的部分已保存。是否继续？',
+              toolInput: { action: 'continue_limit', target: '轮次上限续跑' },
+            });
+          } catch (dbErr) {
+            console.error('Failed to save confirm to DB:', dbErr);
+          }
+          send('confirm', {
             id: errorMsgId,
-            type: 'error',
-            content: err.message || 'Agent 执行失败',
+            payload: { action: 'continue_limit', target: '轮次上限续跑' },
           });
-        } catch (dbErr) {
-          console.error('Failed to save error to DB:', dbErr);
+        } else {
+          try {
+            await db.appendAgentMessage(projectId, {
+              id: errorMsgId,
+              type: 'error',
+              content: err.message || 'Agent 执行失败',
+            });
+          } catch (dbErr) {
+            console.error('Failed to save error to DB:', dbErr);
+          }
+          const clientMessage = sanitizeErrorMessage(err.message);
+          send('error', { 
+            id: errorMsgId,
+            message: clientMessage,
+            tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送"请继续刚才未完成的工作"来续跑。'
+          });
         }
-        // 对客户端展示简化的错误信息，避免泄露 API endpoint URL 等敏感信息
-        const clientMessage = sanitizeErrorMessage(err.message);
-        send('error', { 
-          id: errorMsgId,
-          message: clientMessage,
-          tip: '提示：如果由于接口超时中断，此前已保存的章节正文、角色卡或大纲等内容已安全写入数据库，您可以直接在侧边栏刷新查看，或发送“请继续刚才未完成的工作”来续跑。'
-        });
       } finally {
         if (heartbeat) clearInterval(heartbeat);
         controller.close();

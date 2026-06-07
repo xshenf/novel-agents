@@ -256,7 +256,25 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     addModel: (model) => {
       const newId = 'model_' + Math.random().toString(36).substring(2, 11);
       const newModel: ModelConfig = { ...model, id: newId };
-      const nextModels = [...get().models, newModel];
+      let nextModels = [...get().models, newModel];
+      // 保护其他模型的 apiKey：脱敏 key 从 localStorage 恢复真实值
+      if (typeof window !== 'undefined' && nextModels.some((m: any) => m.apiKey && String(m.apiKey).startsWith('***'))) {
+        const localRaw = localStorage.getItem('novel_models');
+        if (localRaw) {
+          try {
+            const localModels = JSON.parse(localRaw) as any[];
+            nextModels = nextModels.map((m: any) => {
+              if (m.apiKey && String(m.apiKey).startsWith('***')) {
+                const localModel = localModels.find((lm: any) => lm.id === m.id);
+                if (localModel?.apiKey && !String(localModel.apiKey).startsWith('***')) {
+                  return { ...m, apiKey: localModel.apiKey };
+                }
+              }
+              return m;
+            });
+          } catch { /* keep nextModels as-is */ }
+        }
+      }
       if (typeof window !== 'undefined') {
         localStorage.setItem('novel_models', JSON.stringify(nextModels));
       }
@@ -273,7 +291,25 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     updateModel: (id, updates) => {
-      const nextModels = get().models.map(m => m.id === id ? { ...m, ...updates } : m);
+      let nextModels = get().models.map(m => m.id === id ? { ...m, ...updates } : m);
+      // 保护其他模型的 apiKey：若 nextModels 中仍有脱敏 key，从 localStorage 恢复真实值
+      if (typeof window !== 'undefined' && nextModels.some((m: any) => m.apiKey && String(m.apiKey).startsWith('***'))) {
+        const localRaw = localStorage.getItem('novel_models');
+        if (localRaw) {
+          try {
+            const localModels = JSON.parse(localRaw) as any[];
+            nextModels = nextModels.map((m: any) => {
+              if (m.apiKey && String(m.apiKey).startsWith('***')) {
+                const localModel = localModels.find((lm: any) => lm.id === m.id);
+                if (localModel?.apiKey && !String(localModel.apiKey).startsWith('***')) {
+                  return { ...m, apiKey: localModel.apiKey };
+                }
+              }
+              return m;
+            });
+          } catch { /* keep nextModels as-is */ }
+        }
+      }
       if (typeof window !== 'undefined') {
         localStorage.setItem('novel_models', JSON.stringify(nextModels));
       }
@@ -492,9 +528,29 @@ export const useNovelStore = create<NovelStore>((set, get) => {
 
         // 如果项目数据库中有模型配置且不为空
         if (project.modelsConfig && project.modelsConfig.length > 0) {
-          const nextModels = project.modelsConfig;
+          // 项目中的 modelsConfig 来自 formatProject，apiKey 已被脱敏为 ***xxxx。
+          // 若 localStorage 中已有真实 key，则按 id 合并保留，避免脱敏值覆盖真实配置。
+          let nextModels = project.modelsConfig;
           const nextBindings = project.agentBindings || {};
           const nextOverrides = project.agentOverrides || {};
+
+          if (typeof window !== 'undefined') {
+            const localRaw = localStorage.getItem('novel_models');
+            if (localRaw) {
+              try {
+                const localModels = JSON.parse(localRaw) as any[];
+                nextModels = nextModels.map((m: any) => {
+                  if (m.apiKey && String(m.apiKey).startsWith('***')) {
+                    const localModel = localModels.find((lm: any) => lm.id === m.id);
+                    if (localModel?.apiKey && !String(localModel.apiKey).startsWith('***')) {
+                      return { ...m, apiKey: localModel.apiKey };
+                    }
+                  }
+                  return m;
+                });
+              } catch { /* parse error, keep nextModels as-is */ }
+            }
+          }
 
           set({
             models: nextModels,

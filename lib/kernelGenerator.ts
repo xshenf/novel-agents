@@ -4,7 +4,7 @@ import { safeParseJSON } from './safeParseJSON';
 import { settingLengthHint } from './constants';
 
 /**
- * AI 推演网络小说核心设定 (10 大维度，各 3 套备选推荐)
+ * AI 推演网络小说核心设定 (10 大维度，各 1 套方案直接落库)
  * 串行执行：每个维度推演时携带前面所有已完成的设定，确保设定统一
  * 推演顺序：世界观 -> 力量体系 -> 功法体系 -> 金手指 -> 核心冲突 -> 爽点卖点 -> 地理地图 -> 势力阵营 -> 货币体系 -> 关键物品
  * onProgress 回调在每完成一个维度时触发，参数为 (dimKey, dimLabel, index, total, dimOptions)
@@ -55,22 +55,19 @@ export async function generateKernelSettings(
       ? `\n5. 严禁出现以下设定、桥段或情节（极其重要，绝对不能违背）：\n${forbiddenSetting.trim()}`
       : '';
 
-    const systemInstruction = `你是一个专业的顶级网络小说总策划和架构师。你的任务是根据给定的书名、题材和文风，为小说的「${dim.label}」维度推演 3 套风格迥异、极具网文爽点与创意的备选方案。
+    const systemInstruction = `你是一个专业的顶级网络小说总策划和架构师。你的任务是根据给定的书名、题材和文风，为小说的「${dim.label}」维度推演一套最契合、最具网文爽点与创意的方案，直接作为最终设定落库。
 
 维度说明：${dim.desc}
 
 要求：
-1. 每套方案的 description 必须在 ${settingLengthHint(dim.key)} 字之间，内容详实、有画面感、有具体细节，不能泛泛而谈。
-2. 三套方案之间风格差异要大，覆盖不同的网文流派和读者偏好。
-3. 必须符合「${genre}」题材和「${tone}」文风。
-4. 必须与已确定的其他维度设定保持一致，不能矛盾，要互相呼应和补充。${forbiddenBlock}
+1. description 必须在 ${settingLengthHint(dim.key)} 字之间，内容详实、有画面感、有具体细节，不能泛泛而谈。
+2. 方案必须精准匹配「${genre}」题材和「${tone}」文风。
+3. 必须与已确定的其他维度设定保持高度一致，不能矛盾，要互相呼应和补充。${forbiddenBlock}
 
 请以纯 JSON 格式输出（不要 markdown 标记），结构如下：
 {
   "options": [
-    {"name": "方案A名称（6字以内）", "description": "方案A的详细描述，${settingLengthHint(dim.key)}字"},
-    {"name": "方案B名称（6字以内）", "description": "方案B的详细描述，${settingLengthHint(dim.key)}字"},
-    {"name": "方案C名称（6字以内）", "description": "方案C的详细描述，${settingLengthHint(dim.key)}字"}
+    {"name": "方案名称（10字以内）", "description": "详细描述，${settingLengthHint(dim.key)}字"}
   ]
 }`;
 
@@ -78,7 +75,7 @@ export async function generateKernelSettings(
 题材是：${genre}
 文风是：${tone}${existingContext}
 
-请为「${dim.label}」维度推演 3 套高品质备选方案。注意：方案必须与已有设定保持一致和统一。`;
+请为「${dim.label}」维度推演一套高品质方案，直接作为最终设定。注意：方案必须与已有设定保持一致和统一。`;
 
     try {
       const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
