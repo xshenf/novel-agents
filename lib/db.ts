@@ -288,7 +288,7 @@ export const db = {
 
   // 元数据查询：排除 content 大字段，包含 summary + 伏笔/人物变更/时间线等结构化元数据，
   // 供 searchMemory 等只需章节元信息的场景使用，避免加载全部章节正文。
-  async getChapterMetadata(projectId: string): Promise<Omit<Chapter, 'content'>[]> {
+  async getChapterMetadata(projectId: string): Promise<Chapter[]> {
     const list = await prisma.chapter.findMany({
       where: { projectId },
       orderBy: { createdAt: 'asc' },
