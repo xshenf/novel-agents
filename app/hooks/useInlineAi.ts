@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
+import { showNotification } from '@/lib/utils';
 
 type SaveStatus = 'saved' | 'saving' | 'dirty';
 export type InlineMode = 'continue' | 'polish' | 'expand' | 'rewrite';
@@ -59,11 +60,11 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
         const sep = editorContent && !editorContent.endsWith('\n') ? '\n' : '';
         await persist(editorContent + sep + data.text);
       } else {
-        alert(data.error || 'AI 续写失败');
+        showNotification(data.error || 'AI 续写失败');
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
-      alert('AI 续写失败');
+      showNotification('AI 续写失败');
     } finally {
       setBusy(null);
     }
@@ -74,7 +75,7 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
     if (busy) return;
     const selected = editorContent.slice(selStart, selEnd);
     if (!selected.trim()) {
-      alert('请先在正文中选中要处理的文字');
+      showNotification('请先在正文中选中要处理的文字');
       return;
     }
     const instruction = mode === 'expand'
@@ -91,11 +92,11 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
       if (data.text) {
         await persist(editorContent.slice(0, selStart) + data.text + editorContent.slice(selEnd));
       } else {
-        alert(data.error || 'AI 处理失败');
+        showNotification(data.error || 'AI 处理失败');
       }
     } catch (e: any) {
       if (e?.name === 'AbortError') return;
-      alert('AI 处理失败');
+      showNotification('AI 处理失败');
     } finally {
       setBusy(null);
     }

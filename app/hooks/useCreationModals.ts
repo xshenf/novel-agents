@@ -1,7 +1,70 @@
-import { useState, useCallback, type FormEvent } from 'react';
+import { useState, useCallback, useReducer, useMemo, type FormEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 
 type RuleType = 'location' | 'faction' | 'rule' | 'item' | 'other';
+
+// ── 表单状态聚合：useReducer 替代散落的 useState ──────────────────────────
+
+type ModalFormState = {
+  newCharName: string;
+  newCharRole: string;
+  newCharAge: string;
+  newCharIdentity: string;
+  newCharPersonality: string;
+  newCharGoals: string;
+  newCharState: string;
+  newCharForbidden: string;
+  newRuleName: string;
+  newRuleType: RuleType;
+  newRuleDesc: string;
+  newChapTitle: string;
+};
+
+type ModalAction =
+  | { type: 'SET_FIELD'; field: keyof ModalFormState; value: string }
+  | { type: 'RESET_CHAR' }
+  | { type: 'RESET_RULE' }
+  | { type: 'RESET_CHAP' };
+
+const INITIAL_FORM_STATE: ModalFormState = {
+  newCharName: '',
+  newCharRole: '配角',
+  newCharAge: '',
+  newCharIdentity: '',
+  newCharPersonality: '',
+  newCharGoals: '',
+  newCharState: '',
+  newCharForbidden: '',
+  newRuleName: '',
+  newRuleType: 'location',
+  newRuleDesc: '',
+  newChapTitle: '',
+};
+
+function modalReducer(state: ModalFormState, action: ModalAction): ModalFormState {
+  switch (action.type) {
+    case 'SET_FIELD':
+      return { ...state, [action.field]: action.value };
+    case 'RESET_CHAR':
+      return {
+        ...state,
+        newCharName: '',
+        newCharRole: '配角',
+        newCharAge: '',
+        newCharIdentity: '',
+        newCharPersonality: '',
+        newCharGoals: '',
+        newCharState: '',
+        newCharForbidden: '',
+      };
+    case 'RESET_RULE':
+      return { ...state, newRuleName: '', newRuleType: 'location', newRuleDesc: '' };
+    case 'RESET_CHAP':
+      return { ...state, newChapTitle: '' };
+    default:
+      return state;
+  }
+}
 
 export type CreationModalsApi = ReturnType<typeof useCreationModals>;
 
@@ -10,75 +73,69 @@ export function useCreationModals(store: NovelStore) {
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [showNewChapModal, setShowNewChapModal] = useState(false);
 
-  const [newCharName, setNewCharName] = useState('');
-  const [newCharRole, setNewCharRole] = useState('配角');
-  const [newCharAge, setNewCharAge] = useState('');
-  const [newCharIdentity, setNewCharIdentity] = useState('');
-  const [newCharPersonality, setNewCharPersonality] = useState('');
-  const [newCharGoals, setNewCharGoals] = useState('');
-  const [newCharState, setNewCharState] = useState('');
-  const [newCharForbidden, setNewCharForbidden] = useState('');
+  const [form, dispatch] = useReducer(modalReducer, INITIAL_FORM_STATE);
 
-  const [newRuleName, setNewRuleName] = useState('');
-  const [newRuleType, setNewRuleType] = useState<RuleType>('location');
-  const [newRuleDesc, setNewRuleDesc] = useState('');
-
-  const [newChapTitle, setNewChapTitle] = useState('');
+  // 稳定的 setter 函数（供 UI 组件绑定 onChange）
+  const fieldSetters = useMemo(() => ({
+    setNewCharName: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharName', value: v }),
+    setNewCharRole: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharRole', value: v }),
+    setNewCharAge: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharAge', value: v }),
+    setNewCharIdentity: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharIdentity', value: v }),
+    setNewCharPersonality: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharPersonality', value: v }),
+    setNewCharGoals: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharGoals', value: v }),
+    setNewCharState: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharState', value: v }),
+    setNewCharForbidden: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newCharForbidden', value: v }),
+    setNewRuleName: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newRuleName', value: v }),
+    setNewRuleType: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newRuleType', value: v }),
+    setNewRuleDesc: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newRuleDesc', value: v }),
+    setNewChapTitle: (v: string) => dispatch({ type: 'SET_FIELD', field: 'newChapTitle', value: v }),
+  }), []);
 
   const handleCreateChapter = useCallback(async (e: FormEvent) => {
     e.preventDefault();
-    if (!store.currentProject || !newChapTitle.trim()) return;
+    if (!store.currentProject || !form.newChapTitle.trim()) return;
     try {
-      await store.createChapter(store.currentProject.id, newChapTitle);
+      await store.createChapter(store.currentProject.id, form.newChapTitle);
       setShowNewChapModal(false);
-      setNewChapTitle('');
+      dispatch({ type: 'RESET_CHAP' });
     } catch (err) { console.error('创建失败:', err); }
-  }, [store, newChapTitle]);
+  }, [store, form.newChapTitle]);
 
   const handleCreateCharacter = useCallback(async (e: FormEvent) => {
     e.preventDefault();
-    if (!store.currentProject || !newCharName.trim()) return;
+    if (!store.currentProject || !form.newCharName.trim()) return;
     try {
       await store.createCharacter({
         projectId: store.currentProject.id,
-        name: newCharName,
-        role: newCharRole,
-        age: newCharAge,
-        identity: newCharIdentity,
-        personality: newCharPersonality.split(/[,，]/).map(p => p.trim()).filter(Boolean),
-        goals: newCharGoals.split(/[,，]/).map(g => g.trim()).filter(Boolean),
+        name: form.newCharName,
+        role: form.newCharRole,
+        age: form.newCharAge,
+        identity: form.newCharIdentity,
+        personality: form.newCharPersonality.split(/[,，]/).map(p => p.trim()).filter(Boolean),
+        goals: form.newCharGoals.split(/[,，]/).map(g => g.trim()).filter(Boolean),
         relationships: [],
-        currentState: newCharState,
-        forbidden: newCharForbidden.split(/[,，]/).map(f => f.trim()).filter(Boolean)
+        currentState: form.newCharState,
+        forbidden: form.newCharForbidden.split(/[,，]/).map(f => f.trim()).filter(Boolean)
       });
       setShowNewCharModal(false);
-      setNewCharName('');
-      setNewCharRole('配角');
-      setNewCharAge('');
-      setNewCharIdentity('');
-      setNewCharPersonality('');
-      setNewCharGoals('');
-      setNewCharState('');
-      setNewCharForbidden('');
+      dispatch({ type: 'RESET_CHAR' });
     } catch (err) { console.error('创建失败:', err); }
-  }, [store, newCharName, newCharRole, newCharAge, newCharIdentity, newCharPersonality, newCharGoals, newCharState, newCharForbidden]);
+  }, [store, form.newCharName, form.newCharRole, form.newCharAge, form.newCharIdentity, form.newCharPersonality, form.newCharGoals, form.newCharState, form.newCharForbidden]);
 
   const handleCreateRule = useCallback(async (e: FormEvent) => {
     e.preventDefault();
-    if (!store.currentProject || !newRuleName.trim()) return;
+    if (!store.currentProject || !form.newRuleName.trim()) return;
     try {
       await store.createWorldRule({
         projectId: store.currentProject.id,
-        name: newRuleName,
-        type: newRuleType,
-        description: newRuleDesc
+        name: form.newRuleName,
+        type: form.newRuleType,
+        description: form.newRuleDesc
       });
       setShowNewRuleModal(false);
-      setNewRuleName('');
-      setNewRuleType('location');
-      setNewRuleDesc('');
+      dispatch({ type: 'RESET_RULE' });
     } catch (err) { console.error('创建失败:', err); }
-  }, [store, newRuleName, newRuleType, newRuleDesc]);
+  }, [store, form.newRuleName, form.newRuleType, form.newRuleDesc]);
 
   return {
     showNewCharModal,
@@ -87,30 +144,30 @@ export function useCreationModals(store: NovelStore) {
     setShowNewRuleModal,
     showNewChapModal,
     setShowNewChapModal,
-    newCharName,
-    setNewCharName,
-    newCharRole,
-    setNewCharRole,
-    newCharAge,
-    setNewCharAge,
-    newCharIdentity,
-    setNewCharIdentity,
-    newCharPersonality,
-    setNewCharPersonality,
-    newCharGoals,
-    setNewCharGoals,
-    newCharState,
-    setNewCharState,
-    newCharForbidden,
-    setNewCharForbidden,
-    newRuleName,
-    setNewRuleName,
-    newRuleType,
-    setNewRuleType,
-    newRuleDesc,
-    setNewRuleDesc,
-    newChapTitle,
-    setNewChapTitle,
+    newCharName: form.newCharName,
+    setNewCharName: fieldSetters.setNewCharName,
+    newCharRole: form.newCharRole,
+    setNewCharRole: fieldSetters.setNewCharRole,
+    newCharAge: form.newCharAge,
+    setNewCharAge: fieldSetters.setNewCharAge,
+    newCharIdentity: form.newCharIdentity,
+    setNewCharIdentity: fieldSetters.setNewCharIdentity,
+    newCharPersonality: form.newCharPersonality,
+    setNewCharPersonality: fieldSetters.setNewCharPersonality,
+    newCharGoals: form.newCharGoals,
+    setNewCharGoals: fieldSetters.setNewCharGoals,
+    newCharState: form.newCharState,
+    setNewCharState: fieldSetters.setNewCharState,
+    newCharForbidden: form.newCharForbidden,
+    setNewCharForbidden: fieldSetters.setNewCharForbidden,
+    newRuleName: form.newRuleName,
+    setNewRuleName: fieldSetters.setNewRuleName,
+    newRuleType: form.newRuleType,
+    setNewRuleType: fieldSetters.setNewRuleType as (v: RuleType) => void,
+    newRuleDesc: form.newRuleDesc,
+    setNewRuleDesc: fieldSetters.setNewRuleDesc,
+    newChapTitle: form.newChapTitle,
+    setNewChapTitle: fieldSetters.setNewChapTitle,
     handleCreateChapter,
     handleCreateCharacter,
     handleCreateRule,

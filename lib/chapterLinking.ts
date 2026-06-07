@@ -9,10 +9,48 @@ import { countChineseChars } from './textStats';
 
 export type ChapterStatus = 'unwritten' | 'draft' | 'done';
 
-// 从章节标题中抽取「第N章/节/回」中的序号，未命中则返回 null
+const CN_NUMS: Record<string, number> = {
+  '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
+  '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10, '百': 100,
+};
+
+/**
+ * Convert a Chinese numeral string to an Arabic number.
+ * Supports simple forms like 一, 十二, 二十三, 一百二十三.
+ * Returns NaN for unrecognised input.
+ */
+function chineseToNumber(str: string): number {
+  if (!str) return NaN;
+  let result = 0;
+  let current = 0;
+  for (const ch of str) {
+    const val = CN_NUMS[ch];
+    if (val === undefined) return NaN;
+    if (val === 100) {
+      result += (current || 1) * 100;
+      current = 0;
+    } else if (val === 10) {
+      result += (current || 1) * 10;
+      current = 0;
+    } else {
+      current = val;
+    }
+  }
+  return result + current;
+}
+
+// 从章节标题中抽取「第N章/节/回」中的序号（支持阿拉伯数字和中文数字），未命中则返回 null
 export function extractChapterNumber(title: string): number | null {
-  const m = title.match(/第\s*(\d+)\s*(?:章|节|回|折|卷)/);
-  return m ? parseInt(m[1], 10) : null;
+  // Match Arabic numerals
+  const arabicMatch = title.match(/第\s*(\d+)\s*(?:章|节|回|折|卷)/);
+  if (arabicMatch) return parseInt(arabicMatch[1], 10);
+  // Match Chinese numerals
+  const cnMatch = title.match(/第\s*([零一两二三四五六七八九十百]+)\s*(?:章|节|回|折|卷)/);
+  if (cnMatch) {
+    const n = chineseToNumber(cnMatch[1]);
+    return isNaN(n) ? null : n;
+  }
+  return null;
 }
 
 // 匹配规则（按优先级）：

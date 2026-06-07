@@ -3,12 +3,14 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { NovelStore } from '@/lib/store';
 import { useAiClient, type CallAIApi } from './useAiClient';
+import { showNotification } from '@/lib/utils';
 import {
   generateMarkdownFromSections,
   parseStructureOutline,
   renumberVolumesAndChapters,
   type OutlineVolume,
 } from '@/lib/outlineParser';
+import { useVolumeCore } from './useVolumeCore';
 
 interface UseVolumeActionsParams {
   store: NovelStore;
@@ -41,13 +43,28 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
     [setOutlineFull, store]
   );
 
-  // 通用：把 AI 生成的细纲 Markdown 文本追加到指定分卷
+  // ─── Shared volume operations (via useVolumeCore) ────────────────────────
+
+  const {
+    toggleLockVolume,
+    handleMoveVolume,
+    handleDeleteVolume,
+    updateVolumeInfo,
+    handleAddChapter,
+  } = useVolumeCore({
+    store,
+    localSections: getLocalSections(),
+    onSectionsChange: persist,
+  });
+
+  // ─── AI helper utilities ─────────────────────────────────────────────────
+
+  /** 通用：把 AI 生成的细纲 Markdown 文本追加到指定分卷 */
   const appendChaptersToVolume = useCallback(
     (volIdx: number, rawMarkdown: string): { addedCount: number; volTitle: string } | null => {
       const sections = getLocalSections();
       const target = sections[volIdx];
       if (!target) return null;
-      // 解析 AI 文本（可能含分卷头，会被自动归属到第一个分卷下）
       const parsed = parseStructureOutline(rawMarkdown);
       const newChapters = parsed.flatMap(v => v.chapters);
       if (newChapters.length === 0) return { addedCount: 0, volTitle: target.title };
@@ -63,7 +80,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
     [getLocalSections, persist]
   );
 
-  // 通用：把 AI 生成的单个分卷（标题+概要）合并回大纲
+  /** 通用：把 AI 生成的单个分卷（标题+概要）合并回大纲 */
   const replaceVolumeHeader = useCallback(
     (volIdx: number, newTitle: string, newContent: string) => {
       const sections = getLocalSections();
@@ -78,7 +95,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
     [getLocalSections, persist]
   );
 
-  // 调用 AI 并返回 reply
+  /** 调用 AI 并返回 reply */
   const callOutlineAssistant = useCallback(
     async (systemInstruction: string, prompt: string): Promise<string> => {
       abortRef.current?.abort();
@@ -98,20 +115,19 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
     [callAIApi, store]
   );
 
-  // 抽取分卷头信息（取首条 # 第X卷 / # 第X部 / 仅返回单行标题）
-  const extractVolumeHeader = (raw: string): { title: string; content: string } => {
+  /** 抽取分卷头信息（取首条 # 第X卷 / # 第X部 / 仅返回单行标题） */
+  const extractVolumeHeader = useCallback((raw: string): { title: string; content: string } => {
     const m = raw.match(/^#\s*第[一二三四五六七八九十百\d]+\s*[卷部篇][：: \u3000]*([^\n#]*?)\n([\s\S]*?)(?=\n##?\s|第[一二三四五六七八九十百\d]+\s*[卷部篇]|$)/m);
     if (m) {
       return { title: m[1].trim(), content: m[2].trim() };
     }
-    // 退化方案：取首行作为标题
     const firstLine = raw.split('\n').find(l => l.trim()) ?? '';
     const rest = raw.split('\n').slice(1).join('\n').trim();
     return { title: firstLine.replace(/^#+\s*/, '').trim(), content: rest };
-  };
+  }, []);
 
-  // 构造小说上下文片段
-  const buildContext = () => {
+  /** 构造小说上下文片段 */
+  const buildContext = useCallback(() => {
     if (!store.currentProject) return '';
     const p = store.currentProject;
     return [
@@ -122,9 +138,11 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       `【力量体系】: ${p.powerSystem || '无'}`,
       `【核心冲突】: ${p.coreConflict || '无'}`,
     ].join('\n');
-  };
+  }, [store.currentProject]);
 
-  // ① AI 独立生成本卷大纲（标题 + 概要），不动现有章节
+  // ─── AI generation operations ────────────────────────────────────────────
+
+  /** ① AI 独立生成本卷大纲（标题 + 概要），不动现有章节 */
   const handleAiGenerateVolumeOutline = useCallback(
     async (volIdx: number) => {
       if (!store.currentProject) return;
@@ -153,18 +171,18 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
           throw new Error('AI 未返回有效的分卷内容');
         }
         replaceVolumeHeader(volIdx, title, content);
-        alert(`已更新分卷「${title || target.title || `第 ${volIdx + 1} 卷`}」的标题与概要`);
+        showNotification(`已更新分卷「${title || target.title || `第 ${volIdx + 1} 卷`}」的标题与概要`);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
-        alert('AI 生成分卷大纲失败: ' + (err?.message || String(err)));
+        showNotification('AI 生成分卷大纲失败: ' + (err?.message || String(err)), 'error');
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));
       }
     },
-    [store, getLocalSections, callOutlineAssistant, replaceVolumeHeader]
+    [store, getLocalSections, callOutlineAssistant, replaceVolumeHeader, buildContext, extractVolumeHeader]
   );
 
-  // ② AI 自动规划章节（仅追加新章节，不影响卷标题/概要）
+  /** ② AI 自动规划章节（仅追加新章节，不影响卷标题/概要） */
   const handleAiGenerateVolumeChapters = useCallback(
     async (volIdx: number, numChapters: number = 3) => {
       if (!store.currentProject) return;
@@ -200,19 +218,19 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
         );
         const result = appendChaptersToVolume(volIdx, reply);
         if (result) {
-          alert(`已为分卷「${result.volTitle}」追加 ${result.addedCount} 个章节大纲`);
+          showNotification(`已为分卷「${result.volTitle}」追加 ${result.addedCount} 个章节大纲`);
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
-        alert('AI 自动规划章节失败: ' + (err?.message || String(err)));
+        showNotification('AI 自动规划章节失败: ' + (err?.message || String(err)), 'error');
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));
       }
     },
-    [store, getLocalSections, callOutlineAssistant, appendChaptersToVolume]
+    [store, getLocalSections, callOutlineAssistant, appendChaptersToVolume, buildContext]
   );
 
-  // ③ AI 一键生成本卷：标题 + 概要 + 章节（彻底重写本卷）
+  /** ③ AI 一键生成本卷：标题 + 概要 + 章节（彻底重写本卷） */
   const handleAiGenerateFullVolume = useCallback(
     async (volIdx: number, numChapters: number = 5) => {
       if (!store.currentProject) return;
@@ -268,10 +286,10 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
             : vol
         );
         persist(next);
-          alert(`已重建分卷「${newVol.title || target.title}」，含 ${newVol.chapters.length} 章大纲`);
+          showNotification(`已重建分卷「${newVol.title || target.title}」，含 ${newVol.chapters.length} 章大纲`);
         } catch (err: any) {
           if (err?.name === 'AbortError') return;
-          alert('AI 一键生成本卷失败: ' + (err?.message || String(err)));
+          showNotification('AI 一键生成本卷失败: ' + (err?.message || String(err)), 'error');
         } finally {
           setLoadingCount(c => Math.max(0, c - 1));
         }
@@ -286,10 +304,10 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
         run();
       }
     },
-    [store, getLocalSections, callOutlineAssistant, persist]
+    [store, getLocalSections, callOutlineAssistant, persist, buildContext]
   );
 
-  // ④ AI 一次性创建新分卷（追加到末尾，含卷头 + 章节）
+  /** ④ AI 一次性创建新分卷（追加到末尾，含卷头 + 章节） */
   const handleAiCreateNewVolume = useCallback(
     async (numChapters: number = 5) => {
       if (!store.currentProject) return;
@@ -331,43 +349,18 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
         const newVol = parsed[0];
         const next = [...sections, newVol];
         persist(next);
-        alert(`已新增分卷「${newVol.title || `第 ${newVolIdx + 1} 卷`}」，含 ${newVol.chapters.length} 章大纲`);
+        showNotification(`已新增分卷「${newVol.title || `第 ${newVolIdx + 1} 卷`}」，含 ${newVol.chapters.length} 章大纲`);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
-        alert('AI 新建分卷失败: ' + (err?.message || String(err)));
+        showNotification('AI 新建分卷失败: ' + (err?.message || String(err)), 'error');
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));
       }
     },
-    [store, getLocalSections, callOutlineAssistant, persist]
+    [store, getLocalSections, callOutlineAssistant, persist, buildContext]
   );
 
-  // 手动新增一个空章节到指定分卷
-  const handleAddChapter = useCallback(
-    (volIdx: number) => {
-      const sections = getLocalSections();
-      if (volIdx < 0 || volIdx >= sections.length) return;
-      const next = sections.map((vol, i) =>
-        i === volIdx
-          ? {
-              ...vol,
-              chapters: [
-                ...vol.chapters,
-                {
-                  title: '',
-                  content: '',
-                  details: [],
-                },
-              ],
-            }
-          : vol
-      );
-      persist(next);
-    },
-    [getLocalSections, persist]
-  );
-
-  // 手动新增一个空分卷
+  /** 手动新增一个空分卷 */
   const handleAddVolume = useCallback(() => {
     const sections = getLocalSections();
     const next: OutlineVolume[] = [
@@ -376,64 +369,6 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
     ];
     persist(next);
   }, [getLocalSections, persist]);
-
-  // 删除指定分卷
-  const handleDeleteVolume = useCallback(
-    (volIdx: number) => {
-      const sections = getLocalSections();
-      const target = sections[volIdx];
-      if (!target) return;
-      store.showConfirm(`确定要删除分卷「${target.title || `第 ${volIdx + 1} 卷`}」及其全部章节大纲吗？`, () => {
-        const next = sections.filter((_, i) => i !== volIdx);
-        persist(next);
-      });
-    },
-    [getLocalSections, persist, store]
-  );
-
-  // 切换分卷锁定标记
-  const toggleLockVolume = useCallback(
-    (volIdx: number) => {
-      const sections = getLocalSections();
-      const next = sections.map((vol, i) =>
-        i === volIdx ? { ...vol, isLocked: !vol.isLocked } : vol
-      );
-      persist(next);
-    },
-    [getLocalSections, persist]
-  );
-
-  // 移位分卷位置
-  const handleMoveVolume = useCallback(
-    (volIdx: number, direction: 'up' | 'down') => {
-      const sections = getLocalSections();
-      if (direction === 'up' && volIdx === 0) return;
-      if (direction === 'down' && volIdx === sections.length - 1) return;
-
-      const targetIdx = direction === 'up' ? volIdx - 1 : volIdx + 1;
-      const next = [...sections];
-      const temp = next[volIdx];
-      next[volIdx] = next[targetIdx];
-      next[targetIdx] = temp;
-      persist(next);
-    },
-    [getLocalSections, persist]
-  );
-
-  // 更新分卷标题与概要
-  const updateVolumeInfo = useCallback(
-    (volIdx: number, title: string, content: string) => {
-      const sections = getLocalSections();
-      if (volIdx < 0 || volIdx >= sections.length) return;
-      const next = sections.map((vol, i) =>
-        i === volIdx
-          ? { ...vol, title: title.trim(), content: content.trim() }
-          : vol
-      );
-      persist(next);
-    },
-    [getLocalSections, persist]
-  );
 
   return {
     isAiOutlineLoading: loadingCount > 0,

@@ -1,20 +1,14 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 import { BaseMessage, SystemMessage, AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { resolveAgentModelConfig, resolveApiConfig } from './config';
+import { checkpointer } from './checkpointer';
 
-// 持久化 Checkpointer：落盘到 data/agent-checkpoints.db，进程重启/热重载后对话与断点状态仍可恢复。
-// 用全局单例复用同一个 better-sqlite3 连接，避免开发环境热重载反复打开文件句柄。
-const globalForAgent = globalThis as unknown as {
-  agentCheckpointer: SqliteSaver | undefined;
-};
-
-export const checkpointer = globalForAgent.agentCheckpointer ?? SqliteSaver.fromConnString('./data/agent-checkpoints.db');
-globalForAgent.agentCheckpointer = checkpointer;
+// Re-export for backward compatibility (consumers that imported checkpointer from graph.ts)
+export { checkpointer } from './checkpointer';
 
 
 import {

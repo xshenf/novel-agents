@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { NovelStore } from '@/lib/store';
+import { showNotification } from '@/lib/utils';
 
 interface UseWizardDeps {
   store: NovelStore;
@@ -62,9 +63,9 @@ export function useWizard({ store, router, buildWorkspaceUrl, setIsAiLoading, on
       setIsWizardMode(false);
       store.setCurrentProject(newProj);
       router.push(buildWorkspaceUrl(newProj.id, 'outline'));
-      alert("已跳过向导！已为您创建一个初始项目《未命名故事》，您可以在世界设定中补充各种故事背景设定。");
+      showNotification("已跳过向导！已为您创建一个初始项目《未命名故事》，您可以在世界设定中补充各种故事背景设定。");
     } catch (err) {
-      alert("直接建书失败");
+      showNotification("直接建书失败");
     } finally {
       setIsAiLoading(false);
     }
@@ -104,7 +105,7 @@ export function useWizard({ store, router, buildWorkspaceUrl, setIsAiLoading, on
         router.push(buildWorkspaceUrl(newProj.id, 'outline'));
       }
     } catch (err) {
-      alert(existingProjectId ? '更新项目设定失败' : '建档失败');
+      showNotification(existingProjectId ? '更新项目设定失败' : '建档失败');
     } finally {
       setIsAiLoading(false);
     }

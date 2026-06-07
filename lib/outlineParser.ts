@@ -15,6 +15,8 @@ export interface OutlineVolume {
   isLocked?: boolean;
 }
 
+import { OUTLINE_DEFAULT_VOLUME_NAME, OUTLINE_DEFAULT_CHAPTER_NAME, OUTLINE_DEFAULT_FIRST_VOLUME } from './constants';
+
 const LOCK_MARKERS = ['<!-- LOCKED -->', '[LOCKED]'];
 
 function stripLockMarkers(text: string): { text: string; isLocked: boolean } {
@@ -46,7 +48,7 @@ export function parseStructureOutline(text: string): OutlineVolume[] {
       const rawTitle = trimmed.replace(/^#\s+/, '').trim();
       const { text: titleText, isLocked } = stripLockMarkers(rawTitle);
       currentVolume = {
-        title: titleText || '新分卷',
+        title: titleText || OUTLINE_DEFAULT_VOLUME_NAME,
         content: '',
         chapters: [],
         isLocked
@@ -57,7 +59,7 @@ export function parseStructureOutline(text: string): OutlineVolume[] {
       const rawTitle = trimmed.replace(/^##\s+/, '').trim();
       const { text: titleText, isLocked } = stripLockMarkers(rawTitle);
       currentChapter = {
-        title: titleText || '新章节',
+        title: titleText || OUTLINE_DEFAULT_CHAPTER_NAME,
         content: '',
         details: [],
         isLocked
@@ -66,7 +68,7 @@ export function parseStructureOutline(text: string): OutlineVolume[] {
       // 如果大纲一上来就是章节标题，隐式为其创建一个默认正文卷
       if (!currentVolume) {
         currentVolume = {
-          title: '第一卷：正文',
+          title: OUTLINE_DEFAULT_FIRST_VOLUME,
           content: '全局默认分卷',
           chapters: []
         };
@@ -97,7 +99,7 @@ export function parseStructureOutline(text: string): OutlineVolume[] {
   // 兜底保障：如果没有解析到任何分卷，尝试隐式补充一个正文卷
   if (volumes.length === 0) {
     volumes.push({
-      title: '第一卷：正文',
+      title: OUTLINE_DEFAULT_FIRST_VOLUME,
       content: '全局默认分卷',
       chapters: []
     });
@@ -153,7 +155,7 @@ export function renumberVolumesAndChapters(volumes: OutlineVolume[]): OutlineVol
 
     // 过滤导言类非正文卷
     const isIntro = vIdx === 0 && (remainingVolTitle.includes('导言') || remainingVolTitle.includes('前言') || remainingVolTitle.includes('简介') || remainingVolTitle === '正文');
-    const volTitle = isIntro ? remainingVolTitle : `第${getChineseNumber(volIdx)}卷：${remainingVolTitle || '新分卷'}`;
+    const volTitle = isIntro ? remainingVolTitle : `第${getChineseNumber(volIdx)}卷：${remainingVolTitle || OUTLINE_DEFAULT_VOLUME_NAME}`;
     if (!isIntro) volIdx++;
 
     const newChapters = vol.chapters.map((sec) => {
@@ -165,7 +167,7 @@ export function renumberVolumesAndChapters(volumes: OutlineVolume[]): OutlineVol
       chapIdx++;
       return {
         ...sec,
-        title: `第${chapNum}章：${remainingTitle || '新章节'}`
+        title: `第${chapNum}章：${remainingTitle || OUTLINE_DEFAULT_CHAPTER_NAME}`
       };
     });
 

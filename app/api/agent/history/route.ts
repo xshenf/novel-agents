@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { checkpointer } from '@/lib/agent/graph';
+import { checkpointer } from '@/lib/agent/checkpointer';
 
 export async function GET(request: Request) {
   try {

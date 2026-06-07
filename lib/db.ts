@@ -126,6 +126,11 @@ export interface AgentMessage {
   createdAt: string;
 }
 
+function getCurrentUserId(): string {
+  // TODO: Replace with actual auth-based user ID
+  return 'default_user';
+}
+
 // 辅助序列化/反序列化格式化函数
 function formatProject(p: PrismaProject): NovelProject {
   const rawModels = (p as any).modelsConfig ? JSON.parse((p as any).modelsConfig) as any[] : [];
@@ -216,7 +221,7 @@ export const db = {
     const created = await prisma.novelProject.create({
       data: {
         id,
-        userId: 'default_user',
+        userId: getCurrentUserId(),
         title: project.title,
         description: project.description,
         styleSetting: project.styleSetting,
@@ -567,7 +572,7 @@ export const db = {
       data: {
         id: msg.id,
         projectId,
-        userId: 'default_user',
+        userId: getCurrentUserId(),
         type: msg.type,
         agent: msg.agent,
         label: msg.label,
@@ -592,7 +597,7 @@ export const db = {
           data: {
             id: msg.id,
             projectId,
-            userId: 'default_user',
+            userId: getCurrentUserId(),
             type: msg.type,
             agent: msg.agent,
             label: msg.label,

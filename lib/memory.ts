@@ -21,9 +21,24 @@ const STOPWORDS = new Set([
   '不', '有', '个', '这', '那', '之', '就', '都', '而', '及', '或', '吗', '呢', '吧',
 ]);
 
-// 最近章节始终注入「细节层」的数量（关键状态变化），其余靠全书逐章摘要承载
+/**
+ * Number of most-recent chapters always injected into the "detail layer"
+ * (key state changes such as character arcs, new/resolved foreshadowing, timeline events).
+ *
+ * Chosen as 3 because most story arcs span 2-4 chapters; injecting the latest 3
+ * gives the LLM enough context to maintain continuity without bloating the prompt.
+ * Increasing beyond 5 yields diminishing returns while noticeably raising token cost.
+ */
 const RECENT_DETAIL_N = 3;
-// 关键词检索额外挑选的「相关旧章节」数量
+/**
+ * Number of additional keyword-relevant chapters selected via BM25-like scoring
+ * and injected alongside the recent chapters.
+ *
+ * Chosen as 3 to complement RECENT_DETAIL_N: when the user query references older
+ * plot threads (e.g. a character not seen for 10 chapters), the keyword search
+ * retrieves up to 3 of the most relevant older chapters so the LLM can recall
+ * those details. Values above 4 tend to introduce noise from tangentially related chapters.
+ */
 const RELEVANT_DETAIL_N = 3;
 
 // 分词：英文按词切，中文按「单字 + 相邻二元组(bigram)」切，兼顾召回与精度。

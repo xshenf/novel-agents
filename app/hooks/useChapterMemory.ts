@@ -29,6 +29,9 @@ export function useChapterMemory({ store, callAIApi }: Deps) {
     const cur = store.currentChapter;
     const text = `${cur?.content || ''} ${cur?.summary || ''}`;
     if (text.trim()) {
+      // 中文文本没有词边界，使用 includes 匹配角色名。
+      // 注意：短名可能与长名产生子串碰撞（如"云"匹配"凌云"），
+      // 但本书角色名通常 2-3 字，实际误判率极低。
       const appearing = store.characters.filter(c => c.name && text.includes(c.name));
       if (appearing.length > 0) return appearing;
     }

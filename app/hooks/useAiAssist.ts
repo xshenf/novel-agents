@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
+import { showNotification } from '@/lib/utils';
 
 export interface InspCharacter {
   id: string;
@@ -157,7 +158,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
-      alert('生成设定灵感失败，请稍后重试。');
+      showNotification('生成设定灵感失败，请稍后重试。');
     } finally {
       setIsInspirationLoading(false);
     }
@@ -170,7 +171,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
     const rulesToImport = inspRules.filter(r => r.checked);
 
     if (charsToImport.length === 0 && rulesToImport.length === 0) {
-      alert('您没有勾选任何设定灵感！');
+      showNotification('您没有勾选任何设定灵感！');
       return;
     }
 
@@ -207,9 +208,9 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
       await store.fetchWorldRules(store.currentProject.id);
 
       setShowInspirationsModal(false);
-      alert('灵感设定导入成功！');
+      showNotification('灵感设定导入成功！');
     } catch (err) {
-      alert('导入部分或全部设定时出错');
+      showNotification('导入部分或全部设定时出错');
     } finally {
       setIsAiLoading(false);
     }

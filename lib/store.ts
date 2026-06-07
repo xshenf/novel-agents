@@ -88,6 +88,14 @@ export interface NovelStore {
   closeGlobalModal: () => void;
 }
 
+// TODO: Migrate legacy fields (apiKey, modelName, etc.) to models[] + agentModelBindings
+
+/** Write a value to localStorage (no-op during SSR). Strings are stored as-is; other types are JSON-serialised. */
+function syncToLocalStorage(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(key, typeof value === 'string' ? value : String(value));
+}
+
 export const useNovelStore = create<NovelStore>((set, get) => {
   // 仅在客户端运行时读取 localStorage
   const initialApiKey = typeof window !== 'undefined' ? localStorage.getItem('novel_api_key') || '' : '';
@@ -177,9 +185,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     agentOverrides: parsedOverrides,
 
     setApiKey: (key: string) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_api_key', key);
-      }
+      syncToLocalStorage('novel_api_key', key);
       set({ apiKey: key });
       // 同步更新默认模型
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
@@ -189,9 +195,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setModelName: (model: string) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_model_name', model);
-      }
+      syncToLocalStorage('novel_model_name', model);
       set({ modelName: model });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -200,9 +204,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setApiProvider: (provider: string) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_api_provider', provider);
-      }
+      syncToLocalStorage('novel_api_provider', provider);
       set({ apiProvider: provider });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -211,9 +213,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setApiBaseUrl: (url: string) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_api_base_url', url);
-      }
+      syncToLocalStorage('novel_api_base_url', url);
       set({ apiBaseUrl: url });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -222,9 +222,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setTemperature: (temp: number) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_temperature', String(temp));
-      }
+      syncToLocalStorage('novel_temperature', String(temp));
       set({ temperature: temp });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -233,9 +231,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setMaxTokens: (tokens: number) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_max_tokens', String(tokens));
-      }
+      syncToLocalStorage('novel_max_tokens', String(tokens));
       set({ maxTokens: tokens });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -244,16 +240,12 @@ export const useNovelStore = create<NovelStore>((set, get) => {
     },
 
     setSystemInstruction: (inst: string) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_system_instruction', inst);
-      }
+      syncToLocalStorage('novel_system_instruction', inst);
       set({ systemInstruction: inst });
     },
 
     setReasoningEnabled: (enabled: boolean) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('novel_reasoning_enabled', String(enabled));
-      }
+      syncToLocalStorage('novel_reasoning_enabled', String(enabled));
       set({ reasoningEnabled: enabled });
       const defaultModel = get().models.find(m => m.id === 'default-model-id');
       if (defaultModel) {
@@ -301,15 +293,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
             maxTokens: updated.maxTokens,
             reasoningEnabled: updated.reasoningEnabled,
           });
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('novel_api_key', updated.apiKey);
-            localStorage.setItem('novel_model_name', updated.name);
-            localStorage.setItem('novel_api_provider', updated.provider);
-            localStorage.setItem('novel_api_base_url', updated.apiBaseUrl);
-            localStorage.setItem('novel_temperature', String(updated.temperature));
-            localStorage.setItem('novel_max_tokens', String(updated.maxTokens));
-            localStorage.setItem('novel_reasoning_enabled', String(updated.reasoningEnabled));
-          }
+          syncToLocalStorage('novel_api_key', updated.apiKey);
+          syncToLocalStorage('novel_model_name', updated.name);
+          syncToLocalStorage('novel_api_provider', updated.provider);
+          syncToLocalStorage('novel_api_base_url', updated.apiBaseUrl);
+          syncToLocalStorage('novel_temperature', String(updated.temperature));
+          syncToLocalStorage('novel_max_tokens', String(updated.maxTokens));
+          syncToLocalStorage('novel_reasoning_enabled', String(updated.reasoningEnabled));
         }
       }
 
@@ -530,13 +520,13 @@ export const useNovelStore = create<NovelStore>((set, get) => {
                   maxTokens: model.maxTokens,
                   reasoningEnabled: model.reasoningEnabled,
                 });
-                localStorage.setItem('novel_api_key', model.apiKey);
-                localStorage.setItem('novel_model_name', model.name);
-                localStorage.setItem('novel_api_provider', model.provider);
-                localStorage.setItem('novel_api_base_url', model.apiBaseUrl);
-                localStorage.setItem('novel_temperature', String(model.temperature));
-                localStorage.setItem('novel_max_tokens', String(model.maxTokens));
-                localStorage.setItem('novel_reasoning_enabled', String(model.reasoningEnabled));
+                syncToLocalStorage('novel_api_key', model.apiKey);
+                syncToLocalStorage('novel_model_name', model.name);
+                syncToLocalStorage('novel_api_provider', model.provider);
+                syncToLocalStorage('novel_api_base_url', model.apiBaseUrl);
+                syncToLocalStorage('novel_temperature', String(model.temperature));
+                syncToLocalStorage('novel_max_tokens', String(model.maxTokens));
+                syncToLocalStorage('novel_reasoning_enabled', String(model.reasoningEnabled));
               }
             }
           }

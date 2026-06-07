@@ -12,9 +12,9 @@ interface CreateSnapshotParams {
   source?: 'manual' | 'auto' | 'ai';
 }
 
-export async function createVersionSnapshot(params: CreateSnapshotParams): Promise<void> {
+export async function createVersionSnapshot(params: CreateSnapshotParams): Promise<{ id: string } | null> {
   try {
-    await fetch('/api/versions', {
+    const res = await fetch('/api/versions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -23,7 +23,13 @@ export async function createVersionSnapshot(params: CreateSnapshotParams): Promi
         source: params.source || 'auto',
       }),
     });
+    if (res.ok) {
+      const body = await res.json();
+      return { id: body.id ?? '' };
+    }
+    return null;
   } catch {
     // 快照创建失败不应阻塞主流程
+    return null;
   }
 }

@@ -48,11 +48,11 @@ export const MATERIALS_LIST: MaterialItem[] = [
   { id: 'worldState', label: '世界状态', icon: Globe, color: '#22d3ee', group: 'story' },
 ];
 
-const ASSET_MATERIAL_IDS = new Set([
-  'character', 'location', 'faction', 'item', 'currency',
-  'skillSystem', 'relation', 'foreshadow', 'plot', 'subPlot',
-  'timeline', 'events', 'worldState'
-]);
+// 从 MATERIALS_LIST 的 group 字段派生资产类素材 ID 集合（group 为 'world' 或 'story' 的属于资产），
+// 避免与列表定义不同步。
+const ASSET_MATERIAL_IDS = new Set(
+  MATERIALS_LIST.filter(m => m.group === 'world' || m.group === 'story').map(m => m.id)
+);
 
 // 管理素材磁贴选中态、当前子 Tab 与大纲搜索
 export function useMaterialTabs(urlMaterial?: string | null) {

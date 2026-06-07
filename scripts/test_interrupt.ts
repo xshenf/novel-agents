@@ -35,6 +35,10 @@ async function makeLockedProject(): Promise<string> {
   return proj.id;
 }
 
+// NOTE: This script uses the real database (same as the app). Ideally it should
+// use an in-memory SQLite instance (Prisma with `url: "file::memory:"`) to
+// avoid any risk of polluting the development database.
+
 // 一个场景：编导委派 planner，planner 调 delete_volume 删除锁定分卷 → 应在 interrupt 暂停 → resume 决定结果
 // 注意：resume 用真值字符串（'confirm'/'cancel'），不能用 false——langgraph 会把 falsy 的 Command 当成空输入报错。
 async function scenario(decision: 'confirm' | 'cancel') {
@@ -73,9 +77,27 @@ async function scenario(decision: 'confirm' | 'cancel') {
 
 async function run() {
   console.log('开始执行锁定项 interrupt 人工确认测试...');
-  await scenario('cancel');  // 取消
-  await scenario('confirm'); // 确认
+  const errors: string[] = [];
+  try {
+    try {
+      await scenario('cancel');  // 取消
+    } catch (e: any) {
+      errors.push(`[cancel] ${e?.message || e}`);
+    }
+    try {
+      await scenario('confirm'); // 确认
+    } catch (e: any) {
+      errors.push(`[confirm] ${e?.message || e}`);
+    }
+  } finally {
+    if (errors.length > 0) {
+      console.error('\n以下场景失败:\n' + errors.join('\n'));
+      throw new Error(`${errors.length} scenario(s) failed`);
+    }
+  }
   console.log('\n所有 interrupt 人工确认测试用例均验证通过！\n');
 }
 
-run().then(() => process.exit(0)).catch(e => { console.error('ERR', e?.message || e); process.exit(1); });
+run()
+  .then(() => process.exit(0))
+  .catch(e => { console.error('ERR', e?.message || e); process.exit(1); });

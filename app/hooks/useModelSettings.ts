@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { type NovelStore, ModelConfig } from '@/lib/store';
+import { DEFAULT_API_PROVIDER, DEFAULT_MODEL_NAME, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS } from '@/lib/constants';
+import { showNotification } from '@/lib/utils';
 
 export interface EditModelForm {
   provider: string;
@@ -23,18 +25,67 @@ export const AGENTS_LIST = [
   { id: 'editor', label: '一致性自检智能体 (Editor)', color: 'var(--agent-editor)' }
 ];
 
+/**
+ * 从表单或 store 构建 AI API 请求参数。
+ * 优先使用 targetForm，否则按 orchestrator 绑定模型 -> 第一个模型 -> store 全局属性回退。
+ */
+function buildModelParams(store: NovelStore, targetForm?: EditModelForm): { apiKeyParam: string; modelNameParam: string } {
+  if (targetForm) {
+    return {
+      apiKeyParam: JSON.stringify({
+        apiKey: targetForm.apiKey,
+        apiProvider: targetForm.provider,
+        apiBaseUrl: targetForm.apiBaseUrl,
+        temperature: targetForm.temperature,
+        maxTokens: targetForm.maxTokens,
+        systemInstruction: '',
+        reasoningEnabled: targetForm.reasoningEnabled === true
+      }),
+      modelNameParam: targetForm.name,
+    };
+  }
+  const modelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
+  const model = store.models.find(m => m.id === modelId) || store.models[0];
+  if (model) {
+    return {
+      apiKeyParam: JSON.stringify({
+        apiKey: model.apiKey,
+        apiProvider: model.provider,
+        apiBaseUrl: model.apiBaseUrl,
+        temperature: model.temperature,
+        maxTokens: model.maxTokens,
+        systemInstruction: '',
+        reasoningEnabled: model.reasoningEnabled === true
+      }),
+      modelNameParam: model.name,
+    };
+  }
+  return {
+    apiKeyParam: JSON.stringify({
+      apiKey: store.apiKey,
+      apiProvider: store.apiProvider,
+      apiBaseUrl: store.apiBaseUrl,
+      temperature: store.temperature,
+      maxTokens: store.maxTokens,
+      systemInstruction: '',
+      reasoningEnabled: store.reasoningEnabled === true
+    }),
+    modelNameParam: store.modelName,
+  };
+}
+
 export function useModelSettings(store: NovelStore) {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'models' | 'bindings' | 'prompts'>('models');
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [editModelForm, setEditModelForm] = useState<EditModelForm>({
-    provider: 'gemini',
-    name: 'gemini-2.5-flash',
+    provider: DEFAULT_API_PROVIDER,
+    name: DEFAULT_MODEL_NAME,
     alias: '我的 Gemini',
     apiKey: '',
     apiBaseUrl: '',
-    temperature: 0.7,
-    maxTokens: 3000,
+    temperature: DEFAULT_TEMPERATURE,
+    maxTokens: DEFAULT_MAX_TOKENS,
     reasoningEnabled: false,
     concurrency: 3
   });
@@ -53,47 +104,7 @@ export function useModelSettings(store: NovelStore) {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     try {
-      let apiKeyParam = '';
-      let modelNameParam = '';
-      if (targetForm) {
-        apiKeyParam = JSON.stringify({
-          apiKey: targetForm.apiKey,
-          apiProvider: targetForm.provider,
-          apiBaseUrl: targetForm.apiBaseUrl,
-          temperature: targetForm.temperature,
-          maxTokens: targetForm.maxTokens,
-          systemInstruction: '',
-          reasoningEnabled: targetForm.reasoningEnabled === true
-        });
-        modelNameParam = targetForm.name;
-      } else {
-        const modelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
-        const model = store.models.find(m => m.id === modelId) || store.models[0];
-        if (model) {
-          apiKeyParam = JSON.stringify({
-            apiKey: model.apiKey,
-            apiProvider: model.provider,
-            apiBaseUrl: model.apiBaseUrl,
-            temperature: model.temperature,
-            maxTokens: model.maxTokens,
-            systemInstruction: '',
-            reasoningEnabled: model.reasoningEnabled === true
-          });
-          modelNameParam = model.name;
-        } else {
-          // 降级使用 store 的旧全局属性
-          apiKeyParam = JSON.stringify({
-            apiKey: store.apiKey,
-            apiProvider: store.apiProvider,
-            apiBaseUrl: store.apiBaseUrl,
-            temperature: store.temperature,
-            maxTokens: store.maxTokens,
-            systemInstruction: '',
-            reasoningEnabled: store.reasoningEnabled === true
-          });
-          modelNameParam = store.modelName;
-        }
-      }
+      const { apiKeyParam, modelNameParam } = buildModelParams(store, targetForm);
 
       const res = await fetch('/api/ai', {
         method: 'POST',
@@ -129,7 +140,7 @@ export function useModelSettings(store: NovelStore) {
   const handleFetchModels = useCallback(async (targetForm?: EditModelForm) => {
     const keyToTest = targetForm ? targetForm.apiKey : store.apiKey;
     if (!keyToTest) {
-      alert('请先输入 API 密钥 (API Key)');
+      showNotification('请先输入 API 密钥 (API Key)');
       return;
     }
     setFetchingModels(true);
@@ -137,46 +148,7 @@ export function useModelSettings(store: NovelStore) {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     try {
-      let apiKeyParam = '';
-      let modelNameParam = '';
-      if (targetForm) {
-        apiKeyParam = JSON.stringify({
-          apiKey: targetForm.apiKey,
-          apiProvider: targetForm.provider,
-          apiBaseUrl: targetForm.apiBaseUrl,
-          temperature: targetForm.temperature,
-          maxTokens: targetForm.maxTokens,
-          systemInstruction: '',
-          reasoningEnabled: targetForm.reasoningEnabled === true
-        });
-        modelNameParam = targetForm.name;
-      } else {
-        const modelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
-        const model = store.models.find(m => m.id === modelId) || store.models[0];
-        if (model) {
-          apiKeyParam = JSON.stringify({
-            apiKey: model.apiKey,
-            apiProvider: model.provider,
-            apiBaseUrl: model.apiBaseUrl,
-            temperature: model.temperature,
-            maxTokens: model.maxTokens,
-            systemInstruction: '',
-            reasoningEnabled: model.reasoningEnabled === true
-          });
-          modelNameParam = model.name;
-        } else {
-          apiKeyParam = JSON.stringify({
-            apiKey: store.apiKey,
-            apiProvider: store.apiProvider,
-            apiBaseUrl: store.apiBaseUrl,
-            temperature: store.temperature,
-            maxTokens: store.maxTokens,
-            systemInstruction: '',
-            reasoningEnabled: store.reasoningEnabled === true
-          });
-          modelNameParam = store.modelName;
-        }
-      }
+      const { apiKeyParam, modelNameParam } = buildModelParams(store, targetForm);
 
       const res = await fetch('/api/ai', {
         method: 'POST',
@@ -212,13 +184,13 @@ export function useModelSettings(store: NovelStore) {
   const handleAddNewModel = useCallback(() => {
     setEditingModelId('new');
     setEditModelForm({
-      provider: 'gemini',
-      name: 'gemini-2.5-flash',
+      provider: DEFAULT_API_PROVIDER,
+      name: DEFAULT_MODEL_NAME,
       alias: '新大模型',
       apiKey: '',
       apiBaseUrl: '',
-      temperature: 0.7,
-      maxTokens: 3000,
+      temperature: DEFAULT_TEMPERATURE,
+      maxTokens: DEFAULT_MAX_TOKENS,
       reasoningEnabled: false,
       concurrency: 3
     });
@@ -247,11 +219,11 @@ export function useModelSettings(store: NovelStore) {
 
   const handleSaveModel = useCallback(() => {
     if (!editModelForm.alias.trim()) {
-      alert('请输入模型别名');
+      showNotification('请输入模型别名');
       return;
     }
     if (!editModelForm.name.trim()) {
-      alert('请输入模型名称');
+      showNotification('请输入模型名称');
       return;
     }
     if (editingModelId === 'new') {

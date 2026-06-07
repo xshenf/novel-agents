@@ -11,16 +11,20 @@ export function useAiClient(): CallAIApi {
     const action = bodyParams.action;
 
     // 动作与智能体职能角色的映射
-    let agentRole = 'orchestrator';
-    if (action === 'autoPlanBook' || action === 'outline' || action === 'generateKernel' || action === 'chat') {
-      agentRole = 'planner';
-    } else if (action === 'generateInspirations') {
-      agentRole = 'lore_builder';
-    } else if (action === 'autoWrite' || action === 'continue') {
-      agentRole = 'writer';
-    } else if (action === 'polish' || action === 'selfCheck' || action === 'summarize' || action === 'foldSynopsis') {
-      agentRole = 'editor';
-    }
+    const AGENT_ROLE_MAP: Record<string, string> = {
+      autoPlanBook: 'planner',
+      outline: 'planner',
+      generateKernel: 'planner',
+      chat: 'planner',
+      generateInspirations: 'lore_builder',
+      autoWrite: 'writer',
+      continue: 'writer',
+      polish: 'editor',
+      selfCheck: 'editor',
+      summarize: 'editor',
+      foldSynopsis: 'editor',
+    };
+    const agentRole = AGENT_ROLE_MAP[action] || 'orchestrator';
 
     const modelId = store.agentModelBindings[agentRole] || store.models[0]?.id;
     const model = store.models.find(m => m.id === modelId) || store.models[0];
