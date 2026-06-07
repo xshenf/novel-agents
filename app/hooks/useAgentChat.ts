@@ -40,6 +40,12 @@ export function useAgentChat(store: NovelStore) {
   const [isAgentLoading, setIsAgentLoading] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const agentBottomRef = useRef<HTMLDivElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelAgentRequest = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  };
 
   const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth', delay = 50) => {
@@ -121,6 +127,15 @@ export function useAgentChat(store: NovelStore) {
     const decoder = new TextDecoder();
     let buffer = '';
     let streamingMsgId: string | null = null;
+    let lastThinkingMsgId: string | null = null;
+
+    const removeLastThinking = () => {
+      if (lastThinkingMsgId) {
+        const tid = lastThinkingMsgId;
+        saveAndSetAgentMessages(prev => prev.filter(m => m.id !== tid));
+        lastThinkingMsgId = null;
+      }
+    };
 
     const stopStreaming = () => {
       if (streamingMsgId) {
@@ -151,8 +166,10 @@ export function useAgentChat(store: NovelStore) {
         switch (eventType) {
           case 'thinking':
             stopStreaming();
+            const thinkingId = data.id || msgId();
+            lastThinkingMsgId = thinkingId;
             saveAndSetAgentMessages(prev => [...prev, {
-              id: data.id || msgId(),
+              id: thinkingId,
               type: 'thinking',
               agent: data.agent,
               label: data.label,
@@ -162,6 +179,7 @@ export function useAgentChat(store: NovelStore) {
             break;
 
           case 'token':
+            removeLastThinking();
             if (!streamingMsgId) {
               const newId = data.id || msgId();
               streamingMsgId = newId;
@@ -184,6 +202,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'tool_call':
             stopStreaming();
+            removeLastThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'tool_call',
@@ -209,6 +228,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'delegate':
             stopStreaming();
+            removeLastThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'delegate',
@@ -222,11 +242,13 @@ export function useAgentChat(store: NovelStore) {
             break;
 
           case 'final_answer':
+            removeLastThinking();
             if (streamingMsgId) {
+              // Content was already streamed via token events — just stop streaming
               const sid = streamingMsgId;
               streamingMsgId = null;
               saveAndSetAgentMessages(prev => prev.map(m =>
-                m.id === sid ? { ...m, content: data.content, streaming: false } : m
+                m.id === sid ? { ...m, streaming: false } : m
               ));
             } else {
               saveAndSetAgentMessages(prev => [...prev, {
@@ -248,6 +270,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'confirm': {
             stopStreaming();
+            removeLastThinking();
             const p = data.payload || {};
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
@@ -262,6 +285,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'done':
             stopStreaming();
+            removeLastThinking();
             if (store.currentProject) {
               store.fetchCharacters(store.currentProject.id);
               store.fetchWorldRules(store.currentProject.id);
@@ -271,6 +295,7 @@ export function useAgentChat(store: NovelStore) {
 
           case 'error':
             stopStreaming();
+            removeLastThinking();
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'error',
@@ -310,9 +335,12 @@ export function useAgentChat(store: NovelStore) {
     setIsAgentLoading(true);
 
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           projectId: store.currentProject.id,
           message: userMsg,
@@ -326,12 +354,14 @@ export function useAgentChat(store: NovelStore) {
       }
       await processAgentStream(response);
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,
         type: 'error',
         content: err.message || '连接 Agent 失败，请检查网络和 API Key',
       }]);
     } finally {
+      abortControllerRef.current = null;
       setIsAgentLoading(false);
       scrollToBottom('smooth', 100);
     }
@@ -343,9 +373,12 @@ export function useAgentChat(store: NovelStore) {
     setPendingConfirm(null);
     setIsAgentLoading(true);
     try {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           projectId: store.currentProject.id,
           resume: decision,
@@ -357,12 +390,14 @@ export function useAgentChat(store: NovelStore) {
       }
       await processAgentStream(response);
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,
         type: 'error',
         content: err.message || '恢复执行失败',
       }]);
     } finally {
+      abortControllerRef.current = null;
       setIsAgentLoading(false);
       scrollToBottom('smooth', 100);
     }
@@ -379,5 +414,6 @@ export function useAgentChat(store: NovelStore) {
     handleSendAgentMessage,
     pendingConfirm,
     resolveConfirm,
+    cancelAgentRequest,
   };
 }

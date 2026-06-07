@@ -8,6 +8,10 @@ import { db } from '@/lib/db';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 分钟超时
 
+// 简易内存限流：每个项目最多 3 个并发 agent 请求
+const activeRequests = new Map<string, number>();
+const MAX_CONCURRENT_PER_PROJECT = 3;
+
 export async function POST(request: NextRequest) {
   let body: any;
   try {
@@ -29,6 +33,16 @@ export async function POST(request: NextRequest) {
   if (!project) {
     return new Response(JSON.stringify({ error: '项目不存在' }), { status: 404 });
   }
+
+  // 限流检查：同一项目最多 MAX_CONCURRENT_PER_PROJECT 个并发 agent 请求
+  const currentActive = activeRequests.get(projectId) || 0;
+  if (currentActive >= MAX_CONCURRENT_PER_PROJECT) {
+    return new Response(
+      JSON.stringify({ error: '该项目当前并发请求数已达上限，请稍后再试' }),
+      { status: 429 }
+    );
+  }
+  activeRequests.set(projectId, currentActive + 1);
 
   // 打包 API 配置
   let packedApiKey = apiKey || '';
@@ -66,6 +80,12 @@ export async function POST(request: NextRequest) {
           } catch { /* controller 已关闭时忽略 */ }
         }, 15000);
 
+        // 客户端断开连接时主动清理，避免继续执行无意义的 agent 任务
+        request.signal.addEventListener('abort', () => {
+          if (heartbeat) clearInterval(heartbeat);
+          controller.close();
+        });
+
         // 初次请求才保存用户消息；resume（确认/取消）不是新的用户输入
         if (!isResume) {
           const userMsgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -101,6 +121,9 @@ export async function POST(request: NextRequest) {
         let currentAnswerMsgId = '';
 
         for await (const event of eventStream) {
+          // 客户端已断开，提前终止事件循环
+          if (request.signal.aborted) break;
+
           const { event: eventType, name, data } = event;
 
           // Agent 开始执行
@@ -278,6 +301,13 @@ export async function POST(request: NextRequest) {
       } finally {
         if (heartbeat) clearInterval(heartbeat);
         controller.close();
+        // 释放该项目的并发计数
+        const count = activeRequests.get(projectId) || 0;
+        if (count <= 1) {
+          activeRequests.delete(projectId);
+        } else {
+          activeRequests.set(projectId, count - 1);
+        }
       }
     },
   });

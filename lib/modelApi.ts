@@ -159,3 +159,61 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     return text;
   }
 }
+
+/**
+ * 动态获取当前服务商的可用模型列表
+ */
+export async function fetchModels(apiKey: string, apiProvider: string, apiBaseUrl?: string): Promise<string[]> {
+  if (!apiKey) {
+    throw new Error('获取模型列表需要提供 API Key');
+  }
+
+  try {
+    if (apiProvider === 'gemini') {
+      const rawBaseUrl = apiBaseUrl ? apiBaseUrl.trim() : 'https://generativelanguage.googleapis.com';
+      const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+      const url = `${baseUrl}/v1beta/models`;
+
+      const res = await fetch(url, { headers: { 'x-goog-api-key': apiKey } });
+      if (!res.ok) {
+        throw new Error(`Gemini API returned status ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.models && Array.isArray(data.models)) {
+        // 提取模型名并过滤简化，去掉 models/ 前缀
+        return data.models.map((m: any) => {
+          const name = m.name || '';
+          return name.startsWith('models/') ? name.substring(7) : name;
+        });
+      }
+      return [];
+    } else {
+      // OpenAI 兼容接口
+      let rawBaseUrl = 'https://api.openai.com/v1';
+      if (apiProvider === 'deepseek') {
+        rawBaseUrl = 'https://api.deepseek.com/v1';
+      } else if (apiBaseUrl) {
+        rawBaseUrl = apiBaseUrl.trim();
+      }
+      const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+      const url = `${baseUrl}/models`;
+
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`${apiProvider} API returned status ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.data && Array.isArray(data.data)) {
+        return data.data.map((m: any) => m.id || '').filter(Boolean);
+      }
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Fetch models error:', error);
+    throw new Error(`获取模型列表失败: ${error.message || '未知错误'}`);
+  }
+}

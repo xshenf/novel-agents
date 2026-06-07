@@ -91,7 +91,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
         if (store.currentProject) {
           try {
             await callAIApi({ action: 'foldSynopsis', projectId: store.currentProject.id });
-          } catch { /* 概要更新失败不阻断摘要流程 */ }
+          } catch (e) { console.warn('[摘要] 全书概要更新失败:', e); }
         }
         setSummarizeMsg(`已重算本章记忆：${data.summary}`);
       } else {

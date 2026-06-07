@@ -48,6 +48,7 @@ export const AgentState = Annotation.Root({
     default: () => 0,
   }),
   // 当前专家的工具调用次数：每次工具执行后 +1，进入新专家时重置为 0
+  // 注意：当前架构下专家是串行执行的，此计数器不存在并发竞争；若未来改为并行需修改 reducer
   specialistToolCalls: Annotation<number>({
     reducer: (_, y) => y,
     default: () => 0,
@@ -109,7 +110,7 @@ function buildLLM(apiConfig: string, modelName: string) {
       config.temperature = parsed.temperature !== undefined ? parsed.temperature : config.temperature;
       config.maxTokens = parsed.maxTokens !== undefined ? parsed.maxTokens : config.maxTokens;
       config.reasoningEnabled = parsed.reasoningEnabled === true;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[agent] apiConfig JSON 解析失败:', e); }
   }
 
   return buildLLMFromConfig(config);
@@ -368,7 +369,7 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
         overrides = parsed.agentOverrides || {};
         isMultiModel = true;
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[agent] apiConfig JSON 解析失败:', e); }
   }
 
   const getLLMForAgent = (agentRole: string) => {

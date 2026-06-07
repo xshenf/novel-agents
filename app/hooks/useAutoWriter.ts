@@ -125,8 +125,15 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
 
       const chap = activeChapters[i];
 
+      // Re-check chapter still exists in the store (user may have deleted it)
+      const freshChapter = useNovelStore.getState().chapters.find(c => c.id === chap.id);
+      if (!freshChapter) {
+        setAutoWritingStatus(`章节「${chap.title}」已被删除，跳过。`);
+        continue;
+      }
+
       // 跳过已有内容的章节（除非是当前选中的空白章节）
-      if (chap.content.trim() !== '' && store.currentChapter?.id !== chap.id) {
+      if (freshChapter.content.trim() !== '' && store.currentChapter?.id !== freshChapter.id) {
         continue;
       }
 
@@ -136,17 +143,40 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
       }
 
       // 切换当前章节为活动章节
-      store.setCurrentChapter(chap);
-      setAutoWritingStatus(`正在自动写小说正文: ${chap.title} ...`);
+      store.setCurrentChapter(freshChapter);
+      setAutoWritingStatus(`正在自动写小说正文: ${freshChapter.title} ...`);
 
       try {
-        // 调用 AI 自动写小说接口
-        const writeRes = await callAIApi({
-          action: 'autoWrite',
-          projectId: store.currentProject.id,
-          chapterTitle: chap.title,
-          instruction: writeInstruction
-        });
+        // 调用 AI 自动写小说接口（最多重试 3 次）
+        let writeRes: Response | null = null;
+        let writeError: unknown = null;
+        const maxAttempts = 3;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            writeRes = await callAIApi({
+              action: 'autoWrite',
+              projectId: store.currentProject.id,
+              chapterTitle: freshChapter.title,
+              instruction: writeInstruction
+            });
+            break;
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') throw err;
+            if (autoWriteStopRef.current) throw err;
+
+            writeError = err;
+            if (attempt < maxAttempts) {
+              setAutoWritingStatus(`正在重试 (${attempt}/${maxAttempts}): ${freshChapter.title}`);
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+          }
+        }
+
+        if (!writeRes) {
+          throw writeError ?? new Error('自动写作失败：所有重试均已耗尽');
+        }
+
         const writeData = await writeRes.json();
 
         if (autoWriteStopRef.current) break;
@@ -157,11 +187,11 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
           setSaveStatus('dirty');
 
           // 更新数据库
-          await store.updateChapter(chap.id, { content: writeData.text });
+          await store.updateChapter(freshChapter.id, { content: writeData.text });
           setSaveStatus('saved');
 
           // 自动进行章节复盘摘要与设定记忆更新
-          setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${chap.title} ...`);
+          setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${freshChapter.title} ...`);
 
           const sumRes = await callAIApi({
             action: 'summarize',
@@ -173,7 +203,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
 
           if (sumData.summary) {
             // 更新章节结构化摘要与伏笔
-            await store.updateChapter(chap.id, {
+            await store.updateChapter(freshChapter.id, {
               summary: sumData.summary,
               characterChanges: sumData.characterChanges || [],
               newForeshadowing: sumData.newForeshadowing || [],
@@ -219,7 +249,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
         }
       } catch (error) {
         console.error('自动写作章节出错:', error);
-        setAutoWritingStatus(`在自动写入 ${chap.title} 时遇到问题。`);
+        setAutoWritingStatus(`在自动写入 ${freshChapter.title} 时遇到问题。`);
         break;
       }
     }

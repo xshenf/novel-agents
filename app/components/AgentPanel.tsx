@@ -45,7 +45,7 @@ export function AgentPanel() {
       <div className="workspace-ai-panel" style={{ width: aiPanelWidth, minWidth: 240, maxWidth: 600, flexShrink: 0 }}>
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.01)' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>协同创作模式：5位智能体在线</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-dark)' }}>协同创作模式：编导 + 4位专家就绪</span>
             {agentMessages.length > 0 && (
               <button
                 type="button"
