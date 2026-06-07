@@ -32,7 +32,7 @@ export function useCreationModals(store: NovelStore) {
       await store.createChapter(store.currentProject.id, newChapTitle);
       setShowNewChapModal(false);
       setNewChapTitle('');
-    } catch (err) {}
+    } catch (err) { console.error('创建失败:', err); }
   };
 
   const handleCreateCharacter = async (e: FormEvent) => {
@@ -60,7 +60,7 @@ export function useCreationModals(store: NovelStore) {
       setNewCharGoals('');
       setNewCharState('');
       setNewCharForbidden('');
-    } catch (err) {}
+    } catch (err) { console.error('创建失败:', err); }
   };
 
   const handleCreateRule = async (e: FormEvent) => {
@@ -77,7 +77,7 @@ export function useCreationModals(store: NovelStore) {
       setNewRuleName('');
       setNewRuleType('location');
       setNewRuleDesc('');
-    } catch (err) {}
+    } catch (err) { console.error('创建失败:', err); }
   };
 
   return {

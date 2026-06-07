@@ -98,7 +98,7 @@ export function useChapterMemory({ store, callAIApi }: Deps) {
     if (!store.currentProject) return;
     try {
       await callAIApi({ action: 'foldWorldState', projectId: store.currentProject.id });
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('refreshWorldState failed:', e); }
     await store.fetchWorldStates(store.currentProject.id);
   }, [store, callAIApi]);
 

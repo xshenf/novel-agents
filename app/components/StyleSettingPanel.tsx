@@ -96,6 +96,9 @@ export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: Sty
     } catch { /* ignore */ }
   };
 
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
   useEffect(() => {
     if (selectedGenre === prevGenreRef.current && selectedTone === prevToneRef.current && selectedTags === prevTagsRef.current) return;
     prevGenreRef.current = selectedGenre;
@@ -118,7 +121,7 @@ export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: Sty
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (pendingSaveRef.current) {
         const { genre, tone, tags } = pendingSaveRef.current;
-        doSave(genre, tone, tags);
+        doSaveRef.current(genre, tone, tags);
       }
     };
   }, []);

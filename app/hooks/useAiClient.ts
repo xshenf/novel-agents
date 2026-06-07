@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useNovelStore } from '@/lib/store';
 
 export type CallAIApi = (bodyParams: Record<string, any>, signal?: AbortSignal) => Promise<Response>;
@@ -6,7 +7,7 @@ export type CallAIApi = (bodyParams: Record<string, any>, signal?: AbortSignal) 
 export function useAiClient(): CallAIApi {
   const store = useNovelStore();
 
-  const callAIApi: CallAIApi = async (bodyParams, signal) => {
+  const callAIApi: CallAIApi = useCallback(async (bodyParams, signal) => {
     const action = bodyParams.action;
 
     // 动作与智能体职能角色的映射
@@ -65,7 +66,7 @@ export function useAiClient(): CallAIApi {
       }),
       signal,
     });
-  };
+  }, [store]);
 
   return callAIApi;
 }

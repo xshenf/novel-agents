@@ -448,6 +448,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
         }));
       } catch (err: any) {
         set({ error: err.message, isLoading: false });
+        throw err;
       }
     },
 
@@ -485,7 +486,9 @@ export const useNovelStore = create<NovelStore>((set, get) => {
           projects: state.projects.map(p => p.id === id ? updated : p),
           currentProject: state.currentProject?.id === id ? updated : state.currentProject,
         }));
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn('refreshProject failed:', e);
+      }
     },
 
     setCurrentProject: (project) => {

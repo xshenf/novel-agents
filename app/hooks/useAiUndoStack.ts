@@ -18,12 +18,14 @@ export function useAiUndoStack() {
   }, []);
 
   const undo = useCallback(() => {
+    let toRestore: (() => void) | undefined;
     setStack(prev => {
       if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      last.restore();
+      toRestore = prev[prev.length - 1].restore;
       return prev.slice(0, -1);
     });
+    // 在 updater 外执行副作用
+    queueMicrotask(() => toRestore?.());
   }, []);
 
   const dismiss = useCallback(() => {

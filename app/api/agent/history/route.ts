@@ -49,8 +49,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: '缺少 projectId 参数' }, { status: 400 });
     }
 
+    try {
+      await checkpointer.deleteThread(projectId);
+    } catch (e) {
+      console.error('checkpointer 删除失败，继续删除数据库消息:', e);
+    }
     await db.clearAgentMessages(projectId);
-    await checkpointer.deleteThread(projectId);
     return NextResponse.json({ success: true, message: '历史对话已清空' });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '清空历史对话失败';

@@ -45,7 +45,7 @@ export function useOutlineAutoSave({
           data: tempOutlineFull,
           source: 'auto',
         });
-      } catch { /* ignore auto-save errors */ }
+      } catch (e) { console.warn('自动保存失败:', e); }
     }, delay);
     return () => { if (outlineTimer.current) clearTimeout(outlineTimer.current); };
   }, [tempOutlineFull, projectId, updateProject, delay]);
@@ -78,7 +78,7 @@ export function useOutlineAutoSave({
           data: { ...macro },
           source: 'auto',
         });
-      } catch { /* ignore auto-save errors */ }
+      } catch (e) { console.warn('自动保存失败:', e); }
     }, delay);
     return () => { if (macroTimer.current) clearTimeout(macroTimer.current); };
   }, [macro, projectId, updateProject, delay]);

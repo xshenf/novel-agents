@@ -41,7 +41,7 @@ export async function POST(request: Request) {
             realProvider = parsed.apiProvider || realProvider;
             realBaseUrl = parsed.apiBaseUrl || realBaseUrl;
           } catch (e) {
-            // ignore
+            console.warn('[ai] apiKey JSON 解析失败:', e);
           }
         }
 

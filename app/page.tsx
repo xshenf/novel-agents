@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNovelStore } from '@/lib/store';
 import { useAiClient } from './hooks/useAiClient';
 import { useWorkspaceRouting } from './hooks/useWorkspaceRouting';
@@ -31,6 +31,7 @@ import { WriteTab } from './components/WriteTab';
 import { OutlineTab } from './components/OutlineTab';
 import { VersionHistoryTab } from './components/VersionHistoryTab';
 import { AgentPanel } from './components/AgentPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function Home() {
   const store = useNovelStore();
@@ -38,9 +39,11 @@ export default function Home() {
   // 劫持浏览器默认的 alert 弹窗，替换为美观的主题提示模态框
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const origAlert = window.alert;
       window.alert = (message: string) => {
         store.showAlert(message);
       };
+      return () => { window.alert = origAlert; };
     }
   }, [store]);
   const callAIApi = useAiClient();
@@ -71,7 +74,7 @@ export default function Home() {
     setSaveStatus: editor.setSaveStatus,
   });
 
-  const value: WorkspaceContextValue = {
+  const value: WorkspaceContextValue = useMemo(() => ({
     store,
     ui: { isAiLoading, setIsAiLoading },
     routing,
@@ -88,7 +91,11 @@ export default function Home() {
     volumeActions,
     chapterMemory,
     inlineAi,
-  };
+  }), [
+    store, isAiLoading, setIsAiLoading, routing, editor, models, autoWriter,
+    agent, assist, wizard, kernel, modals, layout, outlineTree, volumeActions,
+    chapterMemory, inlineAi,
+  ]);
 
   if (!mounted) {
     return (
@@ -100,50 +107,52 @@ export default function Home() {
 
   return (
     <WorkspaceProvider value={value}>
-      <main>
-        <TopNav />
+      <ErrorBoundary>
+        <main>
+          <TopNav />
 
-        {/* 1. Dashboard 视图 */}
-        {!store.currentProject ? (
-          <Dashboard />
-        ) : (
-          /* 2. Workspace 写作工作台视图 */
-          <div className="workspace-layout" style={{ display: 'flex' }}>
-            <WorkspaceSidebar />
+          {/* 1. Dashboard 视图 */}
+          {!store.currentProject ? (
+            <Dashboard />
+          ) : (
+            /* 2. Workspace 写作工作台视图 */
+            <div className="workspace-layout" style={{ display: 'flex' }}>
+              <WorkspaceSidebar />
 
-            {/* 中间：主章节编辑器 / 大纲 / 设定 工作区 */}
-            <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', flexGrow: 1, minWidth: 300 }}>
-              <WorkspaceTabBar />
+              {/* 中间：主章节编辑器 / 大纲 / 设定 工作区 */}
+              <div className="workspace-main" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', flexGrow: 1, minWidth: 300 }}>
+                <WorkspaceTabBar />
 
-              {activeWorkspaceTab === 'write' ? (
-                <WriteTab />
-              ) : activeWorkspaceTab === 'outline' ? (
-                <OutlineTab />
-              ) : (
-                <VersionHistoryTab />
+                {activeWorkspaceTab === 'write' ? (
+                  <WriteTab />
+                ) : activeWorkspaceTab === 'outline' ? (
+                  <OutlineTab />
+                ) : (
+                  <VersionHistoryTab />
+                )}
+              </div>
+
+              <AgentPanel />
+
+              {/* workspace 内的向导弹窗（跳过向导后补全设定时使用） */}
+              {wizard.isWizardMode && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#0b0f19', overflow: 'auto' }}>
+                  <WizardPanel />
+                </div>
               )}
             </div>
+          )}
 
-            <AgentPanel />
-
-            {/* workspace 内的向导弹窗（跳过向导后补全设定时使用） */}
-            {wizard.isWizardMode && (
-              <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#0b0f19', overflow: 'auto' }}>
-                <WizardPanel />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ======= Modals ======= */}
-        <SettingsDrawer />
-        <InspirationsModal />
-        <NewChapterModal />
-        <NewCharModal />
-        <NewRuleModal />
-        <EditProjectModal />
-        <GlobalPromptModal />
-      </main>
+          {/* ======= Modals ======= */}
+          <SettingsDrawer />
+          <InspirationsModal />
+          <NewChapterModal />
+          <NewCharModal />
+          <NewRuleModal />
+          <EditProjectModal />
+          <GlobalPromptModal />
+        </main>
+      </ErrorBoundary>
     </WorkspaceProvider>
   );
 }

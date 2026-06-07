@@ -25,8 +25,13 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
     setSaveStatus('dirty');
     if (store.currentChapter) {
       setSaveStatus('saving');
-      await store.updateChapter(store.currentChapter.id, { content: next });
-      setSaveStatus('saved');
+      try {
+        await store.updateChapter(store.currentChapter.id, { content: next });
+        setSaveStatus('saved');
+      } catch (e) {
+        console.error('保存章节失败:', e);
+        setSaveStatus('dirty');
+      }
     }
   };
 
