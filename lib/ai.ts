@@ -1,6 +1,7 @@
 import { searchMemory } from './memory';
 import { db } from './db';
 import { formatAntiAiInstructions } from './rules';
+import { settingLengthHint } from './constants';
 
 export interface AIChatMessage {
   role: 'user' | 'model';
@@ -303,7 +304,8 @@ export const ai = {
     projectTitle: string, genre: string, tone: string,
     apiKey?: string, modelName?: string,
     onProgress?: (dimKey: string, dimLabel: string, index: number, total: number, dimOptions?: Array<{ name: string; description: string }>) => void,
-    _concurrency?: number // 保留参数兼容性，但不再使用并发
+    _concurrency?: number, // 保留参数兼容性，但不再使用并发
+    forbiddenSetting?: string // 禁止出现的设定/桥段
   ): Promise<any> {
     // 推演顺序：从基础到衍生，确保每个维度都能参考前面所有已完成的设定
     const dimensions = [
@@ -339,22 +341,27 @@ export const ai = {
             .join('\n')
         : '';
 
+      // 构建禁止设定约束
+      const forbiddenBlock = forbiddenSetting?.trim()
+        ? `\n5. 严禁出现以下设定、桥段或情节（极其重要，绝对不能违背）：\n${forbiddenSetting.trim()}`
+        : '';
+
       const systemInstruction = `你是一个专业的顶级网络小说总策划和架构师。你的任务是根据给定的书名、题材和文风，为小说的「${dim.label}」维度推演 3 套风格迥异、极具网文爽点与创意的备选方案。
 
 维度说明：${dim.desc}
 
 要求：
-1. 每套方案的 description 必须在 150-300 字之间，内容详实、有画面感、有具体细节，不能泛泛而谈。
+1. 每套方案的 description 必须在 ${settingLengthHint(dim.key)} 字之间，内容详实、有画面感、有具体细节，不能泛泛而谈。
 2. 三套方案之间风格差异要大，覆盖不同的网文流派和读者偏好。
 3. 必须符合「${genre}」题材和「${tone}」文风。
-4. 必须与已确定的其他维度设定保持一致，不能矛盾，要互相呼应和补充。
+4. 必须与已确定的其他维度设定保持一致，不能矛盾，要互相呼应和补充。${forbiddenBlock}
 
 请以纯 JSON 格式输出（不要 markdown 标记），结构如下：
 {
   "options": [
-    {"name": "方案A名称（6字以内）", "description": "方案A的详细描述，150-300字"},
-    {"name": "方案B名称（6字以内）", "description": "方案B的详细描述，150-300字"},
-    {"name": "方案C名称（6字以内）", "description": "方案C的详细描述，150-300字"}
+    {"name": "方案A名称（6字以内）", "description": "方案A的详细描述，${settingLengthHint(dim.key)}字"},
+    {"name": "方案B名称（6字以内）", "description": "方案B的详细描述，${settingLengthHint(dim.key)}字"},
+    {"name": "方案C名称（6字以内）", "description": "方案C的详细描述，${settingLengthHint(dim.key)}字"}
   ]
 }`;
 

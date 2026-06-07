@@ -1,7 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
+import { settingLengthHint } from '@/lib/constants';
 
 type RuleFilter = 'all' | 'location' | 'faction' | 'rule' | 'item' | 'other';
 
@@ -53,8 +54,13 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const [deductionOptions, setDeductionOptions] = useState<{ title: string; content: string }[]>([]);
   const [isDeducting, setIsDeducting] = useState(false);
  
-  // 切换项目时同步设定状态
+  // 切换项目时同步设定状态（仅在项目 ID 变化时重置，避免 updateProject 后覆盖用户编辑）
+  const prevProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
+    const currentId = store.currentProject?.id || null;
+    if (currentId === prevProjectIdRef.current) return;
+    prevProjectIdRef.current = currentId;
+
     if (store.currentProject) {
       setTempPowerSystem(store.currentProject.powerSystem || '');
       setTempGoldFinger(store.currentProject.goldFinger || '');
@@ -70,14 +76,14 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setTempCurrency(store.currentProject.currency || '');
       setTempItem(store.currentProject.item || '');
       setTempForbiddenSetting(store.currentProject.forbiddenSetting || '');
- 
-      // 切换新项目时清空旧 of AI 推荐，以便于触发新的推演，且重置次级 Tab
+
+      // 切换新项目时清空旧 AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
       setActiveSettingsSubTab('kernel');
       setIsAddingChar(false);
       setIsAddingRule(false);
     }
-  }, [store.currentProject]);
+  }, [store.currentProject?.id]);
 
   // AI 设定与大纲推演请求（SSE 流式进度）
   // 返回 true 表示需要向导补全，'needStyle' 表示需要先配置风格基调，false 表示正常执行
@@ -104,7 +110,8 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         genre: store.currentProject.description || '仙侠修真',
         tone: store.currentProject.styleSetting || '传统正剧',
         concurrency,
-        projectId: store.currentProject.id
+        projectId: store.currentProject.id,
+        forbiddenSetting: store.currentProject.forbiddenSetting || ''
       });
 
       if (!response.ok) {
@@ -306,7 +313,7 @@ Please output in Chinese. 请推演出这 3 套备选方案。
   "options": [
     {
       "title": "方案1名称（如：快节奏神豪爽文）",
-      "content": "方案1具体设定描述，字数在150字左右，符合当前题材且具备商业网文的流行爽感"
+      "content": "方案1具体设定描述，字数在 ${settingLengthHint(fieldKey)} 字左右，符合当前题材且具备商业网文的流行爽感"
     },
     {
       "title": "方案2名称（如：传统正剧沉浸式）",

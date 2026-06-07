@@ -41,26 +41,44 @@ export function KernelDimensionCard({
   // 自动保存：value 变化时 debounce 2s 保存
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const prevValueRef = useRef(value);
+  const pendingValueRef = useRef<string | null>(null);
+
+  const doSave = async (val: string) => {
+    if (!store.currentProject) return;
+    try {
+      await store.updateProject(store.currentProject!.id, { [cardType]: val });
+      createVersionSnapshot({
+        projectId: store.currentProject!.id,
+        type: 'macro',
+        key: cardType,
+        label: title,
+        data: val,
+        source: 'auto',
+      });
+    } catch { /* ignore auto-save errors */ }
+  };
+
   useEffect(() => {
     if (value === prevValueRef.current) return;
     prevValueRef.current = value;
+    pendingValueRef.current = value;
     if (!store.currentProject) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      try {
-        await store.updateProject(store.currentProject!.id, { [cardType]: value });
-        createVersionSnapshot({
-          projectId: store.currentProject!.id,
-          type: 'macro',
-          key: cardType,
-          label: title,
-          data: value,
-          source: 'auto',
-        });
-      } catch { /* ignore auto-save errors */ }
+      pendingValueRef.current = null;
+      await doSave(value);
     }, 2000);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [value]);
+
+  // 组件卸载时立即保存未提交的内容
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (pendingValueRef.current) {
+        doSave(pendingValueRef.current);
+      }
+    };
+  }, []);
 
   const handleSelectOption = async (content: string) => {
     setValue(content);

@@ -69,42 +69,59 @@ export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: Sty
   const prevGenreRef = useRef(selectedGenre);
   const prevToneRef = useRef(selectedTone);
   const prevTagsRef = useRef(selectedTags);
+  const pendingSaveRef = useRef<{ genre: string; tone: string; tags: string[] } | null>(null);
+
+  const doSave = async (genre: string, tone: string, tags: string[]) => {
+    if (!store.currentProject) return;
+    const parts: string[] = [];
+    if (genre) parts.push(`题材：${genre}`);
+    if (tone) parts.push(`文风：${tone}`);
+    if (tags.length > 0) parts.push(`看点：${tags.join('、')}`);
+    const combined = parts.join('；');
+    setTempStyleSetting(combined);
+    try {
+      await store.updateProject(store.currentProject!.id, {
+        styleSetting: combined,
+        description: genre || store.currentProject!.description,
+        worldSetting: tags.join('、') || store.currentProject!.worldSetting,
+      });
+      createVersionSnapshot({
+        projectId: store.currentProject!.id,
+        type: 'macro',
+        key: 'styleSetting',
+        label: '风格基调',
+        data: combined,
+        source: 'auto',
+      });
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     if (selectedGenre === prevGenreRef.current && selectedTone === prevToneRef.current && selectedTags === prevTagsRef.current) return;
     prevGenreRef.current = selectedGenre;
     prevToneRef.current = selectedTone;
     prevTagsRef.current = selectedTags;
+    pendingSaveRef.current = { genre: selectedGenre, tone: selectedTone, tags: selectedTags };
 
     if (!store.currentProject) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     saveTimer.current = setTimeout(async () => {
-      const parts: string[] = [];
-      if (selectedGenre) parts.push(`题材：${selectedGenre}`);
-      if (selectedTone) parts.push(`文风：${selectedTone}`);
-      if (selectedTags.length > 0) parts.push(`看点：${selectedTags.join('、')}`);
-      const combined = parts.join('；');
-
-      setTempStyleSetting(combined);
-      try {
-        await store.updateProject(store.currentProject!.id, {
-          styleSetting: combined,
-          description: selectedGenre || store.currentProject!.description,
-          worldSetting: selectedTags.join('、') || store.currentProject!.worldSetting,
-        });
-        createVersionSnapshot({
-          projectId: store.currentProject!.id,
-          type: 'macro',
-          key: 'styleSetting',
-          label: '风格基调',
-          data: combined,
-          source: 'auto',
-        });
-      } catch { /* ignore */ }
+      pendingSaveRef.current = null;
+      await doSave(selectedGenre, selectedTone, selectedTags);
     }, 1500);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [selectedGenre, selectedTone, selectedTags]);
+
+  // 组件卸载时立即保存未提交的内容
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (pendingSaveRef.current) {
+        const { genre, tone, tags } = pendingSaveRef.current;
+        doSave(genre, tone, tags);
+      }
+    };
+  }, []);
 
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);

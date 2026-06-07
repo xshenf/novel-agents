@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       }
 
       case 'generateKernel': {
-        const { genre, tone, concurrency, projectId } = body;
+        const { genre, tone, concurrency, projectId, forbiddenSetting } = body;
         if (!projectTitle || !genre || !tone) {
           return NextResponse.json({ error: '缺少 projectTitle, genre 或 tone' }, { status: 400 });
         }
@@ -186,7 +186,8 @@ export async function POST(request: Request) {
                   }
                   send('dimension_done', { dimKey, dimLabel, index, total, firstOption: dimOptions?.[0]?.description || '' });
                 },
-                concurrency || 3
+                concurrency || 3,
+                forbiddenSetting || ''
               );
               send('done', result);
             } catch (err: any) {
