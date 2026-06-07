@@ -92,6 +92,7 @@ function buildLLMFromConfig(config: {
     model,
     temperature,
     maxTokens,
+    timeout: 120_000, // 120 秒超时，避免 LLM API 不通时无限挂起
     configuration: { baseURL: baseUrl },
     ...(Object.keys(modelKwargs).length ? { modelKwargs } : {}),
   });

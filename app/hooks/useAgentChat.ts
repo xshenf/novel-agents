@@ -137,9 +137,20 @@ export function useAgentChat(store: NovelStore) {
     };
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      // 防止 LLM API 不通时无限挂起：若 180 秒内未收到任何数据（含心跳），主动中断
+      let stallTimer: ReturnType<typeof setTimeout> | null = null;
+      const stallTimeout = new Promise<never>((_, reject) => {
+        stallTimer = setTimeout(() => reject(new Error('连接超时：长时间未收到服务端响应')), 180_000);
+      });
+      try {
+        const { done, value } = await Promise.race([reader.read(), stallTimeout]);
+        if (stallTimer) clearTimeout(stallTimer);
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+      } catch (e: any) {
+        if (stallTimer) clearTimeout(stallTimer);
+        throw e; // 向上层抛出，由 handleSendAgentMessage 的 catch 处理
+      }
 
       const lines = buffer.split('\n\n');
       buffer = lines.pop() || '';
