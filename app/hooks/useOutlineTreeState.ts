@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { parseStructureOutline, type OutlineVolume } from '@/lib/outlineParser';
 
 interface UseOutlineTreeStateParams {
@@ -13,6 +13,12 @@ export function useOutlineTreeState({ tempOutlineFull, currentChapter, urlVolume
   const [selectedVolumeIdx, setSelectedVolumeIdx] = useState<number | null>(null);
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number | null>(null);
   const [collapsedVolumes, setCollapsedVolumes] = useState<Record<number, boolean>>({});
+
+  // Use refs to read selected indices inside the matching effect without causing re-runs
+  const selectedVolRef = useRef(selectedVolumeIdx);
+  selectedVolRef.current = selectedVolumeIdx;
+  const selectedChapRef = useRef(selectedChapterIdx);
+  selectedChapRef.current = selectedChapterIdx;
 
   const localSections = useMemo(() => parseStructureOutline(tempOutlineFull), [tempOutlineFull]);
 
@@ -55,7 +61,7 @@ export function useOutlineTreeState({ tempOutlineFull, currentChapter, urlVolume
         })();
 
         if (isMatched) {
-          if (selectedVolumeIdx !== vIdx || selectedChapterIdx !== cIdx) {
+          if (selectedVolRef.current !== vIdx || selectedChapRef.current !== cIdx) {
             setSelectedVolumeIdx(vIdx);
             setSelectedChapterIdx(cIdx);
           }
@@ -63,7 +69,7 @@ export function useOutlineTreeState({ tempOutlineFull, currentChapter, urlVolume
         }
       }
     }
-  }, [currentChapter, localSections, selectedVolumeIdx, selectedChapterIdx]);
+  }, [currentChapter, localSections]); // removed selectedVolumeIdx/selectedChapterIdx - read via refs to prevent feedback loops
 
   return {
     localSections,

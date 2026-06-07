@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
@@ -58,6 +58,9 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   const prevProjectIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Extract project ID outside the effect for clean dependency tracking
+  const projectId = store.currentProject?.id ?? null;
+
   // 组件卸载时中止正在进行的 SSE 请求
   useEffect(() => {
     return () => {
@@ -66,25 +69,25 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
   }, []);
 
   useEffect(() => {
-    const currentId = store.currentProject?.id || null;
-    if (currentId === prevProjectIdRef.current) return;
-    prevProjectIdRef.current = currentId;
+    if (projectId === prevProjectIdRef.current) return;
+    prevProjectIdRef.current = projectId;
 
-    if (store.currentProject) {
-      setTempPowerSystem(store.currentProject.powerSystem || '');
-      setTempGoldFinger(store.currentProject.goldFinger || '');
-      setTempCoreConflict(store.currentProject.coreConflict || '');
-      setTempFactionsMap(store.currentProject.factionsMap || '');
-      setTempSellingPoints(store.currentProject.sellingPoints || '');
-      setTempOutlineFull(store.currentProject.outlineFull || '');
-      setTempStyleSetting(store.currentProject.styleSetting || '');
-      setTempWorldSetting(store.currentProject.worldSetting || '');
-      setTempSkillSystem(store.currentProject.skillSystem || '');
-      setTempLocation(store.currentProject.location || '');
-      setTempFaction(store.currentProject.faction || '');
-      setTempCurrency(store.currentProject.currency || '');
-      setTempItem(store.currentProject.item || '');
-      setTempForbiddenSetting(store.currentProject.forbiddenSetting || '');
+    const project = store.currentProject;
+    if (project) {
+      setTempPowerSystem(project.powerSystem || '');
+      setTempGoldFinger(project.goldFinger || '');
+      setTempCoreConflict(project.coreConflict || '');
+      setTempFactionsMap(project.factionsMap || '');
+      setTempSellingPoints(project.sellingPoints || '');
+      setTempOutlineFull(project.outlineFull || '');
+      setTempStyleSetting(project.styleSetting || '');
+      setTempWorldSetting(project.worldSetting || '');
+      setTempSkillSystem(project.skillSystem || '');
+      setTempLocation(project.location || '');
+      setTempFaction(project.faction || '');
+      setTempCurrency(project.currency || '');
+      setTempItem(project.item || '');
+      setTempForbiddenSetting(project.forbiddenSetting || '');
 
       // 切换新项目时清空旧 AI 推荐，以便于触发新的推演，且重置次级 Tab
       setKernelOptions(null);
@@ -92,11 +95,11 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setIsAddingChar(false);
       setIsAddingRule(false);
     }
-  }, [store.currentProject?.id]);
+  }, [projectId]);
 
   // AI 设定与大纲推演请求（SSE 流式进度）
   // 返回 true 表示需要向导补全，'needStyle' 表示需要先配置风格基调，false 表示正常执行
-  const fetchKernelOptions = async (): Promise<boolean | string> => {
+  const fetchKernelOptions = useCallback(async (): Promise<boolean | string> => {
     if (!store.currentProject) return false;
 
     // 风格基调未设置时，提示用户先配置
@@ -243,7 +246,7 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setKernelProgress('');
     }
     return false;
-  };
+  }, [store, callAIApi, tempWorldSetting, tempStyleSetting]);
 
   const handleOpenEditProject = () => {
     if (store.currentProject) {

@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { RefObject, Dispatch, SetStateAction } from 'react';
 import type { OutlineChapter, OutlineVolume } from '@/lib/outlineParser';
 import type { AiUndoEntry } from '../../hooks/useAiUndoStack';
 import type { OutlineSubTab } from '../../hooks/useMaterialTabs';
@@ -12,7 +12,7 @@ export interface OutlineTreeController {
 
   // 状态
   localSections: OutlineVolume[];
-  setLocalSections: (v: OutlineVolume[]) => void;
+  setLocalSections: Dispatch<SetStateAction<OutlineVolume[]>>;
   tempOutlineFull: string;
   setTempOutlineFull: (v: string) => void;
 

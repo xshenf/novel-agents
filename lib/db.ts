@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { 
   PrismaClient, 
   NovelProject as PrismaProject, 
@@ -211,7 +212,7 @@ export const db = {
   },
 
   async createProject(project: Omit<NovelProject, 'id' | 'createdAt' | 'updatedAt'>): Promise<NovelProject> {
-    const id = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `proj_${randomUUID()}`;
     const created = await prisma.novelProject.create({
       data: {
         id,
@@ -317,7 +318,7 @@ export const db = {
   },
 
   async createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>): Promise<Chapter> {
-    const id = `chap_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `chap_${randomUUID()}`;
     const created = await prisma.chapter.create({
       data: {
         id,
@@ -378,7 +379,7 @@ export const db = {
   },
 
   async createCharacter(character: Omit<Character, 'id'>): Promise<Character> {
-    const id = `char_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `char_${randomUUID()}`;
     const created = await prisma.character.create({
       data: {
         id,
@@ -444,7 +445,7 @@ export const db = {
   },
 
   async createWorldRule(rule: Omit<WorldRule, 'id'>): Promise<WorldRule> {
-    const id = `rule_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `rule_${randomUUID()}`;
     const created = await prisma.worldRule.create({
       data: {
         id,
@@ -493,7 +494,7 @@ export const db = {
   },
 
   async createWorldState(state: Omit<WorldState, 'id' | 'updatedAt'>): Promise<WorldState> {
-    const id = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `ws_${randomUUID()}`;
     const created = await prisma.worldState.create({
       data: {
         id,
@@ -535,7 +536,7 @@ export const db = {
       });
       // 批量插入 AI 输出的新条目
       for (const item of items) {
-        const id = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        const id = `ws_${randomUUID()}`;
         await tx.worldState.create({
           data: {
             id,

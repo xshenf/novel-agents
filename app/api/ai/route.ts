@@ -172,6 +172,24 @@ export async function POST(request: Request) {
             const send = (event: string, data: unknown) => {
               controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
             };
+
+            // SSE heartbeat: send keepalive comment every 15s to prevent proxy/client timeout
+            const heartbeat = setInterval(() => {
+              try {
+                controller.enqueue(encoder.encode(`: ping\n\n`));
+              } catch { /* stream already closed */ }
+            }, 15_000);
+
+            // Overall timeout for multi-call kernel generation (10 minutes)
+            const KERNEL_TIMEOUT_MS = 600_000;
+            const timeoutId = setTimeout(() => {
+              clearInterval(heartbeat);
+              try {
+                send('error', { error: 'AI 内核生成超时（超过 10 分钟），请重试' });
+              } catch { /* stream already closed */ }
+              try { controller.close(); } catch { /* already closed */ }
+            }, KERNEL_TIMEOUT_MS);
+
             try {
               const result = await ai.generateKernelSettings(
                 projectTitle, genre, tone, apiKey, modelName,
@@ -193,7 +211,9 @@ export async function POST(request: Request) {
             } catch (err: any) {
               send('error', { error: err.message || 'AI 操作执行失败' });
             } finally {
-              controller.close();
+              clearInterval(heartbeat);
+              clearTimeout(timeoutId);
+              try { controller.close(); } catch { /* already closed */ }
             }
           }
         });

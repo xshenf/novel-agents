@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
 import type { MutableRefObject } from 'react';
 import type { CallAIApi } from './useAiClient';
 import {
@@ -17,7 +17,7 @@ interface OutlineHandlersParams {
   store: WorkspaceContextValue['store'];
   callAIApi: CallAIApi;
   localSections: OutlineVolume[];
-  setLocalSections: (v: OutlineVolume[]) => void;
+  setLocalSections: Dispatch<SetStateAction<OutlineVolume[]>>;
   setTempOutlineFull: (v: string) => void;
   editingVolumeIdx: number | null;
   setEditingVolumeIdx: (v: number | null) => void;
@@ -300,6 +300,7 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
           title: sec.title,
           isLocked: sec.isLocked
         };
+        const savedOriginalChapter = sec;
         const newSections = localSections.map((vol, vIdx) => {
           if (vIdx !== volIdx) return vol;
           const newChapters = [...vol.chapters];
@@ -314,14 +315,17 @@ ${flatChapters.map((s, sIdx) => sIdx !== globalIdx ? `- ${s.title}: ${s.content}
           type: 'chapter',
           label: sec.title,
           restore: () => {
-            const prevSections = localSections.map((vol, vIdx) => {
-              if (vIdx !== volIdx) return vol;
-              const prevChapters = [...vol.chapters];
-              prevChapters[chapIdx] = sec;
-              return { ...vol, chapters: prevChapters };
+            // Targeted restore: only replace the AI-modified chapter, preserving any intermediate manual edits
+            setLocalSections(prev => {
+              const restored = [...prev];
+              if (restored[volIdx]) {
+                const newChapters = [...restored[volIdx].chapters];
+                newChapters[chapIdx] = savedOriginalChapter;
+                restored[volIdx] = { ...restored[volIdx], chapters: newChapters };
+              }
+              setTempOutlineFull(generateMarkdownFromSections(restored));
+              return restored;
             });
-            setLocalSections(prevSections);
-            setTempOutlineFull(generateMarkdownFromSections(prevSections));
           }
         });
       } else {
@@ -374,6 +378,7 @@ ${userHintSection}
 
       const reply = data.reply.trim();
       if (reply) {
+        const savedOriginalContent = vol.content;
         const newSections = localSections.map((v, vIdx) =>
           vIdx === volIdx ? { ...v, content: reply } : v
         );
@@ -384,11 +389,14 @@ ${userHintSection}
           type: 'volume',
           label: vol.title,
           restore: () => {
-            const prevSections = localSections.map((v, vIdx) =>
-              vIdx === volIdx ? { ...v, content: vol.content } : v
-            );
-            setLocalSections(prevSections);
-            setTempOutlineFull(generateMarkdownFromSections(prevSections));
+            // Targeted restore: only replace the AI-modified volume content, preserving any intermediate manual edits
+            setLocalSections(prev => {
+              const restored = prev.map((v, vIdx) =>
+                vIdx === volIdx ? { ...v, content: savedOriginalContent } : v
+              );
+              setTempOutlineFull(generateMarkdownFromSections(restored));
+              return restored;
+            });
           }
         });
       } else {

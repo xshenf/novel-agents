@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useCallback, type FormEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 
 type RuleType = 'location' | 'faction' | 'rule' | 'item' | 'other';
@@ -25,7 +25,7 @@ export function useCreationModals(store: NovelStore) {
 
   const [newChapTitle, setNewChapTitle] = useState('');
 
-  const handleCreateChapter = async (e: FormEvent) => {
+  const handleCreateChapter = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (!store.currentProject || !newChapTitle.trim()) return;
     try {
@@ -33,9 +33,9 @@ export function useCreationModals(store: NovelStore) {
       setShowNewChapModal(false);
       setNewChapTitle('');
     } catch (err) { console.error('创建失败:', err); }
-  };
+  }, [store, newChapTitle]);
 
-  const handleCreateCharacter = async (e: FormEvent) => {
+  const handleCreateCharacter = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (!store.currentProject || !newCharName.trim()) return;
     try {
@@ -61,9 +61,9 @@ export function useCreationModals(store: NovelStore) {
       setNewCharState('');
       setNewCharForbidden('');
     } catch (err) { console.error('创建失败:', err); }
-  };
+  }, [store, newCharName, newCharRole, newCharAge, newCharIdentity, newCharPersonality, newCharGoals, newCharState, newCharForbidden]);
 
-  const handleCreateRule = async (e: FormEvent) => {
+  const handleCreateRule = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (!store.currentProject || !newRuleName.trim()) return;
     try {
@@ -78,7 +78,7 @@ export function useCreationModals(store: NovelStore) {
       setNewRuleType('location');
       setNewRuleDesc('');
     } catch (err) { console.error('创建失败:', err); }
-  };
+  }, [store, newRuleName, newRuleType, newRuleDesc]);
 
   return {
     showNewCharModal,

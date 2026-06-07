@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, type ChangeEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
 
@@ -96,7 +96,7 @@ export function useEditor(store: NovelStore) {
   }, [editorContent, store.currentChapter?.content, store.currentChapter?.id, store.currentProject?.id, localDraft]);
 
   // 编辑器自动保存机制 (Debounce 1.5s)
-  const handleEditorChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+  const handleEditorChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
     setEditorContent(newVal);
     setSaveStatus('dirty');
@@ -125,9 +125,9 @@ export function useEditor(store: NovelStore) {
         });
       }
     }, 1500);
-  };
+  }, [store]);
 
-  const handleTitleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleTitleChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setEditorTitle(e.target.value);
     setSaveStatus('dirty');
 
@@ -148,7 +148,7 @@ export function useEditor(store: NovelStore) {
         });
       }
     }, 1500);
-  };
+  }, [store]);
 
   // 手动保存章节
   const forceSave = () => {

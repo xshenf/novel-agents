@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { Character, WorldState } from '@/lib/db';
 import type { CallAIApi } from './useAiClient';
@@ -105,14 +105,23 @@ export function useChapterMemory({ store, callAIApi }: Deps) {
   // ── AI 实际检索到的记忆上下文（忠实暴露 top-3 截断，作跑偏预警）──
   const [preview, setPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
   const fetchPreview = useCallback(async (query: string) => {
     if (!store.currentProject) return;
     setPreviewLoading(true);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
-      const res = await callAIApi({ action: 'memoryPreview', projectId: store.currentProject.id, query });
+      const res = await callAIApi({ action: 'memoryPreview', projectId: store.currentProject.id, query }, abortRef.current.signal);
       const data = await res.json();
       setPreview(data.contextText || '（无检索结果）');
-    } catch {
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       setPreview('记忆预览获取失败');
     } finally {
       setPreviewLoading(false);

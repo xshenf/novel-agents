@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import type { NovelStore } from '@/lib/store';
 import { useAiClient, type CallAIApi } from './useAiClient';
 import {
@@ -19,6 +19,11 @@ interface UseVolumeActionsParams {
 export function useVolumeActions({ store, getLocalSections, setOutlineFull }: UseVolumeActionsParams) {
   const callAIApi = useAiClient();
   const [loadingCount, setLoadingCount] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const persist = useCallback(
     async (next: OutlineVolume[]) => {
@@ -76,12 +81,14 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
   // 调用 AI 并返回 reply
   const callOutlineAssistant = useCallback(
     async (systemInstruction: string, prompt: string): Promise<string> => {
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
       const res = await callAIApi({
         action: 'chat',
         projectId: store.currentProject!.id,
         query: prompt,
         systemInstruction,
-      });
+      }, abortRef.current.signal);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       const reply: string = (data.reply || '').trim();
@@ -148,6 +155,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
         replaceVolumeHeader(volIdx, title, content);
         alert(`已更新分卷「${title || target.title || `第 ${volIdx + 1} 卷`}」的标题与概要`);
       } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         alert('AI 生成分卷大纲失败: ' + (err?.message || String(err)));
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));
@@ -195,6 +203,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
           alert(`已为分卷「${result.volTitle}」追加 ${result.addedCount} 个章节大纲`);
         }
       } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         alert('AI 自动规划章节失败: ' + (err?.message || String(err)));
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));
@@ -261,6 +270,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
         persist(next);
           alert(`已重建分卷「${newVol.title || target.title}」，含 ${newVol.chapters.length} 章大纲`);
         } catch (err: any) {
+          if (err?.name === 'AbortError') return;
           alert('AI 一键生成本卷失败: ' + (err?.message || String(err)));
         } finally {
           setLoadingCount(c => Math.max(0, c - 1));
@@ -323,6 +333,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
         persist(next);
         alert(`已新增分卷「${newVol.title || `第 ${newVolIdx + 1} 卷`}」，含 ${newVol.chapters.length} 章大纲`);
       } catch (err: any) {
+        if (err?.name === 'AbortError') return;
         alert('AI 新建分卷失败: ' + (err?.message || String(err)));
       } finally {
         setLoadingCount(c => Math.max(0, c - 1));

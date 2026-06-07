@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useNovelStore, type NovelStore } from '@/lib/store';
 
@@ -126,12 +126,16 @@ export function useWorkspaceRouting(store: NovelStore) {
     }
   };
 
+  // Use ref to always call the latest seedDemoData without re-running the mount effect
+  const seedRef = useRef(seedDemoData);
+  seedRef.current = seedDemoData;
+
   // 初始化获取项目
   useEffect(() => {
     store.fetchProjects().then(() => {
       const currentProjects = useNovelStore.getState().projects;
       if (currentProjects.length === 0) {
-        seedDemoData();
+        seedRef.current();
       } else if (urlProjectId && !useNovelStore.getState().currentProject) {
         // 从 URL 恢复项目
         const project = currentProjects.find((p: any) => p.id === urlProjectId);
@@ -140,7 +144,7 @@ export function useWorkspaceRouting(store: NovelStore) {
         }
       }
     });
-  }, []);
+  }, []); // intentionally empty - only run on mount
 
   // 从 URL 恢复 tab 和 chapter 选中状态
   useEffect(() => {
@@ -152,13 +156,17 @@ export function useWorkspaceRouting(store: NovelStore) {
         setActiveWorkspaceTab(urlTab as WorkspaceTab);
       }
     }
-    if (urlChapterId && store.chapters.length > 0) {
-      const chapter = store.chapters.find(c => c.id === urlChapterId);
-      if (chapter) {
-        store.setCurrentChapter(chapter);
+    if (urlChapterId) {
+      // Read chapters directly from store to avoid re-running on every chapter add/remove
+      const chapters = useNovelStore.getState().chapters;
+      if (chapters.length > 0) {
+        const chapter = chapters.find(c => c.id === urlChapterId);
+        if (chapter) {
+          store.setCurrentChapter(chapter);
+        }
       }
     }
-  }, [store.currentProject?.id, store.chapters.length, urlTab, urlChapterId]);
+  }, [store.currentProject?.id, urlTab, urlChapterId]); // removed store.chapters.length - chapters read from getState()
 
   return {
     router,

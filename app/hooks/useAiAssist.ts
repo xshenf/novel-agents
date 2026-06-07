@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
 
@@ -47,37 +47,47 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
   const [inspCharacters, setInspCharacters] = useState<InspCharacter[]>([]);
   const [inspRules, setInspRules] = useState<InspRule[]>([]);
   const [activeInspTab, setActiveInspTab] = useState<'char' | 'rule'>('char');
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   // AI 写作辅助：逻辑自检
-  const handleConsistencyCheck = async () => {
+  const handleConsistencyCheck = useCallback(async () => {
     if (!store.currentProject || !store.currentChapter) return;
     setIsAiLoading(true);
     setCheckResult(null);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
       const res = await callAIApi({
         action: 'selfCheck',
         projectId: store.currentProject.id,
         currentText: editorContent
-      });
+      }, abortRef.current.signal);
       const data = await res.json();
       setCheckResult(data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
       setCheckResult({ passed: false, issues: ['逻辑自检执行失败，请重试'], suggestions: [] });
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [store, callAIApi, editorContent, setIsAiLoading]);
 
   // AI 写作辅助：自动提取摘要并更新章节状态
-  const handleAutoSummarize = async () => {
+  const handleAutoSummarize = useCallback(async () => {
     if (!editorContent.trim() || !store.currentChapter) return;
     setIsAiLoading(true);
     setSummarizeMsg(null);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
       const res = await callAIApi({
         action: 'summarize',
         currentText: editorContent
-      });
+      }, abortRef.current.signal);
       const data = await res.json();
       if (data.summary) {
         await store.updateChapter(store.currentChapter.id, {
@@ -97,25 +107,28 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
       } else {
         setSummarizeMsg('自动提取摘要失败，请重试');
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
       setSummarizeMsg('自动提取摘要失败，请重试');
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [editorContent, store, callAIApi, setIsAiLoading]);
 
-  const handleOpenInspirations = async () => {
+  const handleOpenInspirations = useCallback(async () => {
     if (!store.currentProject) return;
     setShowInspirationsModal(true);
     setIsInspirationLoading(true);
     setInspCharacters([]);
     setInspRules([]);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
 
     try {
       const res = await callAIApi({
         action: 'generateInspirations',
         projectId: store.currentProject.id
-      });
+      }, abortRef.current.signal);
       const data = await res.json();
 
       if (data.characters) {
@@ -142,14 +155,15 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
           description: r.description || ''
         })));
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
       alert('生成设定灵感失败，请稍后重试。');
     } finally {
       setIsInspirationLoading(false);
     }
-  };
+  }, [store, callAIApi]);
 
-  const handleImportInspirations = async () => {
+  const handleImportInspirations = useCallback(async () => {
     if (!store.currentProject) return;
 
     const charsToImport = inspCharacters.filter(c => c.checked);
@@ -199,7 +213,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [store, inspCharacters, inspRules, setIsAiLoading]);
 
   return {
     checkResult,

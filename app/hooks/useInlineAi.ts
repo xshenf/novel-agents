@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
 
@@ -19,6 +19,11 @@ export type InlineAiApi = ReturnType<typeof useInlineAi>;
 // 复用服务端 continue / polish action（扩写/改写用 polish + 不同 instruction）。
 export function useInlineAi({ store, callAIApi, editorContent, setEditorContent, setSaveStatus }: Deps) {
   const [busy, setBusy] = useState<InlineMode | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const persist = async (next: string) => {
     setEditorContent(next);
@@ -36,9 +41,11 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
   };
 
   // 全文末尾续写
-  const continueWriting = async () => {
+  const continueWriting = useCallback(async () => {
     if (!store.currentProject || busy) return;
     setBusy('continue');
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
       const res = await callAIApi({
         action: 'continue',
@@ -46,7 +53,7 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
         chapterTitle: store.currentChapter?.title || '',
         currentText: editorContent,
         instruction: '',
-      });
+      }, abortRef.current.signal);
       const data = await res.json();
       if (data.text) {
         const sep = editorContent && !editorContent.endsWith('\n') ? '\n' : '';
@@ -54,15 +61,16 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
       } else {
         alert(data.error || 'AI 续写失败');
       }
-    } catch {
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       alert('AI 续写失败');
     } finally {
       setBusy(null);
     }
-  };
+  }, [store, callAIApi, editorContent, busy, setEditorContent, setSaveStatus]);
 
   // 对选区做 润色 / 扩写 / 改写，结果替换选区
-  const transformSelection = async (mode: 'polish' | 'expand' | 'rewrite', selStart: number, selEnd: number) => {
+  const transformSelection = useCallback(async (mode: 'polish' | 'expand' | 'rewrite', selStart: number, selEnd: number) => {
     if (busy) return;
     const selected = editorContent.slice(selStart, selEnd);
     if (!selected.trim()) {
@@ -75,20 +83,23 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
         ? '在保持剧情含义不变的前提下，换一种表达方式改写这段文字，使其更生动'
         : '';
     setBusy(mode);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
-      const res = await callAIApi({ action: 'polish', currentText: selected, instruction });
+      const res = await callAIApi({ action: 'polish', currentText: selected, instruction }, abortRef.current.signal);
       const data = await res.json();
       if (data.text) {
         await persist(editorContent.slice(0, selStart) + data.text + editorContent.slice(selEnd));
       } else {
         alert(data.error || 'AI 处理失败');
       }
-    } catch {
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       alert('AI 处理失败');
     } finally {
       setBusy(null);
     }
-  };
+  }, [busy, editorContent, callAIApi, setEditorContent, setSaveStatus]);
 
   return { busy, continueWriting, transformSelection };
 }

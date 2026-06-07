@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { type NovelStore, ModelConfig } from '@/lib/store';
 
 export interface EditModelForm {
@@ -41,10 +41,17 @@ export function useModelSettings(store: NovelStore) {
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
 
-  const handleTestConnection = async (targetForm?: EditModelForm) => {
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
+  const handleTestConnection = useCallback(async (targetForm?: EditModelForm) => {
     setTestStatus('testing');
     setTestMessage('正在尝试连接服务商并探测可用模型...');
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
       let apiKeyParam = '';
       let modelNameParam = '';
@@ -97,7 +104,8 @@ export function useModelSettings(store: NovelStore) {
           query: '你好，这是一次 API 连通性测试。请用极其简短的内容回复，不要多说任何废话。',
           apiKey: apiKeyParam,
           modelName: modelNameParam
-        })
+        }),
+        signal: abortRef.current.signal,
       });
       const data = await res.json();
       if (data.reply) {
@@ -108,16 +116,17 @@ export function useModelSettings(store: NovelStore) {
         setTestMessage(`连接失败: ${data.error || '接口未返回预期内容'}`);
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       setTestStatus('error');
       setTestMessage(`网络请求异常: ${e.message || '未知错误'}`);
     }
-  };
+  }, [store]);
 
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelsError, setFetchModelsError] = useState('');
 
-  const handleFetchModels = async (targetForm?: EditModelForm) => {
+  const handleFetchModels = useCallback(async (targetForm?: EditModelForm) => {
     const keyToTest = targetForm ? targetForm.apiKey : store.apiKey;
     if (!keyToTest) {
       alert('请先输入 API 密钥 (API Key)');
@@ -125,6 +134,8 @@ export function useModelSettings(store: NovelStore) {
     }
     setFetchingModels(true);
     setFetchModelsError('');
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     try {
       let apiKeyParam = '';
       let modelNameParam = '';
@@ -174,7 +185,8 @@ export function useModelSettings(store: NovelStore) {
           action: 'fetchModels',
           apiKey: apiKeyParam,
           modelName: modelNameParam
-        })
+        }),
+        signal: abortRef.current.signal,
       });
       const data = await res.json();
       if (data.models && Array.isArray(data.models)) {
@@ -190,13 +202,14 @@ export function useModelSettings(store: NovelStore) {
         setFetchModelsError(data.error || '未获取到任何可用模型');
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError') return;
       setFetchModelsError(e.message || '获取模型列表时发生网络错误');
     } finally {
       setFetchingModels(false);
     }
-  };
+  }, [store]);
 
-  const handleAddNewModel = () => {
+  const handleAddNewModel = useCallback(() => {
     setEditingModelId('new');
     setEditModelForm({
       provider: 'gemini',
@@ -212,9 +225,9 @@ export function useModelSettings(store: NovelStore) {
     setFetchedModels([]);
     setTestStatus('idle');
     setTestMessage('');
-  };
+  }, []);
 
-  const handleEditModel = (model: ModelConfig) => {
+  const handleEditModel = useCallback((model: ModelConfig) => {
     setEditingModelId(model.id);
     setEditModelForm({
       provider: model.provider,
@@ -230,9 +243,9 @@ export function useModelSettings(store: NovelStore) {
     setFetchedModels([]);
     setTestStatus('idle');
     setTestMessage('');
-  };
+  }, []);
 
-  const handleSaveModel = () => {
+  const handleSaveModel = useCallback(() => {
     if (!editModelForm.alias.trim()) {
       alert('请输入模型别名');
       return;
@@ -255,7 +268,7 @@ export function useModelSettings(store: NovelStore) {
       store.updateModel(editingModelId, editModelForm);
     }
     setEditingModelId(null);
-  };
+  }, [editModelForm, editingModelId, store]);
 
   return {
     showSettings,
