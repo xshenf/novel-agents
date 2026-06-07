@@ -24,6 +24,30 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
   const [writeUntilEnd, setWriteUntilEnd] = useState(false);
   const autoWriteStopRef = useRef(false);
 
+  // 带重试的 AI 调用封装：最多重试 maxAttempts 次，间隔 3 秒，
+  // AbortError 和用户手动停止时立即抛出不重试。
+  const callAIApiWithRetry = async (
+    params: Parameters<CallAIApi>[0],
+    label: string,
+    maxAttempts = 3,
+  ): ReturnType<CallAIApi> => {
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await callAIApi(params);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') throw err;
+        if (autoWriteStopRef.current) throw err;
+        lastError = err;
+        if (attempt < maxAttempts) {
+          setAutoWritingStatus(`正在重试 (${attempt}/${maxAttempts}): ${label}`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+    }
+    throw lastError ?? new Error(`${label}：所有重试均已耗尽`);
+  };
+
   const startAutoWriting = async (opts?: { count?: number; untilEnd?: boolean; targetChapters?: Chapter[] }) => {
     if (!store.currentProject) return;
 
@@ -148,34 +172,12 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
 
       try {
         // 调用 AI 自动写小说接口（最多重试 3 次）
-        let writeRes: Response | null = null;
-        let writeError: unknown = null;
-        const maxAttempts = 3;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            writeRes = await callAIApi({
-              action: 'autoWrite',
-              projectId: store.currentProject.id,
-              chapterTitle: freshChapter.title,
-              instruction: writeInstruction
-            });
-            break;
-          } catch (err) {
-            if (err instanceof DOMException && err.name === 'AbortError') throw err;
-            if (autoWriteStopRef.current) throw err;
-
-            writeError = err;
-            if (attempt < maxAttempts) {
-              setAutoWritingStatus(`正在重试 (${attempt}/${maxAttempts}): ${freshChapter.title}`);
-              await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-          }
-        }
-
-        if (!writeRes) {
-          throw writeError ?? new Error('自动写作失败：所有重试均已耗尽');
-        }
+        const writeRes = await callAIApiWithRetry({
+          action: 'autoWrite',
+          projectId: store.currentProject.id,
+          chapterTitle: freshChapter.title,
+          instruction: writeInstruction
+        }, `自动写作: ${freshChapter.title}`);
 
         const writeData = await writeRes.json();
 
@@ -193,10 +195,10 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
           // 自动进行章节复盘摘要与设定记忆更新
           setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${freshChapter.title} ...`);
 
-          const sumRes = await callAIApi({
+          const sumRes = await callAIApiWithRetry({
             action: 'summarize',
             currentText: writeData.text
-          });
+          }, `复盘摘要: ${freshChapter.title}`);
           const sumData = await sumRes.json();
 
           if (autoWriteStopRef.current) break;
@@ -227,14 +229,20 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
 
             // 章节摘要落库后，刷新全书滚动概要（供长期记忆有界注入，长篇不跑偏）
             try {
-              await callAIApi({ action: 'foldSynopsis', projectId: store.currentProject.id });
+              await callAIApiWithRetry(
+                { action: 'foldSynopsis', projectId: store.currentProject.id },
+                '更新全书滚动概要',
+              );
             } catch (e) {
               console.error('更新全书滚动概要失败:', e);
             }
 
             // 刷新世界状态台账（供动态世界信息随剧情更新）
             try {
-              await callAIApi({ action: 'foldWorldState', projectId: store.currentProject.id });
+              await callAIApiWithRetry(
+                { action: 'foldWorldState', projectId: store.currentProject.id },
+                '更新世界状态台账',
+              );
             } catch (e) {
               console.error('更新世界状态台账失败:', e);
             }

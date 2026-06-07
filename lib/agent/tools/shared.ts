@@ -38,7 +38,8 @@ export const getProjectOverviewTool = tool(
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const characters = await db.getCharacters(projectId);
-    const chapters = await db.getChapters(projectId);
+    // 使用轻量查询，只拉取 title/summary，不查正文 content，避免长篇小说性能问题
+    const chapterSummaries = await db.getChapterSummaries(projectId);
     const worldRules = await db.getWorldRules(projectId);
 
     return JSON.stringify({
@@ -50,10 +51,10 @@ export const getProjectOverviewTool = tool(
       coreConflict: project.coreConflict || '',
       sellingPoints: project.sellingPoints || '',
       characterCount: characters.length,
-      chapterCount: chapters.length,
+      chapterCount: chapterSummaries.length,
       worldRuleCount: worldRules.length,
       characters: characters.map(c => ({ name: c.name, role: c.role })),
-      recentChapters: chapters.slice(-3).map(c => ({ title: c.title, summary: c.summary })),
+      recentChapters: chapterSummaries.slice(-3).map(c => ({ title: c.title, summary: c.summary })),
     }, null, 2);
   },
   {

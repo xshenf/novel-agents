@@ -255,6 +255,17 @@ export const db = {
     return list.map(formatChapter);
   },
 
+  // 轻量章节查询：仅返回 id/title/summary，不含 content 等大字段，
+  // 供 getProjectOverviewTool 等只需概览信息的场景使用，避免长篇小说拉取数百 KB 正文。
+  async getChapterSummaries(projectId: string): Promise<Pick<Chapter, 'id' | 'title' | 'summary' | 'createdAt'>[]> {
+    const list = await prisma.chapter.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, title: true, summary: true, createdAt: true },
+    });
+    return list.map(c => ({ id: c.id, title: c.title, summary: c.summary || '', createdAt: c.createdAt.toISOString() }));
+  },
+
   async getChapter(id: string): Promise<Chapter | undefined> {
     const item = await prisma.chapter.findUnique({ where: { id } });
     return item ? formatChapter(item) : undefined;
