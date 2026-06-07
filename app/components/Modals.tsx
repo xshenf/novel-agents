@@ -119,7 +119,7 @@ export function NewRuleModal() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>设定类型</label>
-            <select className="input" value={newRuleType} onChange={e => setNewRuleType(e.target.value as any)} style={{ background: 'var(--bg-input)' }}>
+            <select className="input" value={newRuleType} onChange={e => setNewRuleType(e.target.value as WorldRule['type'])} style={{ background: 'var(--bg-input)' }}>
               <option value="location">地理位置/地点</option>
               <option value="faction">宗门势力/组织</option>
               <option value="rule">核心规则/境界设定</option>
@@ -142,7 +142,7 @@ export function NewRuleModal() {
 }
 
 export function EditProjectModal() {
-  const { store, kernel } = useWorkspace();
+  const { kernel } = useWorkspace();
   const {
     showEditProjectModal, setShowEditProjectModal,
     editProjTitle, setEditProjTitle, editProjStyle, setEditProjStyle,

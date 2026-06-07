@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { BookOpen, Download, Save, PenLine, Maximize2, Sparkles, RefreshCw, Loader2, ShieldCheck, MessageCircle } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { countChineseChars } from '@/lib/textStats';
@@ -11,21 +11,19 @@ import { ChapterOutlinePreview } from './write/ChapterOutlinePreview';
 import { generateMarkdownFromSections } from '@/lib/outlineParser';
 
 export function WriteTab() {
-  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui, wizard } = useWorkspace();
-  const { router, buildWorkspaceUrl, urlChapterId } = routing;
+  const { store, editor, autoWriter, inlineAi, kernel, outlineTree, routing, assist, ui } = useWorkspace();
   const { handleConsistencyCheck, handleAutoSummarize } = assist;
   const busy = ui.isAiLoading;
   const { selectedVolumeIdx, selectedChapterIdx } = outlineTree;
   const {
-    editorTitle, editorContent,
-    saveStatus, handleEditorChange, handleTitleChange, forceSave, exportFile,
+    editorContent,
+    saveStatus, handleEditorChange, forceSave, exportFile,
   } = editor;
   const { isAutoWriting, startAutoWriting, pauseAutoWriting } = autoWriter;
   const { busy: inlineBusy, continueWriting, transformSelection } = inlineAi;
-  const { handleOpenEditProject } = kernel;
 
   const handleRenameChapter = (newTitle: string) => {
-    editor.handleTitleChange({ target: { value: newTitle } } as any);
+    editor.handleTitleChange({ target: { value: newTitle } } as React.ChangeEvent<HTMLInputElement>);
     
     if (selectedVolumeIdx !== null && selectedChapterIdx !== null && store.currentProject) {
       const newSections = outlineTree.localSections.map((vol, vIdx) => {
@@ -122,7 +120,7 @@ export function WriteTab() {
                 对话生成设定
               </button>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.6' }}>提示：点击"对话生成设定"后，在右侧对话框输入您的想法即可。例如："帮我生成一个仙侠修真题材的世界设定，主角是废材逆袭路线，文风偏热血爽文"，AI 将根据您的描述推演完整的世界观、功法体系和核心冲突。</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.6' }}>提示：点击&ldquo;对话生成设定&rdquo;后，在右侧对话框输入您的想法即可。例如：&ldquo;帮我生成一个仙侠修真题材的世界设定，主角是废材逆袭路线，文风偏热血爽文&rdquo;，AI 将根据您的描述推演完整的世界观、功法体系和核心冲突。</div>
           </div>
         )}
 

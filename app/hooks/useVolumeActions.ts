@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { NovelStore } from '@/lib/store';
-import { useAiClient, type CallAIApi } from './useAiClient';
+import { useAiClient } from './useAiClient';
 import { showNotification } from '@/lib/utils';
 import {
   generateMarkdownFromSections,

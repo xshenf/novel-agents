@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, RotateCcw, Trash2, Eye, ChevronDown, ChevronRight, FileText, BookOpen, Users, Globe, Layers } from 'lucide-react';
+import { Clock, RotateCcw, Trash2, ChevronDown, ChevronRight, FileText, BookOpen, Users, Globe, Layers } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 
 interface Snapshot {
@@ -30,8 +30,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function VersionHistoryTab() {
-  const { store, routing } = useWorkspace();
-  const { router, buildWorkspaceUrl } = routing;
+  const { store } = useWorkspace();
   const project = store.currentProject;
 
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
@@ -51,7 +50,7 @@ export function VersionHistoryTab() {
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [project?.id]);
+  }, [project?.id, project]);
 
   useEffect(() => {
     fetchSnapshots();

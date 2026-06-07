@@ -56,7 +56,7 @@ export function VolumeOutlineView({ ctrl }: VolumeOutlineViewProps) {
       if (vol.chapters.length > 0) {
         const totalChaps = vol.chapters.length;
         const writtenChaps = vol.chapters.filter(ch => {
-          const dbCh = store.chapters.find((dbc: any) => dbc.title.includes(ch.title) || ch.title.includes(dbc.title));
+          const dbCh = store.chapters.find((dbc: { title: string; content?: string }) => dbc.title.includes(ch.title) || ch.title.includes(dbc.title));
           return dbCh && dbCh.content && dbCh.content.trim().length > 10;
         }).length;
         if (writtenChaps === totalChaps) {

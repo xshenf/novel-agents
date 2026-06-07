@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Loader2, Lock, Unlock, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Loader2, Lock, Unlock, Plus, Sparkles } from 'lucide-react';
 import type { NovelStore } from '@/lib/store';
 import type { WorldState } from '@/lib/db';
 import { useAiClient } from '../hooks/useAiClient';
@@ -41,7 +41,7 @@ function WorldStateCard({
       } catch { /* ignore */ }
     }, 2000);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [name, category, content]);
+  }, [name, category, content, onSave, state.id]);
 
   const handleSave = async () => {
     if (!name.trim()) return;

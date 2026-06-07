@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Layers, Globe, Palette
+  Compass, Activity, BookOpen, User, Tag, Zap, Flame, Award, Lock, Key, Trophy, CheckCircle2, Globe, Palette
 } from 'lucide-react';
 
 export type OutlineSubTab = 'kernel' | 'volume' | 'chapter' | 'assets';

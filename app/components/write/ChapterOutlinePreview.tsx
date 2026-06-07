@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Sparkles, Loader2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Loader2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useWorkspace } from '../../workspace-context';
 import { useAiClient } from '../../hooks/useAiClient';
 import { parseStructureOutline, generateMarkdownFromSections } from '@/lib/outlineParser';
@@ -126,8 +126,8 @@ ${contextChapters}
       } else {
         throw new Error('AI 返回的内容无法解析为标准的章节大纲格式，请重试');
       }
-    } catch (e: any) {
-      alert('AI 章节大纲推演失败: ' + e.message);
+    } catch (e: unknown) {
+      alert('AI 章节大纲推演失败: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setIsGenerating(false);
     }

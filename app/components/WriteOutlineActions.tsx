@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  BookOpen, Sparkles, FileText, Pencil, Trash2, FolderPlus, Plus,
+  BookOpen, Sparkles, Pencil, Trash2, FolderPlus, Plus,
   RefreshCw, Wand2, Loader2, ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -14,7 +14,7 @@ interface WriteOutlineActionsProps {
 const AI_REFRESHABLE_NUMS = [3, 5, 8] as const;
 
 export function WriteOutlineActions({ variant = 'card' }: WriteOutlineActionsProps) {
-  const { store, routing, outlineTree, volumeActions } = useWorkspace();
+  const { routing, outlineTree, volumeActions } = useWorkspace();
   const { setActiveWorkspaceTab } = routing;
   const { localSections, selectedVolumeIdx } = outlineTree;
   const {
@@ -89,10 +89,6 @@ export function WriteOutlineActions({ variant = 'card' }: WriteOutlineActionsPro
     ...baseBtn,
     opacity: 0.5,
     cursor: 'not-allowed',
-  };
-
-  const handlePickVolume = (idx: number) => {
-    setActiveWorkspaceTab('write');
   };
 
   return (

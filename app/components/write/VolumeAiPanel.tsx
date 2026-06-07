@@ -42,7 +42,7 @@ export function VolumeAiPanel({ vIdx }: VolumeAiPanelProps) {
       // 1. 确保本卷大纲里的所有章节均已在数据库建立
       const updatedChaps = [];
       for (const chap of vol.chapters) {
-        let dbChap = store.chapters.find((c: any) => c.title === chap.title);
+        let dbChap = store.chapters.find((c: { title: string }) => c.title === chap.title);
         if (!dbChap) {
           dbChap = await store.createChapter(store.currentProject.id, chap.title);
         }
@@ -52,8 +52,8 @@ export function VolumeAiPanel({ vIdx }: VolumeAiPanelProps) {
       // 2. 从 store 重拿最新 chapters 列表
       const latestChapters = useNovelStore.getState().chapters;
       const volDbChaps = vol.chapters.map(chap =>
-        latestChapters.find((c: any) => c.title === chap.title)
-      ).filter((c): c is any => !!c);
+        latestChapters.find((c: { title: string }) => c.title === chap.title)
+      ).filter((c): c is { id: string; title: string; content: string } => !!c);
 
       // 3. 过滤出没有正文的章节，或者若是当前编辑章节（且其为空或属于此卷）也可写入
       const toWriteChaps = volDbChaps.filter(chap =>
@@ -81,8 +81,8 @@ export function VolumeAiPanel({ vIdx }: VolumeAiPanelProps) {
         count: actualToWrite.length,
         untilEnd: generateCount === 'all'
       });
-    } catch (e: any) {
-      alert('批量生成章节正文失败: ' + e.message);
+    } catch (e: unknown) {
+      alert('批量生成章节正文失败: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setIsGeneratingThisVolume(false);
     }

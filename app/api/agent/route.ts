@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
 import { Command } from '@langchain/langgraph';
 import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';

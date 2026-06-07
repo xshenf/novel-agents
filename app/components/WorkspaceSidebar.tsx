@@ -1,7 +1,7 @@
 'use client';
 
-import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { ChevronRight, Plus, FileText, ChevronLeft, ChevronDown, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
 import { BTN_TOOLBAR } from '@/lib/styles';
@@ -20,7 +20,6 @@ export function WorkspaceSidebar() {
   const { sidebarWidth, setSidebarWidth, sidebarCollapsed, setSidebarCollapsed } = layout;
   const { localSections, selectedVolumeIdx, setSelectedVolumeIdx, selectedChapterIdx, setSelectedChapterIdx, collapsedVolumes, setCollapsedVolumes } = outlineTree;
   const { handleAddChapter, handleAddVolume, handleAiCreateNewVolume, isAiOutlineLoading } = volumeActions;
-  const [hoveredMenuKey, setHoveredMenuKey] = useState<string | null>(null);
 
   // 拖拽条事件监听器清理（防止组件卸载时监听器泄漏）
   const sidebarDragCleanupRef = useRef<(() => void) | null>(null);
@@ -60,7 +59,7 @@ export function WorkspaceSidebar() {
         console.error('手动创建新章节失败:', e);
       }
     } else {
-      const dbChap = store.chapters.find((c: any) => c.id === chapterId);
+      const dbChap = store.chapters.find((c: { id: string }) => c.id === chapterId);
       store.setCurrentChapter(dbChap || null);
     }
     router.push(buildWorkspaceUrl(store.currentProject.id, 'write', realId ?? undefined));

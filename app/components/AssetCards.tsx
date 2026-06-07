@@ -11,7 +11,7 @@ export const CharacterCard = ({
   onDelete
 }: {
   character: Character;
-  onSave: (id: string, updates: any) => Promise<void>;
+  onSave: (id: string, updates: Partial<Character>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) => {
   const { store } = useWorkspace();
@@ -53,7 +53,7 @@ export const CharacterCard = ({
       } catch { /* ignore */ }
     }, 2000);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [name, role, age, identity, personality, goals, currentState, forbidden]);
+  }, [name, role, age, identity, personality, goals, currentState, forbidden, character.id]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -69,7 +69,7 @@ export const CharacterCard = ({
         currentState,
         forbidden: forbidden.split(',').map(s => s.trim()).filter(Boolean),
       });
-    } catch (e) {
+    } catch {
       // 异常处理
     } finally {
       setIsSaving(false);
@@ -148,7 +148,7 @@ export const AddCharacterCard = ({
   onCancel 
 }: { 
   projectId: string; 
-  onAdd: (char: any) => Promise<void>; 
+  onAdd: (char: Omit<Character, 'id'>) => Promise<void>; 
   onCancel: () => void; 
 }) => {
   const [name, setName] = useState('');
@@ -179,7 +179,7 @@ export const AddCharacterCard = ({
         relationships: []
       });
       onCancel();
-    } catch (e) {
+    } catch {
       // 异常处理
     } finally {
       setIsLoading(false);
@@ -229,7 +229,7 @@ export const WorldRuleCard = ({
   onDelete
 }: {
   rule: WorldRule;
-  onSave: (id: string, updates: any) => Promise<void>;
+  onSave: (id: string, updates: Partial<WorldRule>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) => {
   const { store } = useWorkspace();
@@ -256,7 +256,7 @@ export const WorldRuleCard = ({
     setIsSaving(true);
     try {
       await onSave(rule.id, { name, type, description });
-    } catch (e) {
+    } catch {
       // 异常处理
     } finally {
       setIsSaving(false);
@@ -275,7 +275,7 @@ export const WorldRuleCard = ({
           />
           <select 
             value={type} 
-            onChange={e => setType(e.target.value as any)} 
+            onChange={e => setType(e.target.value as WorldRule['type'])}
             style={{ background: 'var(--bg-input)', border: '1px solid var(--border-light)', borderRadius: '4px', fontSize: '11px', color: 'var(--text-muted)', padding: '2px 6px', outline: 'none' }}
           >
             <option value="location">地点</option>
@@ -315,7 +315,7 @@ export const AddWorldRuleCard = ({
   defaultName
 }: { 
   projectId: string; 
-  onAdd: (rule: any) => Promise<void>; 
+  onAdd: (rule: Omit<WorldRule, 'id'>) => Promise<void>; 
   onCancel: () => void; 
   defaultType?: 'location' | 'faction' | 'rule' | 'item' | 'other';
   defaultName?: string;
@@ -332,7 +332,7 @@ export const AddWorldRuleCard = ({
     try {
       await onAdd({ projectId, name, type, description });
       onCancel();
-    } catch (e) {
+    } catch {
       // 异常处理
     } finally {
       setIsLoading(false);
@@ -347,7 +347,7 @@ export const AddWorldRuleCard = ({
       
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px' }}>
         <input required placeholder="设定项名称 (如：藏书阁)" type="text" className="input" value={name} onChange={e => setName(e.target.value)} style={{ padding: '4px 8px', fontSize: '12px' }} />
-        <select className="input" value={type} onChange={e => setType(e.target.value as any)} style={{ background: 'var(--bg-input)', padding: '4px 8px', fontSize: '12px', outline: 'none' }}>
+        <select className="input" value={type} onChange={e => setType(e.target.value as WorldRule['type'])} style={{ background: 'var(--bg-input)', padding: '4px 8px', fontSize: '12px', outline: 'none' }}>
           <option value="location">地理位置/地点</option>
           <option value="faction">宗门势力/组织</option>
           <option value="rule">核心规则/法则</option>

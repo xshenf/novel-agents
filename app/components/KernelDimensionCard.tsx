@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
 import { Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
@@ -187,7 +186,7 @@ export function KernelDimensionCard({
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {deductionOptions.map((opt: any, idx: number) => (
+                  {deductionOptions.map((opt: { name: string; description: string }, idx: number) => (
                     <div
                       key={opt.title || `${idx}-${opt.title}`}
                       style={{

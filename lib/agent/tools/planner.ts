@@ -1,5 +1,4 @@
 import { tool } from '@langchain/core/tools';
-import { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { db } from '../../db';
 import { ai } from '../../ai';

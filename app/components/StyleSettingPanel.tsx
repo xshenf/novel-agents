@@ -11,7 +11,7 @@ interface StyleSettingPanelProps {
   setTempStyleSetting: (v: string) => void;
 }
 
-export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: StyleSettingPanelProps) {
+export function StyleSettingPanel({ setTempStyleSetting }: StyleSettingPanelProps) {
   const { store, kernel } = useWorkspace();
   const { isKernelLoading, kernelProgress, fetchKernelOptions } = kernel;
 
@@ -62,7 +62,7 @@ export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: Sty
       const matchedTags = allTags.filter(t => tags.includes(t));
       setSelectedTags(matchedTags);
     }
-  }, [store.currentProject?.id]);
+  }, [store.currentProject?.id, store.currentProject]);
 
   // 任意维度变化时，合成 styleSetting 并保存
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -113,7 +113,7 @@ export function StyleSettingPanel({ tempStyleSetting, setTempStyleSetting }: Sty
       pendingSaveRef.current = null;
       await doSave(selectedGenre, selectedTone, selectedTags);
     }, 1500);
-  }, [selectedGenre, selectedTone, selectedTags]);
+  }, [selectedGenre, selectedTone, selectedTags, doSave, store.currentProject]);
 
   // 组件卸载时立即保存未提交的内容
   useEffect(() => {

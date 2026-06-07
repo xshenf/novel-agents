@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
-import { 
-  PrismaClient, 
-  NovelProject as PrismaProject, 
-  Character as PrismaCharacter, 
-  Chapter as PrismaChapter, 
+import {
+  PrismaClient,
+  NovelProject as PrismaProject,
+  Character as PrismaCharacter,
+  Chapter as PrismaChapter,
   AgentMessage as PrismaMessage,
-  WorldState as PrismaWorldState
 } from '@prisma/client';
 
 const prismaClientSingleton = () => {

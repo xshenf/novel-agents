@@ -80,7 +80,7 @@ export function useAgentChat(store: NovelStore) {
             if (saved) {
               try {
                 setAgentMessages(JSON.parse(saved));
-              } catch (_) {
+              } catch {
                 setAgentMessages([]);
               }
             } else {
@@ -99,17 +99,12 @@ export function useAgentChat(store: NovelStore) {
           if (saved) {
             try {
               setAgentMessages(JSON.parse(saved));
-            } catch (_) {
+            } catch {
               setAgentMessages([]);
             }
           } else {
             setAgentMessages([]);
           }
-          setTimeout(() => {
-            if (agentBottomRef.current) {
-              agentBottomRef.current.scrollIntoView({ behavior: 'auto' });
-            }
-          }, 100);
         });
     } else {
       setAgentMessages([]);
@@ -117,9 +112,7 @@ export function useAgentChat(store: NovelStore) {
     return () => {
       active = false;
     };
-  }, [store.currentProject?.id]);
-
-  // 智能体消息直接由后端即时持久化到数据库，因此前端无需定时同步对话历史。
+  }, [store.currentProject?.id, store.currentProject]);
 
   // 消费 agent SSE 流：初次发送与确认 resume 共用同一套解析逻辑，避免重复实现
   const processAgentStream = async (response: Response) => {

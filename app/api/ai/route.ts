@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server';
 import { ai } from '@/lib/ai';
 import { db } from '@/lib/db';
 import { searchMemory } from '@/lib/memory';
+import { syncChapterMemoryAfterWrite } from '@/lib/chapterMemorySync';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let { 
-      action, projectId, currentText, instruction, query, projectTitle, projectDesc, numChapters, 
-      apiKey, modelName, apiProvider, apiBaseUrl, temperature, maxTokens, systemInstruction, reasoningEnabled 
+    const {
+      action, projectId, currentText, instruction, query, projectTitle, projectDesc, numChapters,
+      apiKey: rawApiKey, modelName, apiProvider, apiBaseUrl, temperature, maxTokens, systemInstruction, reasoningEnabled
     } = body;
+    let apiKey = rawApiKey;
 
     if (!action) {
       return NextResponse.json({ error: '缺少 action 参数' }, { status: 400 });
@@ -124,6 +126,21 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: '缺少 currentText' }, { status: 400 });
         }
         const result = await ai.summarizeChapter(currentText, apiKey, modelName);
+        return NextResponse.json(result);
+      }
+
+      case 'syncChapterMemory': {
+        const { chapterId } = body;
+        if (!projectId || !chapterId || currentText === undefined) {
+          return NextResponse.json({ error: '缺少 projectId、chapterId 或 currentText' }, { status: 400 });
+        }
+        const result = await syncChapterMemoryAfterWrite({
+          projectId,
+          chapterId,
+          text: currentText,
+          apiKey,
+          modelName,
+        });
         return NextResponse.json(result);
       }
 

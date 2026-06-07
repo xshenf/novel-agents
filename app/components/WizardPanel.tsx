@@ -447,7 +447,7 @@ export function WizardPanel() {
   const { ui, wizard } = useWorkspace();
   const { isAiLoading } = ui;
   const {
-    isWizardMode, setIsWizardMode, existingProjectId, selectedGenreCategory, setSelectedGenreCategory,
+    existingProjectId, selectedGenreCategory, setSelectedGenreCategory,
     customGenreInput, setCustomGenreInput, customToneInput, setCustomToneInput,
     wizardStep, setWizardStep, selectedGenre, setSelectedGenre, selectedTone, setSelectedTone,
     selectedTags, setSelectedTags, wizardLoading,

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { parseStructureOutline, type OutlineVolume } from '@/lib/outlineParser';
+import { parseStructureOutline } from '@/lib/outlineParser';
 
 interface UseOutlineTreeStateParams {
   tempOutlineFull: string;

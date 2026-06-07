@@ -120,8 +120,7 @@ export async function searchMemory(projectId: string, query: string, chapterTitl
       const volumes = parseStructureOutline(project.outlineFull);
       const flatChapters = volumes.map(v => v.chapters || []).flat();
       const cleanTitle = (t: string) => t.replace(/^(第[一二三四五六七八九十百\d]+章[：:\s\-]*)/, '').trim();
-      
-      const targetClean = cleanTitle(chapterTitle);
+
       const matched = flatChapters.find(ch => {
         const t1 = ch.title.trim();
         const t2 = chapterTitle.trim();

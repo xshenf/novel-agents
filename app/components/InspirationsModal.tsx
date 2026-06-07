@@ -267,7 +267,7 @@ export function InspirationsModal() {
                                 value={rule.type}
                                 onChange={(e) => {
                                   const newRules = [...inspRules];
-                                  newRules[index].type = e.target.value as any;
+                                  newRules[index].type = e.target.value as WorldRule['type'];
                                   setInspRules(newRules);
                                 }}
                                 style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg-input)' }}

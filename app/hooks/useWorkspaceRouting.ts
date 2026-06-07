@@ -67,7 +67,7 @@ export function useWorkspaceRouting(store: NovelStore) {
         }
       }
     });
-  }, []); // intentionally empty - only run on mount
+  }, [store, urlProjectId]); // intentionally minimal - seedRef always has latest seedDemo
 
   // 从 URL 恢复 tab 和 chapter 选中状态
   useEffect(() => {
@@ -89,7 +89,7 @@ export function useWorkspaceRouting(store: NovelStore) {
         }
       }
     }
-  }, [store.currentProject?.id, urlTab, urlChapterId]); // removed store.chapters.length - chapters read from getState()
+  }, [store, store.currentProject?.id, urlTab, urlChapterId]); // removed store.chapters.length - chapters read from getState()
 
   return {
     router,

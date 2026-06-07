@@ -104,7 +104,7 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
             await store.createChapter(store.currentProject!.id, title);
           }
           activeChapters = useNovelStore.getState().chapters;
-        } catch (err) {
+        } catch {
           setAutoWritingStatus('大纲目录规划失败，请手动创建章节或重试');
           setIsAutoWriting(false);
           return;
@@ -195,58 +195,21 @@ export function useAutoWriter({ store, callAIApi, setEditorContent, setSaveStatu
           // 自动进行章节复盘摘要与设定记忆更新
           setAutoWritingStatus(`正在自动复盘章节并更新小说记忆: ${freshChapter.title} ...`);
 
-          const sumRes = await callAIApiWithRetry({
-            action: 'summarize',
-            currentText: writeData.text
+          const memoryRes = await callAIApiWithRetry({
+            action: 'syncChapterMemory',
+            projectId: store.currentProject.id,
+            chapterId: freshChapter.id,
+            currentText: writeData.text,
           }, `复盘摘要: ${freshChapter.title}`);
-          const sumData = await sumRes.json();
+          const memoryData = await memoryRes.json();
 
           if (autoWriteStopRef.current) break;
 
-          if (sumData.summary) {
-            // 更新章节结构化摘要与伏笔
-            await store.updateChapter(freshChapter.id, {
-              summary: sumData.summary,
-              characterChanges: sumData.characterChanges || [],
-              newForeshadowing: sumData.newForeshadowing || [],
-              resolvedForeshadowing: sumData.resolvedForeshadowing || [],
-              timelineEvents: sumData.timelineEvents || []
-            });
-
-            // 联动更新关联角色卡的 current_state
-            if (sumData.characterChanges && sumData.characterChanges.length > 0) {
-              for (const change of sumData.characterChanges) {
-                const matchedChar = store.characters.find(c => c.name === change.character);
-                if (matchedChar) {
-                  await store.updateCharacter(matchedChar.id, {
-                    currentState: change.change
-                  });
-                }
-              }
-              // 重新加载角色设定
-              await store.fetchCharacters(store.currentProject.id);
-            }
-
-            // 章节摘要落库后，刷新全书滚动概要（供长期记忆有界注入，长篇不跑偏）
-            try {
-              await callAIApiWithRetry(
-                { action: 'foldSynopsis', projectId: store.currentProject.id },
-                '更新全书滚动概要',
-              );
-            } catch (e) {
-              console.error('更新全书滚动概要失败:', e);
-            }
-
-            // 刷新世界状态台账（供动态世界信息随剧情更新）
-            try {
-              await callAIApiWithRetry(
-                { action: 'foldWorldState', projectId: store.currentProject.id },
-                '更新世界状态台账',
-              );
-            } catch (e) {
-              console.error('更新世界状态台账失败:', e);
-            }
+          if (memoryData.summary?.summary) {
+            await store.fetchChapters(store.currentProject.id);
+            await store.fetchCharacters(store.currentProject.id);
             await store.fetchWorldStates(store.currentProject.id);
+            await store.refreshProject(store.currentProject.id);
           }
 
           completed++;

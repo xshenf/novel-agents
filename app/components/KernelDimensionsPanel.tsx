@@ -3,7 +3,7 @@
 // TODO: Migrate inline styles to CSS Modules or Tailwind CSS
 // TODO: Extract hardcoded Chinese strings for i18n support
 
-import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { KernelDimensionCard } from './KernelDimensionCard';
 import { StyleSettingPanel } from './StyleSettingPanel';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';

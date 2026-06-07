@@ -64,7 +64,7 @@ export function useWizard({ store, router, buildWorkspaceUrl, setIsAiLoading, on
       store.setCurrentProject(newProj);
       router.push(buildWorkspaceUrl(newProj.id, 'outline'));
       showNotification("已跳过向导！已为您创建一个初始项目《未命名故事》，您可以在世界设定中补充各种故事背景设定。");
-    } catch (err) {
+    } catch {
       showNotification("直接建书失败");
     } finally {
       setIsAiLoading(false);
@@ -104,7 +104,7 @@ export function useWizard({ store, router, buildWorkspaceUrl, setIsAiLoading, on
         store.setCurrentProject(newProj);
         router.push(buildWorkspaceUrl(newProj.id, 'outline'));
       }
-    } catch (err) {
+    } catch {
       showNotification(existingProjectId ? '更新项目设定失败' : '建档失败');
     } finally {
       setIsAiLoading(false);

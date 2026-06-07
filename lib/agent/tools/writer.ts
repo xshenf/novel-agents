@@ -2,6 +2,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { db, type Chapter } from '../../db';
 import { ai } from '../../ai';
+import { syncChapterMemoryAfterWrite } from '../../chapterMemorySync';
 import { getAgentConfig, getAgentModelName, agentHasKey } from '../config';
 
 // ─── 9. 新建章节 ──────────────────────────────────────────────────────────────
@@ -69,16 +70,17 @@ export const autoWriteChapterTool = tool(
     let memoryNote = '';
     if (agentHasKey('writer', apiConfig)) {
       try {
-        const s = await ai.summarizeChapter(text, configStr, modelName);
-        await db.updateChapter(target.id, {
-          summary: s.summary,
-          characterChanges: s.characterChanges,
-          newForeshadowing: s.newForeshadowing,
-          resolvedForeshadowing: s.resolvedForeshadowing,
-          timelineEvents: s.timelineEvents,
+        const memory = await syncChapterMemoryAfterWrite({
+          projectId,
+          chapterId: target.id,
+          text,
+          apiKey: configStr,
+          modelName,
         });
-        memoryNote = '，并已同步更新章节摘要与长期记忆';
-      } catch {
+        const partialWarning = memory.warnings.length > 0 ? `（${memory.warnings.join('；')}）` : '';
+        memoryNote = `，并已同步更新章节摘要、角色状态与长期记忆${partialWarning}`;
+      } catch (error) {
+        console.warn('[agent] sync chapter memory failed:', error);
         memoryNote = '（注意：摘要生成失败，仅保存了正文）';
       }
     }

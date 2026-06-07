@@ -93,7 +93,7 @@ export function useEditor(store: NovelStore) {
         localStorage.removeItem(localKey);
       }
     }
-  }, [editorContent, store.currentChapter?.content, store.currentChapter?.id, store.currentProject?.id, localDraft]);
+  }, [editorContent, store.currentChapter?.content, store.currentChapter?.id, store.currentProject?.id, localDraft, store.currentChapter]);
 
   // 编辑器自动保存机制 (Debounce 1.5s)
   const handleEditorChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {

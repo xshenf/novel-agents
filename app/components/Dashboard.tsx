@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, Plus, Trash2, Settings } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 
 export function Dashboard() {

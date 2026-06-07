@@ -1,6 +1,5 @@
 'use client';
 
-import { Plus } from 'lucide-react';
 import { MATERIALS_LIST, MATERIAL_GROUPS } from '../hooks/useMaterialTabs';
 
 interface OutlineSidebarProps {

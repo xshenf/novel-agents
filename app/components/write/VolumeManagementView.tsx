@@ -92,7 +92,7 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
         console.error('手动创建新章节失败:', e);
       }
     } else {
-      const dbChap = store.chapters.find((c: any) => c.id === chapterId);
+      const dbChap = store.chapters.find((c: { id: string }) => c.id === chapterId);
       store.setCurrentChapter(dbChap || null);
     }
     

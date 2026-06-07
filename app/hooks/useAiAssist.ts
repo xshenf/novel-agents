@@ -209,8 +209,7 @@ export function useAiAssist({ store, callAIApi, editorContent, setIsAiLoading }:
 
       setShowInspirationsModal(false);
       showNotification('灵感设定导入成功！');
-    } catch (err) {
-      showNotification('导入部分或全部设定时出错');
+    } catch {
     } finally {
       setIsAiLoading(false);
     }

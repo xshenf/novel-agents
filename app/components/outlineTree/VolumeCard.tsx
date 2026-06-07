@@ -2,6 +2,7 @@
 
 import { BookOpen, ChevronDown, ChevronRight, Lock, Unlock, ArrowUp, ArrowDown, Sparkles, Edit3, Trash2, Plus, Loader2, Check, X } from 'lucide-react';
 import type { OutlineVolume } from '@/lib/outlineParser';
+import type { Chapter } from '@/lib/db';
 import type { OutlineTreeController } from './types';
 import { ChapterCard } from './ChapterCard';
 
@@ -10,11 +11,11 @@ interface VolumeCardProps {
   vol: OutlineVolume;
   vIdx: number;
   volStatus: '未开始' | '进行中' | '已完成';
-  matchedChaps: { ch: any; cIdx: number; matches: boolean }[];
+  matchedChaps: { ch: Chapter; cIdx: number; matches: boolean }[];
   isCollapsed: boolean;
   isVolRegening: boolean;
   isEditing: boolean;
-  flatChapters: (any & { volIdx: number; chapIdx: number })[];
+  flatChapters: (OutlineVolume['chapters'][number] & { volIdx: number; chapIdx: number })[];
 }
 
 export function VolumeCard({
@@ -47,8 +48,6 @@ export function VolumeCard({
     cancelAiRegen,
     handleInsertChapter,
     editingChapterPath,
-    setEditingChapterPath,
-    setEditChapterForm,
     regeningIndex,
     store,
   } = ctrl;
@@ -415,7 +414,7 @@ export function VolumeCard({
                   const isRegening: boolean = regeningIndex === globalIdx;
                   const isEditingChap: boolean = !!(editingChapterPath && editingChapterPath.volIdx === vIdx && editingChapterPath.chapIdx === cIdx);
 
-                  const dbChap = store.chapters.find((dbc: any) => dbc.title.includes(sec.title) || sec.title.includes(dbc.title));
+                  const dbChap = store.chapters.find((dbc: Chapter) => dbc.title.includes(sec.title) || sec.title.includes(dbc.title));
                   const isWritten: boolean = !!(dbChap && dbChap.content && dbChap.content.trim().length > 10);
 
                   return (

@@ -16,7 +16,7 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     try {
       const parsed = JSON.parse(apiKey);
       config = { ...config, ...parsed };
-    } catch (e) {
+    } catch {
       // 解析失败则视其为普通的单个 apiKey
     }
   }

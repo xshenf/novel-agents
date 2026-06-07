@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useReducer, type FormEvent } from 'react';
 import type { NovelStore } from '@/lib/store';
 import type { CallAIApi } from './useAiClient';
-import { createVersionSnapshot } from '@/lib/versionSnapshot';
 import { settingLengthHint } from '@/lib/constants';
 import { getMockDeductionOptions } from '@/lib/mockData';
 import { showNotification } from '@/lib/utils';
@@ -322,7 +321,7 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
       setIsAddingChar(false);
       setIsAddingRule(false);
     }
-  }, [projectId]);
+  }, [projectId, store.currentProject]);
 
   // ─── AI 设定与大纲推演请求（SSE 流式进度）──────────────────────────────────
 

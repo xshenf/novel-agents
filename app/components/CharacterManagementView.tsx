@@ -7,7 +7,7 @@ interface CharacterManagementViewProps {
   store: WorkspaceContextValue['store'];
   isAddingChar: boolean;
   setIsAddingChar: (v: boolean) => void;
-  createVersionSnapshot: any;
+  createVersionSnapshot: (params: { projectId: string; type: string; key: string; label: string; data: unknown; source?: string }) => Promise<{ id: string } | null>;
 }
 
 export function CharacterManagementView({

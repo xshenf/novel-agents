@@ -68,7 +68,7 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
     } finally {
       setBusy(null);
     }
-  }, [store, callAIApi, editorContent, busy, setEditorContent, setSaveStatus]);
+  }, [store, callAIApi, editorContent, busy, setEditorContent, setSaveStatus, persist]);
 
   // 对选区做 润色 / 扩写 / 改写，结果替换选区
   const transformSelection = useCallback(async (mode: 'polish' | 'expand' | 'rewrite', selStart: number, selEnd: number) => {
@@ -100,7 +100,7 @@ export function useInlineAi({ store, callAIApi, editorContent, setEditorContent,
     } finally {
       setBusy(null);
     }
-  }, [busy, editorContent, callAIApi, setEditorContent, setSaveStatus]);
+  }, [busy, editorContent, callAIApi, setEditorContent, setSaveStatus, persist]);
 
   return { busy, continueWriting, transformSelection };
 }

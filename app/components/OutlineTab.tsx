@@ -20,7 +20,6 @@ import { OutlineSidebar } from './OutlineSidebar';
 export function OutlineTab() {
   const { store, kernel, routing } = useWorkspace();
   const {
-    isAddingRule, setIsAddingRule,
   } = kernel;
 
   const callAIApi = useAiClient();
@@ -74,8 +73,8 @@ export function OutlineTab() {
       } else {
         alert('AI 推演未返回有效结果');
       }
-    } catch (e: any) {
-      alert(`AI 一键推演【${label}】失败: ` + e.message);
+    } catch (e: unknown) {
+      alert(`AI 一键推演【${label}】失败: ` + (e instanceof Error ? e.message : String(e)));
     } finally {
       setInitingMaterial(null);
     }
