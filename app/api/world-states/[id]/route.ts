@@ -8,8 +8,10 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const ALLOWED = new Set(['category','name','content','pinned','source','updatedAtChapter']);
+    const sanitized = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.has(k)));
 
-    const updated = await db.updateWorldState(id, body);
+    const updated = await db.updateWorldState(id, sanitized);
     if (!updated) {
       return NextResponse.json({ error: '世界状态未找到' }, { status: 404 });
     }

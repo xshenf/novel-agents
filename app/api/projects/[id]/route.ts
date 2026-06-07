@@ -25,8 +25,10 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const ALLOWED = new Set(['title','description','styleSetting','worldSetting','powerSystem','goldFinger','coreConflict','factionsMap','sellingPoints','outlineFull','antiAiStyleRules','forbiddenSetting','modelsConfig','agentBindings','agentOverrides','rollingSynopsis']);
+    const sanitized = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.has(k)));
     
-    const updated = await db.updateProject(id, body);
+    const updated = await db.updateProject(id, sanitized);
     if (!updated) {
       return NextResponse.json({ error: '项目未找到' }, { status: 404 });
     }

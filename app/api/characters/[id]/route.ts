@@ -8,8 +8,10 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const ALLOWED = new Set(['name','role','age','identity','personality','goals','relationships','currentState','forbidden']);
+    const sanitized = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.has(k)));
     
-    const updated = await db.updateCharacter(id, body);
+    const updated = await db.updateCharacter(id, sanitized);
     if (!updated) {
       return NextResponse.json({ error: '角色未找到' }, { status: 404 });
     }

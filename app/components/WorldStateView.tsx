@@ -5,6 +5,7 @@ import { Loader2, Lock, Unlock, Plus, Trash2, Sparkles } from 'lucide-react';
 import type { NovelStore } from '@/lib/store';
 import type { WorldState } from '@/lib/db';
 import { useAiClient } from '../hooks/useAiClient';
+import { useWorkspace } from '../workspace-context';
 
 const CATEGORIES = ['势力格局', '主角境界', '当前所在地', '时间进度', '关键物品', '其他'];
 
@@ -18,7 +19,7 @@ function WorldStateCard({
   onSave: (id: string, updates: Partial<WorldState>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
-  const { store } = useWorkspaceViaProps();
+  const { store } = useWorkspace();
   const [name, setName] = useState(state.name);
   const [category, setCategory] = useState(state.category);
   const [content, setContent] = useState(state.content);
@@ -109,15 +110,6 @@ function WorldStateCard({
       </div>
     </div>
   );
-}
-
-// 临时辅助：WorldStateCard 需要 store 的 showConfirm，通过 props 传递不方便，
-// 这里用一个轻量 hook 从 workspace-context 取 store
-function useWorkspaceViaProps() {
-  // 直接从 zustand store 取（避免循环依赖）
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { useNovelStore } = require('@/lib/store');
-  return { store: useNovelStore.getState() };
 }
 
 // 新增世界状态卡片

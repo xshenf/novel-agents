@@ -127,10 +127,16 @@ export interface AgentMessage {
 
 // 辅助序列化/反序列化格式化函数
 function formatProject(p: PrismaProject): NovelProject {
+  const rawModels = (p as any).modelsConfig ? JSON.parse((p as any).modelsConfig) as any[] : [];
+  // API Key 脱敏：返回给前端时隐藏真实密钥
+  const maskedModels = rawModels.map(m => ({
+    ...m,
+    apiKey: m.apiKey ? '***' + String(m.apiKey).slice(-4) : '',
+  }));
   return {
     ...p,
     antiAiStyleRules: p.antiAiStyleRules ? JSON.parse(p.antiAiStyleRules) as string[] : [],
-    modelsConfig: (p as any).modelsConfig ? JSON.parse((p as any).modelsConfig) as any[] : [],
+    modelsConfig: maskedModels,
     agentBindings: (p as any).agentBindings ? JSON.parse((p as any).agentBindings) as Record<string, string> : {},
     agentOverrides: (p as any).agentOverrides ? JSON.parse((p as any).agentOverrides) as Record<string, any> : {},
     createdAt: p.createdAt.toISOString(),
@@ -191,7 +197,7 @@ export const db = {
   },
 
   async createProject(project: Omit<NovelProject, 'id' | 'createdAt' | 'updatedAt'>): Promise<NovelProject> {
-    const id = `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const created = await prisma.novelProject.create({
       data: {
         id,
@@ -272,7 +278,7 @@ export const db = {
   },
 
   async createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>): Promise<Chapter> {
-    const id = `chap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `chap_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const created = await prisma.chapter.create({
       data: {
         id,
@@ -333,7 +339,7 @@ export const db = {
   },
 
   async createCharacter(character: Omit<Character, 'id'>): Promise<Character> {
-    const id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `char_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const created = await prisma.character.create({
       data: {
         id,
@@ -399,7 +405,7 @@ export const db = {
   },
 
   async createWorldRule(rule: Omit<WorldRule, 'id'>): Promise<WorldRule> {
-    const id = `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `rule_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const created = await prisma.worldRule.create({
       data: {
         id,
@@ -448,7 +454,7 @@ export const db = {
   },
 
   async createWorldState(state: Omit<WorldState, 'id' | 'updatedAt'>): Promise<WorldState> {
-    const id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const created = await prisma.worldState.create({
       data: {
         id,
@@ -482,26 +488,29 @@ export const db = {
   },
 
   async replaceAutoWorldStates(projectId: string, items: Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>): Promise<void> {
-    // 删除该项目所有非锁定且来源为 ai 的条目
-    await prisma.worldState.deleteMany({
-      where: { projectId, pinned: false, source: 'ai' },
-    });
-    // 批量插入 AI 输出的新条目
-    for (const item of items) {
-      const id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await prisma.worldState.create({
-        data: {
-          id,
-          projectId,
-          category: item.category,
-          name: item.name,
-          content: item.content,
-          pinned: false,
-          source: 'ai',
-          updatedAtChapter: item.updatedAtChapter || '',
-        },
+    if (!items || items.length === 0) return; // 防止 AI 返回空数组时清空数据
+    await prisma.$transaction(async (tx) => {
+      // 删除该项目所有非锁定且来源为 ai 的条目
+      await tx.worldState.deleteMany({
+        where: { projectId, pinned: false, source: 'ai' },
       });
-    }
+      // 批量插入 AI 输出的新条目
+      for (const item of items) {
+        const id = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        await tx.worldState.create({
+          data: {
+            id,
+            projectId,
+            category: item.category,
+            name: item.name,
+            content: item.content,
+            pinned: false,
+            source: 'ai',
+            updatedAtChapter: item.updatedAtChapter || '',
+          },
+        });
+      }
+    });
   },
 
   // --- 对话历史 (AgentMessage) ---
@@ -535,31 +544,32 @@ export const db = {
   },
 
   async saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): Promise<AgentMessage[]> {
-    // 过滤并删除旧历史对话
-    await prisma.agentMessage.deleteMany({ where: { projectId } });
-
-    const createdList = [];
-    for (const msg of messages) {
-      const created = await prisma.agentMessage.create({
-        data: {
-          id: msg.id,
-          projectId,
-          userId: 'default_user',
-          type: msg.type,
-          agent: msg.agent,
-          label: msg.label,
-          content: msg.content,
-          toolName: msg.toolName,
-          toolInput: msg.toolInput ? JSON.stringify(msg.toolInput) : null,
-          from: msg.from,
-          fromLabel: msg.fromLabel,
-          to: msg.to,
-          toLabel: msg.toLabel,
-        },
-      });
-      createdList.push(formatAgentMessage(created));
-    }
-    return createdList;
+    const createdList = await prisma.$transaction(async (tx) => {
+      await tx.agentMessage.deleteMany({ where: { projectId } });
+      const results = [];
+      for (const msg of messages) {
+        const created = await tx.agentMessage.create({
+          data: {
+            id: msg.id,
+            projectId,
+            userId: 'default_user',
+            type: msg.type,
+            agent: msg.agent,
+            label: msg.label,
+            content: msg.content,
+            toolName: msg.toolName,
+            toolInput: msg.toolInput ? JSON.stringify(msg.toolInput) : null,
+            from: msg.from,
+            fromLabel: msg.fromLabel,
+            to: msg.to,
+            toLabel: msg.toLabel,
+          },
+        });
+        results.push(created);
+      }
+      return results;
+    });
+    return createdList.map(formatAgentMessage);
   },
 
   async clearAgentMessages(projectId: string): Promise<boolean> {

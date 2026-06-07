@@ -24,6 +24,9 @@ export const CharacterCard = ({
   const [forbidden, setForbidden] = useState(character.forbidden.join(', '));
   const [isSaving, setIsSaving] = useState(false);
 
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
   // 自动保存：任一字段变化时 debounce 2s
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const prevRef = useRef({ name, role, age, identity, personality, goals, currentState, forbidden });
@@ -32,10 +35,11 @@ export const CharacterCard = ({
     if (JSON.stringify(prevRef.current) === JSON.stringify(curr)) return;
     prevRef.current = curr;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    const characterId = character.id;
     saveTimer.current = setTimeout(async () => {
       if (!name.trim()) return;
       try {
-        await onSave(character.id, {
+        await onSaveRef.current(characterId, {
           name,
           role,
           age,
@@ -233,6 +237,9 @@ export const WorldRuleCard = ({
   const [description, setDescription] = useState(rule.description);
   const [isSaving, setIsSaving] = useState(false);
 
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
   // 自动保存：任一字段变化时 debounce 2s
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const prevRef = useRef({ name, type, description });
@@ -241,10 +248,11 @@ export const WorldRuleCard = ({
     if (JSON.stringify(prevRef.current) === JSON.stringify(curr)) return;
     prevRef.current = curr;
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    const ruleId = rule.id;
     saveTimer.current = setTimeout(async () => {
       if (!name.trim() || !description.trim()) return;
       try {
-        await onSave(rule.id, { name, type, description });
+        await onSaveRef.current(ruleId, { name, type, description });
       } catch { /* ignore */ }
     }, 2000);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };

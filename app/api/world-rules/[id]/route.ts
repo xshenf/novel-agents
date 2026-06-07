@@ -8,8 +8,10 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const ALLOWED = new Set(['type','name','description']);
+    const sanitized = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.has(k)));
     
-    const updated = await db.updateWorldRule(id, body);
+    const updated = await db.updateWorldRule(id, sanitized);
     if (!updated) {
       return NextResponse.json({ error: '设定卡未找到' }, { status: 404 });
     }

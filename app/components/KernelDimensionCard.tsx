@@ -58,6 +58,9 @@ export function KernelDimensionCard({
     } catch { /* ignore auto-save errors */ }
   };
 
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
   useEffect(() => {
     if (value === prevValueRef.current) return;
     prevValueRef.current = value;
@@ -75,7 +78,7 @@ export function KernelDimensionCard({
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (pendingValueRef.current) {
-        doSave(pendingValueRef.current);
+        doSaveRef.current(pendingValueRef.current);
       }
     };
   }, []);
