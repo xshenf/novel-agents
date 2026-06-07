@@ -18,7 +18,7 @@ interface UseVolumeActionsParams {
 
 export function useVolumeActions({ store, getLocalSections, setOutlineFull }: UseVolumeActionsParams) {
   const callAIApi = useAiClient();
-  const [isAiOutlineLoading, setIsAiOutlineLoading] = useState(false);
+  const [loadingCount, setLoadingCount] = useState(0);
 
   const persist = useCallback(
     async (next: OutlineVolume[]) => {
@@ -124,7 +124,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       const sections = getLocalSections();
       const target = sections[volIdx];
       if (!target) return;
-      setIsAiOutlineLoading(true);
+      setLoadingCount(c => c + 1);
       try {
         const prompt = `${buildContext()}
 
@@ -150,7 +150,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       } catch (err: any) {
         alert('AI 生成分卷大纲失败: ' + (err?.message || String(err)));
       } finally {
-        setIsAiOutlineLoading(false);
+        setLoadingCount(c => Math.max(0, c - 1));
       }
     },
     [store, getLocalSections, callOutlineAssistant, replaceVolumeHeader]
@@ -163,7 +163,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       const sections = getLocalSections();
       const target = sections[volIdx];
       if (!target) return;
-      setIsAiOutlineLoading(true);
+      setLoadingCount(c => c + 1);
       try {
         const prompt = `${buildContext()}
 【所属分卷】: ${target.title}
@@ -197,7 +197,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       } catch (err: any) {
         alert('AI 自动规划章节失败: ' + (err?.message || String(err)));
       } finally {
-        setIsAiOutlineLoading(false);
+        setLoadingCount(c => Math.max(0, c - 1));
       }
     },
     [store, getLocalSections, callOutlineAssistant, appendChaptersToVolume]
@@ -212,7 +212,7 @@ export function useVolumeActions({ store, getLocalSections, setOutlineFull }: Us
       if (!target) return;
 
       const run = async () => {
-        setIsAiOutlineLoading(true);
+        setLoadingCount(c => c + 1);
         try {
           const prompt = `${buildContext()}
 
@@ -263,7 +263,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
         } catch (err: any) {
           alert('AI 一键生成本卷失败: ' + (err?.message || String(err)));
         } finally {
-          setIsAiOutlineLoading(false);
+          setLoadingCount(c => Math.max(0, c - 1));
         }
       };
 
@@ -283,7 +283,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
   const handleAiCreateNewVolume = useCallback(
     async (numChapters: number = 5) => {
       if (!store.currentProject) return;
-      setIsAiOutlineLoading(true);
+      setLoadingCount(c => c + 1);
       try {
         const sections = getLocalSections();
         const newVolIdx = sections.length;
@@ -325,7 +325,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
       } catch (err: any) {
         alert('AI 新建分卷失败: ' + (err?.message || String(err)));
       } finally {
-        setIsAiOutlineLoading(false);
+        setLoadingCount(c => Math.max(0, c - 1));
       }
     },
     [store, getLocalSections, callOutlineAssistant, persist]
@@ -425,7 +425,7 @@ ${target.content ? `【原有概要参考】: ${target.content}` : ''}
   );
 
   return {
-    isAiOutlineLoading,
+    isAiOutlineLoading: loadingCount > 0,
     handleAiGenerateVolumeOutline,
     handleAiGenerateVolumeChapters,
     handleAiGenerateFullVolume,

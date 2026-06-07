@@ -56,6 +56,15 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
  
   // 切换项目时同步设定状态（仅在项目 ID 变化时重置，避免 updateProject 后覆盖用户编辑）
   const prevProjectIdRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // 组件卸载时中止正在进行的 SSE 请求
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
   useEffect(() => {
     const currentId = store.currentProject?.id || null;
     if (currentId === prevProjectIdRef.current) return;
@@ -98,6 +107,11 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
 
     setIsKernelLoading(true);
     setKernelProgress('正在准备推演...');
+
+    // 创建 AbortController 用于中止 SSE 流式读取
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       // 获取当前绑定模型的并发配置
       const boundModelId = store.agentModelBindings['orchestrator'] || store.models[0]?.id;
@@ -112,7 +126,7 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         concurrency,
         projectId: store.currentProject.id,
         forbiddenSetting: store.currentProject.forbiddenSetting || ''
-      });
+      }, controller.signal);
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ error: '请求失败' }));
@@ -142,6 +156,9 @@ export function useProjectKernel({ store, callAIApi }: UseProjectKernelDeps) {
         };
 
         while (true) {
+          // 检查是否已被中止（组件卸载或项目切换）
+          if (controller.signal.aborted) break;
+
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });

@@ -9,7 +9,8 @@ export function useEditor(store: NovelStore) {
   const [editorContent, setEditorContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const [localDraft, setLocalDraft] = useState<{ content: string; updatedAt: number } | null>(null);
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const contentTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const titleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastChapterIdRef = useRef<string | undefined>(undefined);
 
   // 当选择新章节时，同步更新编辑器内容
@@ -56,9 +57,13 @@ export function useEditor(store: NovelStore) {
   // 卸载时清理待执行的自动保存 timer，避免对已切走的旧章节误写
   useEffect(() => {
     return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-        autoSaveTimer.current = null;
+      if (contentTimerRef.current) {
+        clearTimeout(contentTimerRef.current);
+        contentTimerRef.current = null;
+      }
+      if (titleTimerRef.current) {
+        clearTimeout(titleTimerRef.current);
+        titleTimerRef.current = null;
       }
     };
   }, []);
@@ -96,21 +101,27 @@ export function useEditor(store: NovelStore) {
     setEditorContent(newVal);
     setSaveStatus('dirty');
 
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    if (contentTimerRef.current) clearTimeout(contentTimerRef.current);
 
-    autoSaveTimer.current = setTimeout(() => {
-      if (store.currentChapter) {
+    // 捕获当前章节 ID，避免闭包捕获过时的 store.currentChapter
+    const chapterId = store.currentChapter?.id;
+
+    contentTimerRef.current = setTimeout(() => {
+      // 校验章节是否仍然是同一个，防止快速切换后写入错误章节
+      if (chapterId && store.currentChapter?.id === chapterId) {
         setSaveStatus('saving');
-        store.updateChapter(store.currentChapter.id, { content: newVal }).then(() => {
+        store.updateChapter(chapterId, { content: newVal }).then(() => {
           setSaveStatus('saved');
           createVersionSnapshot({
             projectId: store.currentProject!.id,
             type: 'chapter',
-            key: store.currentChapter!.id,
+            key: chapterId,
             label: store.currentChapter!.title,
             data: { content: newVal },
             source: 'auto',
           });
+        }).catch(() => {
+          setSaveStatus('dirty');
         });
       }
     }, 1500);
@@ -120,13 +131,20 @@ export function useEditor(store: NovelStore) {
     setEditorTitle(e.target.value);
     setSaveStatus('dirty');
 
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
 
-    autoSaveTimer.current = setTimeout(() => {
-      if (store.currentChapter) {
+    // 捕获当前章节 ID，避免闭包捕获过时的 store.currentChapter
+    const chapterId = store.currentChapter?.id;
+    const newTitle = e.target.value;
+
+    titleTimerRef.current = setTimeout(() => {
+      // 校验章节是否仍然是同一个
+      if (chapterId && store.currentChapter?.id === chapterId) {
         setSaveStatus('saving');
-        store.updateChapter(store.currentChapter.id, { title: e.target.value }).then(() => {
+        store.updateChapter(chapterId, { title: newTitle }).then(() => {
           setSaveStatus('saved');
+        }).catch(() => {
+          setSaveStatus('dirty');
         });
       }
     }, 1500);
@@ -142,6 +160,8 @@ export function useEditor(store: NovelStore) {
         content: contentToSave
       }).then(() => {
         setSaveStatus('saved');
+      }).catch(() => {
+        setSaveStatus('dirty');
       });
     }
   };
