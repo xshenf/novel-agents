@@ -1,9 +1,10 @@
 'use client';
 
 import { ChevronRight, Plus, FileText, ChevronLeft, Trash2, ChevronDown, BookOpen, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
+import { BTN_TOOLBAR } from '@/lib/styles';
 
 // 章节写作状态徽标颜色
 const STATUS_COLOR: Record<ChapterStatus, string> = {
@@ -21,12 +22,15 @@ export function WorkspaceSidebar() {
   const { handleAddChapter, handleAddVolume, handleAiCreateNewVolume, isAiOutlineLoading } = volumeActions;
   const [hoveredMenuKey, setHoveredMenuKey] = useState<string | null>(null);
 
-  const treeActionBtn: React.CSSProperties = {
-    flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
-    padding: '6px 8px', fontSize: '11px', borderRadius: '6px',
-    background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)',
-    color: '#c7d2fe', cursor: 'pointer',
-  };
+  // 拖拽条事件监听器清理（防止组件卸载时监听器泄漏）
+  const sidebarDragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      sidebarDragCleanupRef.current?.();
+    };
+  }, []);
+
+  // treeActionBtn 已抽取至 lib/styles.ts → BTN_TOOLBAR
 
   const handleSelectVolume = (vIdx: number) => {
     setSelectedVolumeIdx(vIdx);
@@ -177,7 +181,7 @@ export function WorkspaceSidebar() {
                       setActiveWorkspaceTab('write');
                       router.push(buildWorkspaceUrl(store.currentProject!.id, 'write', undefined, localSections.length));
                     }}
-                    style={treeActionBtn}
+                    style={BTN_TOOLBAR}
                     title="新建一个空分卷"
                   >
                     <FolderPlus size={12} /> 新建分卷
@@ -194,7 +198,7 @@ export function WorkspaceSidebar() {
                       }, 100);
                     }}
                     disabled={isAiOutlineLoading}
-                    style={isAiOutlineLoading ? { ...treeActionBtn, opacity: 0.5, cursor: 'not-allowed' } : treeActionBtn}
+                    style={isAiOutlineLoading ? { ...BTN_TOOLBAR, opacity: 0.5, cursor: 'not-allowed' } : BTN_TOOLBAR}
                     title="让 AI 新增一个完整分卷（卷头 + 5 章）"
                   >
                     {isAiOutlineLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} style={{ color: '#a5b4fc' }} />} AI 新建分卷
@@ -217,18 +221,23 @@ export function WorkspaceSidebar() {
             const handle = e.currentTarget;
             handle.classList.add('active');
             document.body.style.userSelect = 'none';
+            const lastWidthRef = { current: startWidth };
             const onMove = (ev: MouseEvent) => {
               const delta = ev.clientX - startX;
               const newWidth = Math.max(180, Math.min(500, startWidth + delta));
+              lastWidthRef.current = newWidth;
               setSidebarWidth(newWidth);
-              localStorage.setItem('layout_sidebar_width', String(newWidth));
             };
             const onUp = () => {
+              // localStorage 持久化仅在拖拽结束时写入，避免 mousemove 高频 I/O
+              localStorage.setItem('layout_sidebar_width', String(lastWidthRef.current));
               handle.classList.remove('active');
               document.body.style.userSelect = '';
               document.removeEventListener('mousemove', onMove);
               document.removeEventListener('mouseup', onUp);
+              sidebarDragCleanupRef.current = null;
             };
+            sidebarDragCleanupRef.current = onUp;
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
           }}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2, HelpCircle } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
 
@@ -12,6 +13,14 @@ export function AgentPanel() {
     isAgentLoading, agentBottomRef, handleSendAgentMessage,
     pendingConfirm, resolveConfirm,
   } = agent;
+
+  // 拖拽条事件监听器清理（防止组件卸载时监听器泄漏）
+  const agentDragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      agentDragCleanupRef.current?.();
+    };
+  }, []);
 
   return (
     <>
@@ -25,18 +34,23 @@ export function AgentPanel() {
           const handle = e.currentTarget;
           handle.classList.add('active');
           document.body.style.userSelect = 'none';
+          const lastWidthRef = { current: startWidth };
           const onMove = (ev: MouseEvent) => {
             const delta = startX - ev.clientX;
             const newWidth = Math.max(240, Math.min(600, startWidth + delta));
+            lastWidthRef.current = newWidth;
             setAiPanelWidth(newWidth);
-            localStorage.setItem('layout_ai_panel_width', String(newWidth));
           };
           const onUp = () => {
+            // localStorage 持久化仅在拖拽结束时写入，避免 mousemove 高频 I/O
+            localStorage.setItem('layout_ai_panel_width', String(lastWidthRef.current));
             handle.classList.remove('active');
             document.body.style.userSelect = '';
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
+            agentDragCleanupRef.current = null;
           };
+          agentDragCleanupRef.current = onUp;
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', onUp);
         }}

@@ -1,56 +1,30 @@
 'use client';
 
+// TODO: Migrate inline styles to CSS Modules or Tailwind CSS
+// TODO: Extract hardcoded Chinese strings for i18n support
+
 import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { KernelDimensionCard } from './KernelDimensionCard';
 import { StyleSettingPanel } from './StyleSettingPanel';
 import { DEFAULT_ANTI_AI_RULES } from '@/lib/rules';
 import { MATERIALS_LIST } from '../hooks/useMaterialTabs';
 import { useWorkspace } from '../workspace-context';
+import { GlassCard, SectionHeader } from './ui/common';
 
 interface KernelDimensionsPanelProps {
   activeMaterial: string;
-  // 维度卡的值与 setter
-  tempWorldSetting: string;
-  setTempWorldSetting: (v: string) => void;
-  tempCoreConflict: string;
-  setTempCoreConflict: (v: string) => void;
-  tempPowerSystem: string;
-  setTempPowerSystem: (v: string) => void;
-  tempGoldFinger: string;
-  setTempGoldFinger: (v: string) => void;
-  tempStyleSetting: string;
-  setTempStyleSetting: (v: string) => void;
-  tempSellingPoints: string;
-  setTempSellingPoints: (v: string) => void;
-  tempSkillSystem: string;
-  setTempSkillSystem: (v: string) => void;
-  tempLocation: string;
-  setTempLocation: (v: string) => void;
-  tempFaction: string;
-  setTempFaction: (v: string) => void;
-  tempCurrency: string;
-  setTempCurrency: (v: string) => void;
-  tempItem: string;
-  setTempItem: (v: string) => void;
-  tempForbiddenSetting: string;
-  setTempForbiddenSetting: (v: string) => void;
-  // 反 AI 规则折叠控制
-  expandedKernelCard: string | null;
-  setExpandedKernelCard: (v: string | null) => void;
-  // 项目状态
-  currentProject: any;
-  updateProject: (id: string, patch: any) => Promise<any>;
 }
 
 /**
  * 大纲 Tab 右侧的"核心设定"面板。
  * 包括：世界设定、故事核心、力量体系、特殊设定 4 个维度的编辑卡，
  * 以及 specialSetting 下的"反 AI 文风特征过滤器"折叠面板。
+ *
+ * 所有维度数据与 setter 均从 useWorkspace() context 中获取，无需 prop drilling。
  */
-export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
+export function KernelDimensionsPanel({ activeMaterial }: KernelDimensionsPanelProps) {
   const { store, kernel } = useWorkspace();
   const {
-    activeMaterial,
     tempWorldSetting, setTempWorldSetting,
     tempCoreConflict, setTempCoreConflict,
     tempPowerSystem, setTempPowerSystem,
@@ -64,8 +38,9 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
     tempItem, setTempItem,
     tempForbiddenSetting, setTempForbiddenSetting,
     expandedKernelCard, setExpandedKernelCard,
-    currentProject, updateProject,
-  } = props;
+  } = kernel;
+  const currentProject = store.currentProject;
+  const updateProject = store.updateProject;
 
   const subtitle =
     activeMaterial === 'worldSetting' ? '定义小说主舞台的大陆疆域、宏观规则、历史背景与社会法则'
@@ -259,43 +234,18 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
               alwaysExpanded={true}
             />
 
-            <div
-              className="glass-card animate-fade-in"
-              style={{
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid var(--border-light)',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                flexShrink: 0,
-              }}
-            >
-              <div
-                onClick={() => setExpandedKernelCard(isAntiAiExpanded ? null : 'antiAiStyleRules')}
-                style={{
-                  padding: '16px 20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  background: isAntiAiExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
-                  transition: 'background 0.2s ease',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <strong style={{ fontSize: '15px', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    反 AI 写作控制与文风特征过滤器
-                  </strong>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的"AI 鸡汤味"与"模板腔"
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <GlassCard>
+              <SectionHeader
+                title="反 AI 写作控制与文风特征过滤器"
+                subtitle={'绑定写作模型时的底层约束规则，彻底清除大模型生成文章中的"AI 鸡汤味"与"模板腔"'}
+                isExpanded={isAntiAiExpanded}
+                onToggle={() => setExpandedKernelCard(isAntiAiExpanded ? null : 'antiAiStyleRules')}
+                extra={
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     {activeRules.length ? `已启用 ${activeRules.length} 项` : '未启用'}
                   </span>
-                  {isAntiAiExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
-              </div>
+                }
+              />
 
               {isAntiAiExpanded && (
                 <div
@@ -382,7 +332,7 @@ export function KernelDimensionsPanel(props: KernelDimensionsPanelProps) {
                   </div>
                 </div>
               )}
-            </div>
+            </GlassCard>
           </>
         )}
       </div>

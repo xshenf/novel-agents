@@ -1,10 +1,14 @@
 'use client';
 
+// TODO: Migrate inline styles to CSS Modules or Tailwind CSS
+// TODO: Extract hardcoded Chinese strings for i18n support
+
 import { useState, useEffect } from 'react';
 import { BookOpen, Lock, Unlock, ArrowUp, ArrowDown, Trash2, PenLine, Plus, Save } from 'lucide-react';
 import { useWorkspace } from '../../workspace-context';
 import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
 import { VolumeAiPanel } from './VolumeAiPanel';
+import { BTN_GHOST, BTN_DANGER } from '@/lib/styles';
 
 interface VolumeManagementViewProps {
   vIdx: number;
@@ -158,17 +162,11 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             type="button"
             onClick={() => toggleLockVolume(vIdx)}
             style={{
-              background: 'transparent',
-              border: vol.isLocked ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-              color: vol.isLocked ? '#fbbf24' : 'var(--text-muted)',
+              ...BTN_GHOST,
               width: '32px',
               height: '32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              border: vol.isLocked ? '1px solid rgba(251, 191, 36, 0.3)' : BTN_GHOST.border,
+              color: vol.isLocked ? '#fbbf24' : BTN_GHOST.color,
             }}
             title={vol.isLocked ? "分卷已锁定，AI 推演大纲时此卷走向受保护" : "锁定此分卷"}
           >
@@ -187,17 +185,11 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             }}
             disabled={vIdx === 0}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: vIdx === 0 ? 'rgba(255, 255, 255, 0.1)' : 'var(--text-muted)',
+              ...BTN_GHOST,
               width: '32px',
               height: '32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              color: vIdx === 0 ? 'rgba(255, 255, 255, 0.1)' : BTN_GHOST.color,
               cursor: vIdx === 0 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s'
             }}
             title="上移分卷"
           >
@@ -216,17 +208,11 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
             }}
             disabled={vIdx === localSections.length - 1}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: vIdx === localSections.length - 1 ? 'rgba(255, 255, 255, 0.1)' : 'var(--text-muted)',
+              ...BTN_GHOST,
               width: '32px',
               height: '32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              color: vIdx === localSections.length - 1 ? 'rgba(255, 255, 255, 0.1)' : BTN_GHOST.color,
               cursor: vIdx === localSections.length - 1 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s'
             }}
             title="下移分卷"
           >
@@ -243,17 +229,9 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
               }
             }}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              color: '#ef4444',
+              ...BTN_DANGER,
               width: '32px',
               height: '32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
             }}
             title="删除分卷"
           >
@@ -366,7 +344,7 @@ export function VolumeManagementView({ vIdx }: VolumeManagementViewProps) {
 
                   return (
                     <div
-                      key={cIdx}
+                      key={chap.title || `chap-${cIdx}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

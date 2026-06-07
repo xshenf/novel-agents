@@ -1,5 +1,8 @@
 'use client';
 
+// TODO: Migrate inline styles to CSS Modules or Tailwind CSS
+// TODO: Extract hardcoded Chinese strings for i18n support
+
 import { Activity, User, Tag, BookOpen, Loader2 } from 'lucide-react';
 import { parseCharacters, parseEmotionValue } from '@/lib/outlineParser';
 import type { OutlineTreeController } from './types';
@@ -152,7 +155,7 @@ export function ChapterOutlineView({ ctrl }: ChapterOutlineViewProps) {
                 )}
 
                 {points.map((p, i) => (
-                  <g key={i}>
+                  <g key={`${flatChapters[i].volIdx}-${flatChapters[i].chapIdx}`}>
                     <circle
                       cx={p.x}
                       cy={p.y}
@@ -276,7 +279,7 @@ export function ChapterOutlineView({ ctrl }: ChapterOutlineViewProps) {
 
                       return (
                         <div
-                          key={cIdx}
+                          key={sec.title || `${vIdx}-${cIdx}`}
                           id={`chapter-card-${globalIdx}`}
                           style={{
                             position: 'relative',

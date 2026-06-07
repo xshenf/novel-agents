@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 import { Loader2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
+import { GlassCard } from './ui/common';
+import { useDebouncedSave } from '../hooks/useDebouncedSave';
 
 interface KernelDimensionCardProps {
   cardKey: string;
@@ -38,11 +40,7 @@ export function KernelDimensionCard({
   } = kernel;
   const isExpanded = alwaysExpanded || expandedKernelCard === cardKey;
 
-  // 自动保存：value 变化时 debounce 2s 保存
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const prevValueRef = useRef(value);
-  const pendingValueRef = useRef<string | null>(null);
-
+  // 自动保存：value 变化时使用 useDebouncedSave hook（2s 防抖）
   const doSave = async (val: string) => {
     if (!store.currentProject) return;
     try {
@@ -58,30 +56,7 @@ export function KernelDimensionCard({
     } catch { /* ignore auto-save errors */ }
   };
 
-  const doSaveRef = useRef(doSave);
-  doSaveRef.current = doSave;
-
-  useEffect(() => {
-    if (value === prevValueRef.current) return;
-    prevValueRef.current = value;
-    pendingValueRef.current = value;
-    if (!store.currentProject) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      pendingValueRef.current = null;
-      await doSave(value);
-    }, 2000);
-  }, [value]);
-
-  // 组件卸载时立即保存未提交的内容
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      if (pendingValueRef.current) {
-        doSaveRef.current(pendingValueRef.current);
-      }
-    };
-  }, []);
+  useDebouncedSave(value, doSave, 2000);
 
   const handleSelectOption = async (content: string) => {
     setValue(content);
@@ -105,17 +80,7 @@ export function KernelDimensionCard({
   };
 
   return (
-    <div
-      className="glass-card"
-      style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid var(--border-light)',
-        borderRadius: '12px',
-        marginBottom: '16px',
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}
-    >
+    <GlassCard style={{ marginBottom: '16px' }}>
       {/* 卡片头部 */}
       <div
         onClick={() => {
@@ -224,7 +189,7 @@ export function KernelDimensionCard({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {deductionOptions.map((opt: any, idx: number) => (
                     <div
-                      key={idx}
+                      key={opt.title || `${idx}-${opt.title}`}
                       style={{
                         padding: '10px 12px',
                         background: 'rgba(255,255,255,0.01)',
@@ -257,6 +222,6 @@ export function KernelDimensionCard({
           </div>
         </div>
       )}
-    </div>
+    </GlassCard>
   );
 }

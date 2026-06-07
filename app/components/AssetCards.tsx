@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Character, WorldRule } from '@/lib/db';
 import { useWorkspace } from '../workspace-context';
+import { useDebouncedSave } from '../hooks/useDebouncedSave';
 
 export const CharacterCard = ({
   character,
@@ -240,23 +241,15 @@ export const WorldRuleCard = ({
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
-  // 自动保存：任一字段变化时 debounce 2s
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const prevRef = useRef({ name, type, description });
-  useEffect(() => {
-    const curr = { name, type, description };
-    if (JSON.stringify(prevRef.current) === JSON.stringify(curr)) return;
-    prevRef.current = curr;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    const ruleId = rule.id;
-    saveTimer.current = setTimeout(async () => {
-      if (!name.trim() || !description.trim()) return;
-      try {
-        await onSaveRef.current(ruleId, { name, type, description });
-      } catch { /* ignore */ }
-    }, 2000);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [name, type, description]);
+  // 自动保存：字段变化时使用 useDebouncedSave hook（2s 防抖）
+  useDebouncedSave(
+    { name, type, description },
+    async (curr) => {
+      if (!curr.name.trim() || !curr.description.trim()) return;
+      await onSaveRef.current(rule.id, curr);
+    },
+    2000
+  );
 
   const handleSave = async () => {
     if (!name.trim() || !description.trim()) return;

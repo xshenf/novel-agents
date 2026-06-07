@@ -1,10 +1,15 @@
 'use client';
 
+// TODO: Migrate inline styles to CSS Modules or Tailwind CSS
+// TODO: Extract hardcoded Chinese strings for i18n support
+
 import { useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../workspace-context';
 import { useAiClient } from '../hooks/useAiClient';
 import { createVersionSnapshot } from '@/lib/versionSnapshot';
+import { getFilteredRules } from '@/lib/outlineUtils';
+import { EmptyState } from './ui/common';
 import { KernelDimensionsPanel } from './KernelDimensionsPanel';
 import { CharacterManagementView } from './CharacterManagementView';
 import { WorldRuleCard, AddWorldRuleCard } from './AssetCards';
@@ -15,21 +20,7 @@ import { OutlineSidebar } from './OutlineSidebar';
 export function OutlineTab() {
   const { store, kernel, routing } = useWorkspace();
   const {
-    tempStyleSetting, setTempStyleSetting,
-    tempWorldSetting, setTempWorldSetting,
-    tempPowerSystem, setTempPowerSystem,
-    tempGoldFinger, setTempGoldFinger,
-    tempCoreConflict, setTempCoreConflict,
-    tempFactionsMap, setTempFactionsMap,
-    tempSellingPoints, setTempSellingPoints,
-    tempSkillSystem, setTempSkillSystem,
-    tempLocation, setTempLocation,
-    tempFaction, setTempFaction,
-    tempCurrency, setTempCurrency,
-    tempItem, setTempItem,
-    tempForbiddenSetting, setTempForbiddenSetting,
     isAddingRule, setIsAddingRule,
-    expandedKernelCard, setExpandedKernelCard,
   } = kernel;
 
   const callAIApi = useAiClient();
@@ -90,26 +81,7 @@ export function OutlineTab() {
     }
   };
 
-  // 世界规则筛选映射
-  const getFilteredRules = (material: string) => {
-    if (!store.worldRules) return [];
-
-    if (material === 'location') return store.worldRules.filter((r: any) => r.type === 'location');
-    if (material === 'faction') return store.worldRules.filter((r: any) => r.type === 'faction');
-    if (material === 'item') return store.worldRules.filter((r: any) => r.type === 'item');
-
-    if (material === 'currency') return store.worldRules.filter((r: any) => r.type === 'rule' && r.name.includes('货币'));
-    if (material === 'skillSystem') return store.worldRules.filter((r: any) => r.type === 'rule' && (r.name.includes('功法') || r.name.includes('技能') || r.name.includes('修炼') || r.name.includes('体系')));
-    if (material === 'timeline') return store.worldRules.filter((r: any) => r.type === 'rule' && r.name.includes('时间线'));
-
-    if (material === 'foreshadow') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('伏笔'));
-    if (material === 'plot') return store.worldRules.filter((r: any) => r.type === 'other' && (r.name.includes('情节') || r.name.includes('脉络')));
-    if (material === 'subPlot') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('支线'));
-    if (material === 'events') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('事件'));
-    if (material === 'relation') return store.worldRules.filter((r: any) => r.type === 'other' && r.name.includes('关系'));
-
-    return store.worldRules;
-  };
+  // 世界规则筛选映射（已抽取至 lib/outlineUtils.ts）
 
   return (
     <div style={{ display: 'flex', flex: '1', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
@@ -129,37 +101,7 @@ export function OutlineTab() {
         overflow: 'hidden'
       }}>
         {['styleSetting', 'worldSetting', 'coreConflict', 'sellingPoints', 'powerSystem', 'skillSystem', 'location', 'faction', 'currency', 'item', 'specialSetting'].includes(activeMaterial) && (
-          <KernelDimensionsPanel
-            activeMaterial={activeMaterial}
-            tempWorldSetting={tempWorldSetting}
-            setTempWorldSetting={setTempWorldSetting}
-            tempCoreConflict={tempCoreConflict}
-            setTempCoreConflict={setTempCoreConflict}
-            tempPowerSystem={tempPowerSystem}
-            setTempPowerSystem={setTempPowerSystem}
-            tempGoldFinger={tempGoldFinger}
-            setTempGoldFinger={setTempGoldFinger}
-            tempStyleSetting={tempStyleSetting}
-            setTempStyleSetting={setTempStyleSetting}
-            tempSellingPoints={tempSellingPoints}
-            setTempSellingPoints={setTempSellingPoints}
-            tempSkillSystem={tempSkillSystem}
-            setTempSkillSystem={setTempSkillSystem}
-            tempLocation={tempLocation}
-            setTempLocation={setTempLocation}
-            tempFaction={tempFaction}
-            setTempFaction={setTempFaction}
-            tempCurrency={tempCurrency}
-            setTempCurrency={setTempCurrency}
-            tempItem={tempItem}
-            setTempItem={setTempItem}
-            tempForbiddenSetting={tempForbiddenSetting}
-            setTempForbiddenSetting={setTempForbiddenSetting}
-            expandedKernelCard={expandedKernelCard}
-            setExpandedKernelCard={setExpandedKernelCard}
-            currentProject={store.currentProject}
-            updateProject={store.updateProject}
-          />
+          <KernelDimensionsPanel activeMaterial={activeMaterial} />
         )}
 
         {/* 4. 角色管理视图 (character) */}
@@ -172,207 +114,242 @@ export function OutlineTab() {
           <WorldStateView store={store} />
         )}
 
-        {/* 5. 扩展设定与世界设定资产库 (location, faction, item, currency, skillSystem, relation, foreshadow, plot, subPlot, timeline, events) */}
+        {/* 5. 扩展设定与世界设定资产库 */}
         {['location', 'faction', 'item', 'currency', 'skillSystem', 'timeline', 'foreshadow', 'plot', 'subPlot', 'events', 'relation'].includes(activeMaterial) && (
-          (() => {
-            const currentRules = getFilteredRules(activeMaterial);
-            const materialLabel = MATERIALS_LIST.find(m => m.id === activeMaterial)?.label || '';
-            const materialColor = MATERIALS_LIST.find(m => m.id === activeMaterial)?.color || 'var(--accent)';
-
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                  <div>
-                    <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>
-                      {materialLabel}资产库 ({currentRules.length})
-                    </h4>
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      管理本小说的{materialLabel}，可在写作推演中被随时引用与核对
-                    </span>
-                  </div>
-                  
-                  {!isAddingRule && store.currentProject && (
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => setIsAddingRule(true)}
-                      style={{ fontSize: '11px', padding: '6px 12px', background: 'var(--accent)', border: 'none' }}
-                    >
-                      新建设定项
-                    </button>
-                  )}
-                </div>
-
-                {/* 全量推演备选方案 */}
-                {kernel.kernelOptions?.[activeMaterial] && (
-                  <div style={{
-                    padding: '14px',
-                    background: 'rgba(0,0,0,0.15)',
-                    borderRadius: '10px',
-                    border: '1px dashed var(--border-light)',
-                    flexShrink: 0,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>
-                        全量推演备选方案 (点击选用)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => kernel.setKernelOptions(null)}
-                        style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                      >
-                        清除全部方案
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {(kernel.kernelOptions[activeMaterial] as Array<{ name: string; description: string }>).map((opt, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '8px 10px',
-                            background: 'rgba(255,255,255,0.01)',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#fff' }}>
-                              方案 {idx + 1}：{opt.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!store.currentProject) return;
-                                await store.createWorldRule({
-                                  projectId: store.currentProject.id,
-                                  name: opt.name,
-                                  description: opt.description,
-                                  type: activeMaterial === 'location' ? 'location' : activeMaterial === 'faction' ? 'faction' : activeMaterial === 'item' ? 'item' : 'rule',
-                                });
-                              }}
-                              style={{
-                                fontSize: '10px',
-                                padding: '2px 8px',
-                                background: 'rgba(99, 102, 241, 0.1)',
-                                border: '1px solid var(--accent)',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                color: 'var(--accent)',
-                              }}
-                            >
-                              选用
-                            </button>
-                          </div>
-                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
-                            {opt.description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {isAddingRule && store.currentProject && (
-                  <AddWorldRuleCard
-                    projectId={store.currentProject.id}
-                    onAdd={async (rule) => {
-                      let targetType: 'location' | 'faction' | 'rule' | 'item' | 'other' = 'other';
-                      if (activeMaterial === 'location') targetType = 'location';
-                      else if (activeMaterial === 'faction') targetType = 'faction';
-                      else if (activeMaterial === 'item') targetType = 'item';
-                      else if (['currency', 'skillSystem', 'timeline'].includes(activeMaterial)) targetType = 'rule';
-                      
-                      await store.createWorldRule({
-                        ...rule,
-                        type: targetType,
-                        name: rule.name.includes(materialLabel) ? rule.name : `${materialLabel}：${rule.name}`
-                      });
-                      setIsAddingRule(false);
-                    }}
-                    onCancel={() => setIsAddingRule(false)}
-                  />
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flexGrow: 1 }}>
-                  {currentRules.length === 0 && !isAddingRule ? (
-                    <div style={{
-                      padding: '40px',
-                      textAlign: 'center',
-                      background: 'rgba(255, 255, 255, 0.01)',
-                      border: '1px dashed rgba(255, 255, 255, 0.04)',
-                      borderRadius: '12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '16px',
-                      margin: '20px 0'
-                    }}>
-                      <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        当前尚未有【{materialLabel}】相关的数据资产
-                      </div>
-                      
-                      <button
-                        type="button"
-                        disabled={initingMaterial === activeMaterial}
-                        onClick={() => handleInitMaterialWithAi(activeMaterial, materialLabel)}
-                        style={{
-                          fontSize: '12px',
-                          padding: '8px 16px',
-                          background: `${materialColor}20`,
-                          border: `1px solid ${materialColor}50`,
-                          color: materialColor,
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        {initingMaterial === activeMaterial ? (
-                          <>
-                            <Loader2 size={13} className="animate-spin" />
-                            <span>AI 推演生成中...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={13} />
-                            <span>一键 AI 智能推演初始化</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  ) : (
-                    currentRules.map((rule) => (
-                      <WorldRuleCard
-                        key={rule.id}
-                        rule={rule}
-                        onSave={async (id, updates) => {
-                          await store.updateWorldRule(id, updates);
-                          createVersionSnapshot({
-                            projectId: store.currentProject!.id,
-                            type: 'worldRule',
-                            key: id,
-                            label: `${updates.name || rule.name}`,
-                            data: updates,
-                            source: 'auto',
-                          });
-                        }}
-                        onDelete={async (id) => {
-                          await store.deleteWorldRule(id);
-                        }}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })()
+          <AssetLibraryView
+            activeMaterial={activeMaterial}
+            initingMaterial={initingMaterial}
+            handleInitMaterialWithAi={handleInitMaterialWithAi}
+          />
         )}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 资产库视图子组件（从 OutlineTab IIFE 中提取）
+// ---------------------------------------------------------------------------
+
+interface AssetLibraryViewProps {
+  activeMaterial: string;
+  initingMaterial: string | null;
+  handleInitMaterialWithAi: (materialId: string, label: string) => Promise<void>;
+}
+
+function AssetLibraryView({ activeMaterial, initingMaterial, handleInitMaterialWithAi }: AssetLibraryViewProps) {
+  const { store, kernel } = useWorkspace();
+  const { isAddingRule, setIsAddingRule } = kernel;
+
+  const currentRules = getFilteredRules(store.worldRules, activeMaterial);
+  const materialLabel = MATERIALS_LIST.find(m => m.id === activeMaterial)?.label || '';
+  const materialColor = MATERIALS_LIST.find(m => m.id === activeMaterial)?.color || 'var(--accent)';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '30px', minHeight: 0, overflowY: 'auto', flexGrow: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div>
+          <h4 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', margin: 0 }}>
+            {materialLabel}资产库 ({currentRules.length})
+          </h4>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            管理本小说的{materialLabel}，可在写作推演中被随时引用与核对
+          </span>
+        </div>
+
+        {!isAddingRule && store.currentProject && (
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsAddingRule(true)}
+            style={{ fontSize: '11px', padding: '6px 12px', background: 'var(--accent)', border: 'none' }}
+          >
+            新建设定项
+          </button>
+        )}
+      </div>
+
+      {/* 全量推演备选方案 */}
+      {kernel.kernelOptions?.[activeMaterial] && renderKernelOptions(kernel, activeMaterial, store)}
+
+      {isAddingRule && store.currentProject && (
+        <AddWorldRuleCard
+          projectId={store.currentProject.id}
+          onAdd={async (rule) => {
+            let targetType: 'location' | 'faction' | 'rule' | 'item' | 'other' = 'other';
+            if (activeMaterial === 'location') targetType = 'location';
+            else if (activeMaterial === 'faction') targetType = 'faction';
+            else if (activeMaterial === 'item') targetType = 'item';
+            else if (['currency', 'skillSystem', 'timeline'].includes(activeMaterial)) targetType = 'rule';
+
+            await store.createWorldRule({
+              ...rule,
+              type: targetType,
+              name: rule.name.includes(materialLabel) ? rule.name : `${materialLabel}：${rule.name}`
+            });
+            setIsAddingRule(false);
+          }}
+          onCancel={() => setIsAddingRule(false)}
+        />
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flexGrow: 1 }}>
+        {currentRules.length === 0 && !isAddingRule ? (
+          <EmptyAssetState
+            materialLabel={materialLabel}
+            materialColor={materialColor}
+            activeMaterial={activeMaterial}
+            initingMaterial={initingMaterial}
+            handleInitMaterialWithAi={handleInitMaterialWithAi}
+          />
+        ) : (
+          currentRules.map((rule) => (
+            <WorldRuleCard
+              key={rule.id}
+              rule={rule}
+              onSave={async (id, updates) => {
+                await store.updateWorldRule(id, updates);
+                createVersionSnapshot({
+                  projectId: store.currentProject!.id,
+                  type: 'worldRule',
+                  key: id,
+                  label: `${updates.name || rule.name}`,
+                  data: updates,
+                  source: 'auto',
+                });
+              }}
+              onDelete={async (id) => {
+                await store.deleteWorldRule(id);
+              }}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 全量推演备选方案渲染（从 AssetLibraryView 中提取）
+// ---------------------------------------------------------------------------
+
+function renderKernelOptions(kernel: ReturnType<typeof useWorkspace>['kernel'], activeMaterial: string, store: ReturnType<typeof useWorkspace>['store']) {
+  return (
+    <div style={{
+      padding: '14px',
+      background: 'rgba(0,0,0,0.15)',
+      borderRadius: '10px',
+      border: '1px dashed var(--border-light)',
+      flexShrink: 0,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent)' }}>
+          全量推演备选方案 (点击选用)
+        </span>
+        <button
+          type="button"
+          onClick={() => kernel.setKernelOptions(null)}
+          style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+        >
+          清除全部方案
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {(kernel.kernelOptions[activeMaterial] as Array<{ name: string; description: string }>).map((opt, idx) => (
+          <div
+            key={opt.name || idx}
+            style={{
+              padding: '8px 10px',
+              background: 'rgba(255,255,255,0.01)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '6px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: '600', color: '#fff' }}>
+                方案 {idx + 1}：{opt.name}
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!store.currentProject) return;
+                  await store.createWorldRule({
+                    projectId: store.currentProject.id,
+                    name: opt.name,
+                    description: opt.description,
+                    type: activeMaterial === 'location' ? 'location' : activeMaterial === 'faction' ? 'faction' : activeMaterial === 'item' ? 'item' : 'rule',
+                  });
+                }}
+                style={{
+                  fontSize: '10px',
+                  padding: '2px 8px',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  color: 'var(--accent)',
+                }}
+              >
+                选用
+              </button>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
+              {opt.description}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 资产库空状态渲染（从 AssetLibraryView 中提取）
+// ---------------------------------------------------------------------------
+
+interface EmptyAssetStateProps {
+  materialLabel: string;
+  materialColor: string;
+  activeMaterial: string;
+  initingMaterial: string | null;
+  handleInitMaterialWithAi: (materialId: string, label: string) => Promise<void>;
+}
+
+function EmptyAssetState({ materialLabel, materialColor, activeMaterial, initingMaterial, handleInitMaterialWithAi }: EmptyAssetStateProps) {
+  return (
+    <EmptyState message={`当前尚未有【${materialLabel}】相关的数据资产`}>
+      <button
+        type="button"
+        disabled={initingMaterial === activeMaterial}
+        onClick={() => handleInitMaterialWithAi(activeMaterial, materialLabel)}
+        style={{
+          fontSize: '12px',
+          padding: '8px 16px',
+          background: `${materialColor}20`,
+          border: `1px solid ${materialColor}50`,
+          color: materialColor,
+          borderRadius: '6px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          transition: 'all 0.2s',
+        }}
+      >
+        {initingMaterial === activeMaterial ? (
+          <>
+            <Loader2 size={13} className="animate-spin" />
+            <span>AI 推演生成中...</span>
+          </>
+        ) : (
+          <>
+            <Sparkles size={13} />
+            <span>一键 AI 智能推演初始化</span>
+          </>
+        )}
+      </button>
+    </EmptyState>
   );
 }
