@@ -1087,6 +1087,77 @@ select.input option {
 .agent-role-tag.agent-lore_builder { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
 .agent-role-tag.agent-writer       { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
 .agent-role-tag.agent-editor       { background: rgba(244,63,94,0.15);  color: #fda4af; border: 1px solid rgba(244,63,94,0.3); }
+.agent-role-tag.agent-continuity_keeper { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+
+/* 子智能体分组卡片 */
+.specialist-card {
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  overflow: hidden;
+  animation: bubbleIn 0.2s ease;
+}
+.specialist-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-left: 3px solid var(--card-accent, rgba(255,255,255,0.1));
+  transition: background 0.15s;
+}
+.specialist-card-header:hover {
+  background: rgba(255,255,255,0.03);
+}
+.specialist-card-header.is-streaming {
+  background: rgba(56,189,248,0.04);
+}
+.specialist-card-meta {
+  font-size: 10.5px;
+  color: var(--text-dark);
+  opacity: 0.7;
+}
+.specialist-card-done {
+  font-size: 10px;
+  color: #6ee7b7;
+  background: rgba(16,185,129,0.1);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: auto;
+}
+.specialist-card-chevron {
+  margin-left: auto;
+  color: var(--text-dark);
+  opacity: 0.4;
+  display: flex;
+  align-items: center;
+}
+.specialist-card-done + .specialist-card-chevron {
+  margin-left: 0;
+}
+
+/* 卡片折叠态行末预览：取首条 thinking 摘要，与 done 互不挤占 */
+.specialist-card-preview {
+  max-width: 50%;
+  font-size: 11px;
+  color: var(--text-dark);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.specialist-card-preview + .specialist-card-chevron {
+  margin-left: 8px;
+}
+.specialist-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 10px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
 
 /* 通用气泡基础 */
 .agent-bubble {
@@ -1241,7 +1312,27 @@ select.input option {
 .agent-answer-header {
   display: flex;
   align-items: center;
+  gap: 6px;
   margin-bottom: 2px;
+}
+
+/* 编导汇报的折叠头：chevron + 标签 + 行尾预览 */
+.agent-collapse-chevron {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* 折叠态行尾预览：截断 + 省略号 */
+.agent-final-answer-preview {
+  margin-left: auto;
+  max-width: 60%;
+  font-size: 11px;
+  color: var(--text-dark);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: normal;
 }
 
 /* 错误气泡 */

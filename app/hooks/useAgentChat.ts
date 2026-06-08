@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { normalizeAgentMessages } from '@/app/lib/agentMessages';
 import type { NovelStore } from '@/lib/store';
 import { useNovelStore } from '@/lib/store';
 
@@ -121,12 +122,13 @@ export function useAgentChat(store: NovelStore) {
         .then(data => {
           if (!active) return;
           if (Array.isArray(data) && data.length > 0) {
-            setAgentMessages(data);
+            // 历史消息：清洗 thinking 占位符、统一中英文 label
+            setAgentMessages(normalizeAgentMessages(data));
           } else {
             const saved = localStorage.getItem(`agent_messages_${store.currentProject!.id}`);
             if (saved) {
               try {
-                setAgentMessages(JSON.parse(saved));
+                setAgentMessages(normalizeAgentMessages(JSON.parse(saved)));
               } catch {
                 setAgentMessages([]);
               }
@@ -145,7 +147,7 @@ export function useAgentChat(store: NovelStore) {
           const saved = localStorage.getItem(`agent_messages_${store.currentProject!.id}`);
           if (saved) {
             try {
-              setAgentMessages(JSON.parse(saved));
+              setAgentMessages(normalizeAgentMessages(JSON.parse(saved)));
             } catch {
               setAgentMessages([]);
             }
@@ -169,9 +171,20 @@ export function useAgentChat(store: NovelStore) {
     let streamingMsgId: string | null = null;
     let lastThinkingMsgId: string | null = null;
 
-    // 保留思考消息（含推理内容），只清除 streaming 引用
+    // 有推理内容的思考消息保留供用户展开查看，空的（模型未产出 reasoning）直接移除
     const finalizeThinking = () => {
-      lastThinkingMsgId = null;
+      if (lastThinkingMsgId) {
+        const tid = lastThinkingMsgId;
+        saveAndSetAgentMessages(prev => {
+          const msg = prev.find(m => m.id === tid);
+          // 内容为空说明模型没有产出 reasoning，删掉占位消息避免永远显示"思考中..."
+          if (!msg || !(msg.content || '').trim()) {
+            return prev.filter(m => m.id !== tid);
+          }
+          return prev;
+        });
+        lastThinkingMsgId = null;
+      }
     };
 
     const stopStreaming = () => {

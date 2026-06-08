@@ -131,6 +131,10 @@ export async function POST(request: NextRequest) {
 
         let lastAgent = 'orchestrator';
         let currentAnswerMsgId = '';
+        // 流式阶段当前 thinking 消息的 db id 与累积的 reasoning 文本；
+        // on_chat_model_end 时把累积值回写 db，避免历史里只看到 "正在思考..." 占位符
+        let currentThinkingMsgId = '';
+        let accumulatedReasoning = '';
 
         for await (const event of eventStream) {
           // M1 修复：使用 clientAborted 标志检查客户端断开
@@ -143,6 +147,8 @@ export async function POST(request: NextRequest) {
             const agent = name as keyof typeof AGENT_LABELS;
             lastAgent = agent;
             currentAnswerMsgId = '';  // 切换 agent 时重置，防止消息错位
+            currentThinkingMsgId = ''; // 切 agent 时也清空上一轮的 thinking 跟踪
+            accumulatedReasoning = '';
             send('agent_start', {
               agent,
               label: AGENT_LABELS[agent as keyof typeof AGENT_LABELS] || agent,
@@ -159,6 +165,9 @@ export async function POST(request: NextRequest) {
               label: AGENT_LABELS[lastAgent as keyof typeof AGENT_LABELS] || lastAgent,
               content: '正在思考...',
             });
+            // 记录到外层闭包，流式结束后回写真实 reasoning
+            currentThinkingMsgId = thinkingMsgId;
+            accumulatedReasoning = '';
             // 通知前端 agent 正在思考
             send('thinking', {
               id: thinkingMsgId,
@@ -169,23 +178,75 @@ export async function POST(request: NextRequest) {
 
           // LLM 流式 token 输出
           if (eventType === 'on_chat_model_stream' && data?.chunk) {
-            // 推理内容（DeepSeek R1 / Claude thinking 等模型）
-            const reasoning = data.chunk.additional_kwargs?.reasoning_content
-              || data.chunk.reasoning_content;
+            const chunk = data.chunk;
+
+            // ── 推理内容提取（兼容多种模型 / 协议）──────────────────────
+            // 1) DeepSeek R1 / 标准 OpenAI reasoning_content
+            let reasoning = chunk.additional_kwargs?.reasoning_content
+              || chunk.reasoning_content;
+
+            // 2) Gemini 2.5 thinking：content 可能是 [{ text, thought? }] 数组，
+            //    thought=true 的 part 是思考过程
+            if (!reasoning && Array.isArray(chunk.content)) {
+              const thinkingParts = chunk.content
+                .filter((p: any) => p.thought === true && typeof p.text === 'string')
+                .map((p: any) => p.text);
+              if (thinkingParts.length > 0) {
+                reasoning = thinkingParts.join('');
+              }
+            }
+
+            // 3) additional_kwargs 中嵌套的 thinking 字段（部分 provider 透传）
+            if (!reasoning && chunk.additional_kwargs?.thinking) {
+              const tk = chunk.additional_kwargs.thinking;
+              if (typeof tk === 'string') reasoning = tk;
+              else if (typeof tk?.text === 'string') reasoning = tk.text;
+            }
+
             if (typeof reasoning === 'string' && reasoning) {
+              // 后端累加 reasoning，流式结束后回写 db，避免历史里只看到 "正在思考..." 占位符
+              accumulatedReasoning += reasoning;
               send('reasoning', { agent: lastAgent, content: reasoning });
             }
-            // 正文 token
-            const content = typeof data.chunk.content === 'string'
-              ? data.chunk.content
-              : Array.isArray(data.chunk.content)
-                ? data.chunk.content.map((c: any) => c.text || '').join('')
-                : '';
+            // 正文 token（过滤掉 Gemini thinking parts，避免思考内容重复出现在正文）
+            const rawContent = data.chunk.content;
+            let content = '';
+            if (typeof rawContent === 'string') {
+              content = rawContent;
+            } else if (Array.isArray(rawContent)) {
+              content = rawContent
+                .filter((c: any) => c.thought !== true) // 排除 Gemini thinking parts
+                .map((c: any) => c.text || '')
+                .join('');
+            }
             if (content) {
               if (!currentAnswerMsgId) {
                 currentAnswerMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
               }
               send('token', { id: currentAnswerMsgId, agent: lastAgent, content });
+            }
+          }
+
+          // LLM 生成结束：补发流中可能遗漏的推理内容，并通知前端思考阶段结束
+          if (eventType === 'on_chat_model_end' && data?.output) {
+            const output = data.output;
+            // 从完整输出中尝试提取流式阶段可能遗漏的推理内容
+            const akReasoning = output.additional_kwargs?.reasoning_content;
+            const rmThinking = output.response_metadata?.thinking_content
+              || output.response_metadata?.thinkingContent;
+            const missedReasoning = (typeof akReasoning === 'string' ? akReasoning : '')
+              || (typeof rmThinking === 'string' ? rmThinking : '');
+            if (missedReasoning) {
+              accumulatedReasoning += missedReasoning;
+              send('reasoning', { agent: lastAgent, content: missedReasoning });
+            }
+            // 把累积的 reasoning 回写 db 中对应 thinking 消息，覆盖占位符；
+            // 已有真实内容时跳过，避免覆盖；累积为空时把占位符清空
+            if (currentThinkingMsgId) {
+              const finalContent = accumulatedReasoning || '';
+              await db.updateAgentMessageContent(projectId, currentThinkingMsgId, finalContent);
+              currentThinkingMsgId = '';
+              accumulatedReasoning = '';
             }
           }
 

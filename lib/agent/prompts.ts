@@ -186,22 +186,6 @@ export const AGENT_PROMPTS: Record<string, string> = {
 - 保持输出简洁：摘要和状态条目控制在100字以内`,
 };
 
-export type AgentRole = 'orchestrator' | 'planner' | 'lore_builder' | 'writer' | 'editor' | 'continuity_keeper';
-
-export const AGENT_LABELS: Record<AgentRole, string> = {
-  orchestrator: '编导',
-  planner: '策划',
-  lore_builder: '世界观师',
-  writer: '写手',
-  editor: '编辑',
-  continuity_keeper: '连续性官',
-};
-
-export const AGENT_COLORS: Record<AgentRole, string> = {
-  orchestrator: 'agent-orchestrator',
-  planner: 'agent-planner',
-  lore_builder: 'agent-lore',
-  writer: 'agent-writer',
-  editor: 'agent-editor',
-  continuity_keeper: 'agent-continuity',
-};
+// 角色标签与配色集中在 labels.ts，避免在大体积 prompt 文件中重复维护
+export { AGENT_LABELS, AGENT_COLORS } from './labels';
+export type { AgentRole } from './labels';

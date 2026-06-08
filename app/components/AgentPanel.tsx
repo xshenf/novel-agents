@@ -1,10 +1,13 @@
 'use client';
 
 import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal, ArrowDown } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
 import { getToolDescription } from './agentToolDescriptions';
+import { SpecialistCard } from './SpecialistCard';
+import type { AgentMessage } from '../hooks/useAgentChat';
+import { getAgentLabel } from '@/lib/agent/labels';
 
 export function AgentPanel() {
   const { store, agent, layout } = useWorkspace();
@@ -17,6 +20,9 @@ export function AgentPanel() {
 
   // 追踪展开的 thinking 消息 ID
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+
+  // 编导的 final_answer 默认折叠（汇报文本常常很长），其他专家的 final_answer 仍直接展开
+  const [expandedFinalAnswers, setExpandedFinalAnswers] = useState<Set<string>>(new Set());
 
   // 追踪展开的工具调用 / 工具结果 ID，默认全部收起，避免对话流被长参数/长结果撑爆
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
@@ -32,13 +38,57 @@ export function AgentPanel() {
   // 风格基调选择状态（request_style 弹窗用）
   const [styleSelection, setStyleSelection] = useState<{ genre: string; tone: string }>({ genre: '', tone: '' });
 
-  // 拖拽条事件监听器清理（防止组件卸载时监听器泄漏）
   const agentDragCleanupRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    return () => {
-      agentDragCleanupRef.current?.();
+  useEffect(() => { return () => { agentDragCleanupRef.current?.(); }; }, []);
+
+  // 消息分组：非编导的连续消息归入子智能体卡片，编导/用户/委派单独展示
+  type RenderItem =
+    | { kind: 'standalone'; msg: AgentMessage }
+    | { kind: 'specialist-group'; groupId: string; agent: string; label: string; messages: AgentMessage[]; isStreaming: boolean };
+
+  const groupedItems = useMemo<RenderItem[]>(() => {
+    const items: RenderItem[] = [];
+    let currentGroup: RenderItem | null = null;
+
+    const flushGroup = () => {
+      if (currentGroup && currentGroup.kind === 'specialist-group') {
+        items.push(currentGroup);
+        currentGroup = null;
+      }
     };
-  }, []);
+
+    for (const msg of agentMessages) {
+      const isGroupable = ['thinking', 'tool_call', 'tool_result', 'final_answer', 'error'].includes(msg.type);
+      const hasAgent = !!msg.agent;
+
+      if (msg.type === 'user' || msg.type === 'delegate' || msg.type === 'confirm' || msg.type === 'system' || !hasAgent) {
+        // 显式断点类型（用户/委派/确认/系统），或缺失 agent 字段的孤儿消息，单独展示并打断当前分组
+        flushGroup();
+        items.push({ kind: 'standalone', msg });
+      } else if (isGroupable) {
+        // 同一 agent 的连续消息（编导或子 agent）合并到一张卡片里
+        if (currentGroup && currentGroup.kind === 'specialist-group' && currentGroup.agent === msg.agent) {
+          currentGroup.messages.push(msg);
+          currentGroup.isStreaming = currentGroup.isStreaming || !!msg.streaming;
+        } else {
+          flushGroup();
+          currentGroup = {
+            kind: 'specialist-group',
+            groupId: `grp_${msg.agent}_${msg.id}`,
+            agent: msg.agent!,
+            label: msg.label || msg.agent!,
+            messages: [msg],
+            isStreaming: !!msg.streaming,
+          };
+        }
+      } else {
+        flushGroup();
+        items.push({ kind: 'standalone', msg });
+      }
+    }
+    flushGroup();
+    return items;
+  }, [agentMessages]);
 
   return (
     <>
@@ -145,7 +195,31 @@ export function AgentPanel() {
                 </div>
               </div>
             ) : (
-              agentMessages.map((msg) => {
+              groupedItems.map((item) => {
+                // ── 子智能体分组卡片 ──
+                if (item.kind === 'specialist-group') {
+                  return (
+                    <SpecialistCard
+                      key={item.groupId}
+                      groupId={item.groupId}
+                      agent={item.agent}
+                      label={item.label}
+                      messages={item.messages}
+                      isStreaming={item.isStreaming}
+                      // 编导的整组过程消息默认折叠；其他专家的成稿/意见默认展开
+                      defaultCollapsed={item.agent === 'orchestrator'}
+                      expandedThinking={expandedThinking}
+                      setExpandedThinking={setExpandedThinking}
+                      expandedToolCalls={expandedToolCalls}
+                      setExpandedToolCalls={setExpandedToolCalls}
+                      expandedToolResults={expandedToolResults}
+                      setExpandedToolResults={setExpandedToolResults}
+                    />
+                  );
+                }
+
+                // ── 独立消息 ──
+                const msg = item.msg;
                 switch (msg.type) {
                   case 'user':
                     return (
@@ -156,8 +230,6 @@ export function AgentPanel() {
                   case 'thinking': {
                     const hasReasoning = (msg.content || '').length > 0;
                     const isExpanded = expandedThinking.has(msg.id);
-                    // 折叠态在头部行尾展示一段去除换行/多余空白的纯文本预览；
-                    // 展开后用独立卡片换行展示完整 reasoning
                     const previewText = hasReasoning
                       ? msg.content.replace(/\s+/g, ' ').trim().slice(0, 60)
                       : '';
@@ -180,7 +252,7 @@ export function AgentPanel() {
                           )}
                           <Brain size={12} style={{ opacity: 0.5 }} />
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                            {msg.label || msg.agent} {hasReasoning ? `思考过程（${msg.content.length}字）` : '思考中...'}
+                            {getAgentLabel(msg.agent, msg.label)} {hasReasoning ? `思考过程（${msg.content.length}字）` : '思考中...'}
                           </span>
                           {hasReasoning && !isExpanded && previewText && (
                             <span className="agent-thinking-preview" title={previewText}>
@@ -257,24 +329,57 @@ export function AgentPanel() {
                   case 'delegate':
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-delegate">
-                        <span className={`agent-role-tag agent-${msg.from || 'orchestrator'}`} style={{ marginRight: '6px' }}>{msg.fromLabel || '编导'}</span>
+                        <span className={`agent-role-tag agent-${msg.from || 'orchestrator'}`} style={{ marginRight: '6px' }}>{getAgentLabel(msg.from, msg.fromLabel) || '编导'}</span>
                         <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginRight: '6px' }}>── 任务委派 ──►</span>
-                        <span className={`agent-role-tag agent-${msg.to || 'planner'}`}>{msg.toLabel || '专家'}</span>
+                        <span className={`agent-role-tag agent-${msg.to || 'planner'}`}>{getAgentLabel(msg.to, msg.toLabel) || '专家'}</span>
                       </div>
                     );
-                  case 'final_answer':
+                  case 'final_answer': {
+                    // 所有 final_answer 默认折叠，与子 agent 的输出行为一致；
+                    // 流式中不折（避免内容持续追加时反复抖动）
+                    const isCollapsible = !msg.streaming;
+                    const isExpanded = expandedFinalAnswers.has(msg.id);
+                    // 行尾预览：去掉 markdown 标记与多余空白后取首段，避免与展开后富文本混排时视觉打架
+                    const previewText = (msg.content || '')
+                      .replace(/[#*`>\-]+/g, ' ')
+                      .replace(/\s+/g, ' ')
+                      .trim()
+                      .slice(0, 80);
+                    const toggle = () => {
+                      if (!isCollapsible) return;
+                      setExpandedFinalAnswers(prev => toggleSet(prev, msg.id));
+                    };
                     return (
-                      <div key={msg.id} className={`agent-bubble agent-bubble-answer ${msg.streaming ? 'streaming' : ''}`}>
+                      <div
+                        key={msg.id}
+                        className={`agent-bubble agent-bubble-answer ${msg.streaming ? 'streaming' : ''}`}
+                        onClick={isCollapsible ? toggle : undefined}
+                        style={{ cursor: isCollapsible ? 'pointer' : 'default' }}
+                      >
                         <div className="agent-answer-header">
-                          <span className={`agent-role-tag agent-${msg.agent || 'orchestrator'}`} style={{ marginBottom: '6px' }}>
+                          <span className={`agent-role-tag agent-${msg.agent || 'orchestrator'}`} style={{ marginBottom: isCollapsible ? 0 : '6px' }}>
                             {msg.label || '智能体'}
                           </span>
+                          {isCollapsible && (
+                            isExpanded
+                              ? <ChevronDown size={12} className="agent-collapse-chevron" />
+                              : <ChevronRight size={12} className="agent-collapse-chevron" />
+                          )}
+                          {isCollapsible && !isExpanded && previewText && (
+                            <span className="agent-final-answer-preview" title={previewText}>
+                              {previewText}
+                              {msg.content.length > 80 ? '…' : ''}
+                            </span>
+                          )}
                         </div>
-                        <div style={{ lineHeight: '1.6' }}>
-                          <Markdown content={msg.content} />
-                        </div>
+                        {(!isCollapsible || isExpanded) && (
+                          <div style={{ lineHeight: '1.6', marginTop: '6px' }}>
+                            <Markdown content={msg.content} />
+                          </div>
+                        )}
                       </div>
                     );
+                  }
                   case 'confirm':
                     return (
                       <div key={msg.id} className="agent-bubble" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: 'var(--accent-warning)', fontSize: '12px', lineHeight: 1.5 }}>

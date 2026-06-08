@@ -198,6 +198,17 @@ function formatAgentMessage(m: PrismaMessage): AgentMessage {
   };
 }
 
+// 历史上 on_chat_model_start 时 db 写入的 thinking 占位符；
+// 新版 route.ts 会在 on_chat_model_end 时用真实 reasoning 覆盖该占位符，
+// 但历史数据中的占位符无意义，在读取层清洗为空字符串以避免误导用户。
+const THINKING_PLACEHOLDER = '正在思考...';
+function sanitizeThinkingPlaceholder<T extends AgentMessage>(msg: T): T {
+  if (msg.type === 'thinking' && (msg.content || '').trim() === THINKING_PLACEHOLDER) {
+    return { ...msg, content: '' };
+  }
+  return msg;
+}
+
 // 数据库操作类 (全部转为 async/await 异步操作)
 export const db = {
   // --- 项目 (NovelProject) ---
@@ -614,7 +625,7 @@ export const db = {
       where: { projectId },
       orderBy: { createdAt: 'asc' },
     });
-    return list.map(formatAgentMessage);
+    return list.map(formatAgentMessage).map(sanitizeThinkingPlaceholder);
   },
 
   async appendAgentMessage(projectId: string, msg: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>): Promise<AgentMessage> {
@@ -636,6 +647,23 @@ export const db = {
       },
     });
     return formatAgentMessage(created);
+  },
+
+  /**
+   * 更新已落库 agent 消息的 content（用于把流式阶段累积的 reasoning/token
+   * 回写到历史记录；仅允许在保持同 projectId / id 的前提下改 content），
+   * 未命中行时静默返回 false，避免对历史数据造成意外副作用。
+   */
+  async updateAgentMessageContent(projectId: string, id: string, content: string): Promise<boolean> {
+    try {
+      const result = await prisma.agentMessage.updateMany({
+        where: { id, projectId },
+        data: { content },
+      });
+      return result.count > 0;
+    } catch {
+      return false;
+    }
   },
 
   async saveAgentMessages(projectId: string, messages: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>[]): Promise<AgentMessage[]> {
