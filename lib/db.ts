@@ -104,6 +104,7 @@ export interface Chapter {
   newForeshadowing: string[];
   resolvedForeshadowing: string[];
   timelineEvents: string[];
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,9 +131,20 @@ function getCurrentUserId(): string {
   return 'default_user';
 }
 
+// M4 修复：安全的 JSON.parse，解析失败时返回默认值而不是抛错
+function safeJsonParse<T>(json: string | null | undefined, defaultValue: T): T {
+  if (!json) return defaultValue;
+  try {
+    return JSON.parse(json) as T;
+  } catch (e) {
+    console.warn('[db] JSON.parse failed:', e, 'raw:', json?.slice(0, 100));
+    return defaultValue;
+  }
+}
+
 // 辅助序列化/反序列化格式化函数
 function formatProject(p: PrismaProject): NovelProject {
-  const rawModels = (p as any).modelsConfig ? JSON.parse((p as any).modelsConfig) as any[] : [];
+  const rawModels = safeJsonParse<any[]>((p as any).modelsConfig, []);
   // API Key 脱敏：返回给前端时隐藏真实密钥
   const maskedModels = rawModels.map(m => ({
     ...m,
@@ -140,10 +152,10 @@ function formatProject(p: PrismaProject): NovelProject {
   }));
   return {
     ...p,
-    antiAiStyleRules: p.antiAiStyleRules ? JSON.parse(p.antiAiStyleRules) as string[] : [],
+    antiAiStyleRules: safeJsonParse<string[]>(p.antiAiStyleRules, []),
     modelsConfig: maskedModels,
-    agentBindings: (p as any).agentBindings ? JSON.parse((p as any).agentBindings) as Record<string, string> : {},
-    agentOverrides: (p as any).agentOverrides ? JSON.parse((p as any).agentOverrides) as Record<string, any> : {},
+    agentBindings: safeJsonParse<Record<string, string>>((p as any).agentBindings, {}),
+    agentOverrides: safeJsonParse<Record<string, any>>((p as any).agentOverrides, {}),
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -152,20 +164,20 @@ function formatProject(p: PrismaProject): NovelProject {
 function formatCharacter(c: PrismaCharacter): Character {
   return {
     ...c,
-    personality: c.personality ? JSON.parse(c.personality) as string[] : [],
-    goals: c.goals ? JSON.parse(c.goals) as string[] : [],
-    forbidden: c.forbidden ? JSON.parse(c.forbidden) as string[] : [],
-    relationships: c.relationships ? JSON.parse(c.relationships) as CharacterRelationship[] : [],
+    personality: safeJsonParse<string[]>(c.personality, []),
+    goals: safeJsonParse<string[]>(c.goals, []),
+    forbidden: safeJsonParse<string[]>(c.forbidden, []),
+    relationships: safeJsonParse<CharacterRelationship[]>(c.relationships, []),
   };
 }
 
 function formatChapter(ch: PrismaChapter): Chapter {
   return {
     ...ch,
-    characterChanges: ch.characterChanges ? JSON.parse(ch.characterChanges) as CharacterChange[] : [],
-    newForeshadowing: ch.newForeshadowing ? JSON.parse(ch.newForeshadowing) as string[] : [],
-    resolvedForeshadowing: ch.resolvedForeshadowing ? JSON.parse(ch.resolvedForeshadowing) as string[] : [],
-    timelineEvents: ch.timelineEvents ? JSON.parse(ch.timelineEvents) as string[] : [],
+    characterChanges: safeJsonParse<CharacterChange[]>(ch.characterChanges, []),
+    newForeshadowing: safeJsonParse<string[]>(ch.newForeshadowing, []),
+    resolvedForeshadowing: safeJsonParse<string[]>(ch.resolvedForeshadowing, []),
+    timelineEvents: safeJsonParse<string[]>(ch.timelineEvents, []),
     createdAt: ch.createdAt.toISOString(),
     updatedAt: ch.updatedAt.toISOString(),
   };
@@ -294,10 +306,11 @@ export const db = {
   },
 
   // --- 章节 (Chapter) ---
+  // S3 修复：使用 order 字段排序，确保章节顺序稳定（不受 createdAt 影响）
   async getChapters(projectId: string): Promise<Chapter[]> {
     const list = await prisma.chapter.findMany({
       where: { projectId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     });
     return list.map(formatChapter);
   },
@@ -307,7 +320,7 @@ export const db = {
   async getChapterSummaries(projectId: string): Promise<Pick<Chapter, 'id' | 'title' | 'summary' | 'createdAt'>[]> {
     const list = await prisma.chapter.findMany({
       where: { projectId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, title: true, summary: true, createdAt: true },
     });
     return list.map(c => ({ id: c.id, title: c.title, summary: c.summary || '', createdAt: c.createdAt.toISOString() }));
@@ -318,12 +331,12 @@ export const db = {
   async getChapterMetadata(projectId: string): Promise<Chapter[]> {
     const list = await prisma.chapter.findMany({
       where: { projectId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
       select: {
         id: true, projectId: true, title: true, summary: true,
         characterChanges: true, newForeshadowing: true,
         resolvedForeshadowing: true, timelineEvents: true,
-        createdAt: true, updatedAt: true,
+        order: true, createdAt: true, updatedAt: true,
       },
     });
     return list.map(ch => ({
@@ -343,8 +356,15 @@ export const db = {
     return item ? formatChapter(item) : undefined;
   },
 
-  async createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>): Promise<Chapter> {
+  async createChapter(chapter: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt' | 'order'>): Promise<Chapter> {
     const id = `chap_${randomUUID()}`;
+    // S3 修复：order 自动追加到该项目末尾（当前最大 order + 1，无章节时从 0 起），
+    // 使排序有稳定区分度而非全为默认 0；后续如需重排章节只改 order 即可。
+    const agg = await prisma.chapter.aggregate({
+      where: { projectId: chapter.projectId },
+      _max: { order: true },
+    });
+    const order = (agg._max.order ?? -1) + 1;
     const created = await prisma.chapter.create({
       data: {
         id,
@@ -356,6 +376,7 @@ export const db = {
         newForeshadowing: JSON.stringify(chapter.newForeshadowing || []),
         resolvedForeshadowing: JSON.stringify(chapter.resolvedForeshadowing || []),
         timelineEvents: JSON.stringify(chapter.timelineEvents || []),
+        order,
       },
     });
     return formatChapter(created);
@@ -560,8 +581,16 @@ export const db = {
       await tx.worldState.deleteMany({
         where: { projectId, pinned: false, source: 'ai' },
       });
-      // 批量插入 AI 输出的新条目
+      // S2 修复：删除后剩余的同名条目只可能是 pinned（用户锁定）或 source=manual（手动维护）。
+      // AI 不得覆盖或与之重复 —— 遇到同名直接跳过，既不覆盖锁定/手动内容，也不堆积重复条目。
+      const remaining = await tx.worldState.findMany({
+        where: { projectId },
+        select: { name: true },
+      });
+      const seenNames = new Set(remaining.map(r => r.name));
       for (const item of items) {
+        if (seenNames.has(item.name)) continue;
+        seenNames.add(item.name); // 同时防止本批 items 内部出现同名重复
         const id = `ws_${randomUUID()}`;
         await tx.worldState.create({
           data: {

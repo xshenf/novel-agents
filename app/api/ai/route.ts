@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         if (!genre || !tone) {
           return NextResponse.json({ error: '缺少 genre 或 tone' }, { status: 400 });
         }
-        const result = await ai.autoPlanBook(genre, tone, tags || [], apiKey, modelName);
+        const result = await ai.autoPlanBook(genre, tone, tags || [], apiKey, modelName, request.signal);
         return NextResponse.json(result);
       }
 
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         if (!projectId) {
           return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
         }
-        const result = await ai.generateInspirations(projectId, apiKey, modelName);
+        const result = await ai.generateInspirations(projectId, apiKey, modelName, request.signal);
         return NextResponse.json(result);
       }
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         if (!projectId || !query) {
           return NextResponse.json({ error: '缺少 projectId 或 query' }, { status: 400 });
         }
-        const reply = await ai.chat(projectId, query, apiKey, modelName);
+        const reply = await ai.chat(projectId, query, apiKey, modelName, request.signal);
         return NextResponse.json({ reply });
       }
 
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         if (!projectId || !chapterTitle) {
           return NextResponse.json({ error: '缺少 projectId 或 chapterTitle' }, { status: 400 });
         }
-        const text = await ai.autoWriteChapter(projectId, chapterTitle, apiKey, modelName, instruction);
+        const text = await ai.autoWriteChapter(projectId, chapterTitle, apiKey, modelName, instruction, request.signal);
         return NextResponse.json({ text });
       }
 
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         if (!projectId || currentText === undefined) {
           return NextResponse.json({ error: '缺少 projectId 或 currentText' }, { status: 400 });
         }
-        const text = await ai.continueWriting(projectId, currentText, instruction, apiKey, modelName, chapterTitle);
+        const text = await ai.continueWriting(projectId, currentText, instruction, apiKey, modelName, chapterTitle, request.signal);
         return NextResponse.json({ text });
       }
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         if (currentText === undefined) {
           return NextResponse.json({ error: '缺少 currentText' }, { status: 400 });
         }
-        const text = await ai.polish(currentText, instruction, apiKey, modelName);
+        const text = await ai.polish(currentText, instruction, apiKey, modelName, request.signal);
         return NextResponse.json({ text });
       }
 
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
         if (!projectId || !projectTitle) {
           return NextResponse.json({ error: '缺少 projectId 或 projectTitle' }, { status: 400 });
         }
-        const outline = await ai.generateOutline(projectId, projectTitle, projectDesc || '', numChapters || 3, apiKey, modelName);
+        const outline = await ai.generateOutline(projectId, projectTitle, projectDesc || '', numChapters || 3, apiKey, modelName, request.signal);
         return NextResponse.json({ outline });
       }
 
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         if (!projectId || currentText === undefined) {
           return NextResponse.json({ error: '缺少 projectId 或 currentText' }, { status: 400 });
         }
-        const result = await ai.checkConsistency(projectId, currentText, apiKey, modelName);
+        const result = await ai.checkConsistency(projectId, currentText, apiKey, modelName, request.signal);
         return NextResponse.json(result);
       }
 
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
         if (currentText === undefined) {
           return NextResponse.json({ error: '缺少 currentText' }, { status: 400 });
         }
-        const result = await ai.summarizeChapter(currentText, apiKey, modelName);
+        const result = await ai.summarizeChapter(currentText, apiKey, modelName, request.signal);
         return NextResponse.json(result);
       }
 
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
         if (!projectId) {
           return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
         }
-        const rollingSynopsis = await ai.updateRollingSynopsis(projectId, apiKey, modelName);
+        const rollingSynopsis = await ai.updateRollingSynopsis(projectId, apiKey, modelName, request.signal);
         await db.updateProject(projectId, { rollingSynopsis });
         return NextResponse.json({ rollingSynopsis });
       }
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         if (!projectId) {
           return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
         }
-        const items = await ai.updateWorldState(projectId, apiKey, modelName);
+        const items = await ai.updateWorldState(projectId, apiKey, modelName, request.signal);
         await db.replaceAutoWorldStates(projectId, items);
         return NextResponse.json({ worldStates: items });
       }

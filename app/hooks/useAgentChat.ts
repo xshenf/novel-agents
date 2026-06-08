@@ -113,7 +113,7 @@ export function useAgentChat(store: NovelStore) {
     return () => {
       active = false;
     };
-  }, [store.currentProject?.id, store.currentProject]);
+  }, [store.currentProject?.id]); // M5 修复：只依赖 projectId，避免对象引用变化导致重复 fetch
 
   // 消费 agent SSE 流：初次发送与确认 resume 共用同一套解析逻辑，避免重复实现
   const processAgentStream = async (response: Response) => {
@@ -391,6 +391,10 @@ export function useAgentChat(store: NovelStore) {
       await processAgentStream(response);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
+      // M6 修复：流中断时清理未完成的 streaming 消息，避免转圈
+      saveAndSetAgentMessages(prev => prev.map(m =>
+        m.streaming ? { ...m, streaming: false } : m
+      ));
       saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,
         type: 'error',

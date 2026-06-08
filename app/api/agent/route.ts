@@ -65,9 +65,14 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      // M1 修复：send 加 try/catch 兆底，避免 controller 已关闭时抛错
       const send = (eventType: string, data: Record<string, any>) => {
-        const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
-        controller.enqueue(encoder.encode(payload));
+        try {
+          const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+          controller.enqueue(encoder.encode(payload));
+        } catch {
+          // controller 已关闭，忽略
+        }
       };
 
       let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -83,9 +88,11 @@ export async function POST(request: NextRequest) {
         }, 15000);
 
         // 客户端断开连接时主动清理，避免继续执行无意义的 agent 任务
+        // M1 修复：abort 回调只设置标志并清理心跳，由循环 break 后 finally 统一 close
+        let clientAborted = false;
         request.signal.addEventListener('abort', () => {
+          clientAborted = true;
           if (heartbeat) clearInterval(heartbeat);
-          controller.close();
         });
 
         // 初次请求才保存用户消息；resume（确认/取消/续跑）不是新的用户输入
@@ -101,8 +108,9 @@ export async function POST(request: NextRequest) {
         // continue_limit：recursion 达上限后继续 → 以新消息续跑，而非通过 Command.resume
         // isResume（interrupt 确认）：通过 Command.resume 恢复被中断的图
         // 正常消息：新的用户输入
+        // S1 修复：续跑时重置 delegationCount，否则长篇任务无法继续委托专家
         const graphInput: any = isContinueLimit
-          ? { messages: [new HumanMessage("请继续完成之前因执行轮次达上限而中断的任务，从上次中断处无缝衔接。")], projectId }
+          ? { messages: [new HumanMessage("请继续完成之前因执行轮次达上限而中断的任务，从上次中断处无缝衔接。")], projectId, delegationCount: 0 }
           : isResume
             ? new Command({ resume })
             : { messages: [new HumanMessage(message)], projectId };
@@ -125,8 +133,8 @@ export async function POST(request: NextRequest) {
         let currentAnswerMsgId = '';
 
         for await (const event of eventStream) {
-          // 客户端已断开，提前终止事件循环
-          if (request.signal.aborted) break;
+          // M1 修复：使用 clientAborted 标志检查客户端断开
+          if (clientAborted) break;
 
           const { event: eventType, name, data } = event;
 

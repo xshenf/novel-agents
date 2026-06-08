@@ -143,6 +143,18 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
       body.response_format = { type: 'json_object' };
     }
 
+    // M3 修复：reasoning 处理与 lib/agent/graph.ts 的 buildLLMFromConfig 保持一致，
+    // 避免同一 provider 在 agent 路径与普通生成路径使用不同参数而行为割裂。
+    if (config.reasoningEnabled) {
+      if (config.apiProvider === 'deepseek') {
+        // DeepSeek R1：请求体传 reasoning 开关
+        body.reasoning = { enabled: true };
+      } else if (config.apiProvider === 'openai' || config.apiProvider === 'custom') {
+        // 走 OpenAI 协议的 Claude 等 extended-thinking 模型
+        body.thinking = { type: 'enabled', budget_tokens: 2048 };
+      }
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {

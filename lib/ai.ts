@@ -52,13 +52,13 @@ export const ai = {
   /**
    * AI 聊天与记忆查询
    */
-  async chat(projectId: string, query: string, apiKey?: string, modelName?: string): Promise<string> {
+  async chat(projectId: string, query: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<string> {
     const memory = await searchMemory(projectId, query);
     const systemInstruction = `你是一个高级小说创作助手。你非常熟悉这部小说的设定和剧情，能基于提供的上下文记忆，准确、专业、充满创作灵感地回答作者的问题。请保持小说文风，并给出明确、符合逻辑的推断。`;
     const prompt = `【当前背景上下文信息】:\n${memory.contextText}\n\n【作者提问】:\n${query}\n\n请结合上下文进行专业解答，说明事实并给出合理的创作建议。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     // 延迟模拟网络请求
@@ -69,7 +69,7 @@ export const ai = {
   /**
    * AI 自动写小说章节正文
    */
-  async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string): Promise<string> {
+  async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string, signal?: AbortSignal): Promise<string> {
     const memory = await searchMemory(projectId, chapterTitle, chapterTitle);
     
     // 获取当前项目的文风设定与反 AI 规则配置
@@ -108,7 +108,7 @@ export const ai = {
     const prompt = `【小说设定与长期记忆】:\n${memory.contextText}${exemplarBlock}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -118,7 +118,7 @@ export const ai = {
   /**
    * AI 多维度设定自动生成
    */
-  async generateInspirations(projectId: string, apiKey?: string, modelName?: string): Promise<{ characters: any[]; worldRules: any[] }> {
+  async generateInspirations(projectId: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<{ characters: any[]; worldRules: any[] }> {
     const project = await db.getProject(projectId);
     const title = project?.title || '';
     const desc = project?.description || '';
@@ -163,7 +163,7 @@ export const ai = {
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
       return safeParseJSON(jsonStr);
     }
 
@@ -174,7 +174,7 @@ export const ai = {
   /**
    * AI 智能向导新书生成
    */
-  async autoPlanBook(genre: string, tone: string, tags: string[], apiKey?: string, modelName?: string): Promise<{ title: string; description: string; styleSetting: string; worldSetting: string }> {
+  async autoPlanBook(genre: string, tone: string, tags: string[], apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<{ title: string; description: string; styleSetting: string; worldSetting: string }> {
     const systemInstruction = `你是一个顶级小说企划大师和文学导师。
 你的任务是根据作者选定的小说分类、文风调性以及题材标签，自动规划推演并生成一个极其精彩、极具商业价值与艺术想象力的小说项目策划。
 必须以 JSON 格式输出，不要包含任何 markdown 标记或多余的解释。`;
@@ -199,7 +199,7 @@ export const ai = {
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
       return safeParseJSON(jsonStr);
     }
 
@@ -210,7 +210,7 @@ export const ai = {
   /**
    * AI 正文续写
    */
-  async continueWriting(projectId: string, currentText: string, instruction?: string, apiKey?: string, modelName?: string, chapterTitle?: string): Promise<string> {
+  async continueWriting(projectId: string, currentText: string, instruction?: string, apiKey?: string, modelName?: string, chapterTitle?: string, signal?: AbortSignal): Promise<string> {
     const memory = await searchMemory(projectId, instruction || currentText, chapterTitle);
     const systemInstruction = `你是一个职业网络小说作家。你将基于提供的小说世界观、人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
 要求：
@@ -222,7 +222,7 @@ export const ai = {
     const prompt = `【小说上下文设定】:\n${memory.contextText}\n\n【作者当前已写的正文末尾】:\n\"\"\"\n${currentText}\n\"\"\"\n\n${instruction ? `【作者的特殊写作指令】: ${instruction}\n` : ''}\n请接着上面正文自然续写约300-500字。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -232,7 +232,7 @@ export const ai = {
   /**
    * AI 文本润色
    */
-  async polish(currentText: string, instruction?: string, apiKey?: string, modelName?: string): Promise<string> {
+  async polish(currentText: string, instruction?: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<string> {
     const systemInstruction = `你是一个金牌小说编辑。请根据作者的要求对输入的章节正文进行润色。
 要求：
 1. 保持原意不变，提升文字的表现力、画面感、心理活动和环境烘托。
@@ -242,7 +242,7 @@ export const ai = {
     const prompt = `【待润色的文本】:\n\"\"\"\n${currentText}\n\"\"\"\n\n【润色要求/风格选项】: ${instruction || '提升文学美感，加强环境烘托与心理描写'}\n\n请输出润色后的结果：`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -252,7 +252,7 @@ export const ai = {
   /**
    * AI 章节大纲生成
    */
-  async generateOutline(projectId: string, projectTitle: string, projectDesc: string, numChapters: number = 3, apiKey?: string, modelName?: string): Promise<string> {
+  async generateOutline(projectId: string, projectTitle: string, projectDesc: string, numChapters: number = 3, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<string> {
     const memory = await searchMemory(projectId, '大纲 章节');
     const systemInstruction = `你是一个资深网络小说架构师和大纲主笔。你将基于小说的基本设定和目前的章节回顾，为作者规划生成接下来的章节大纲。`;
     const prompt = `【小说名】: ${projectTitle}
@@ -270,7 +270,7 @@ ${memory.contextText}
 5. 预计字数与节奏。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -280,7 +280,7 @@ ${memory.contextText}
   /**
    * AI 逻辑一致性自检
    */
-  async checkConsistency(projectId: string, currentText: string, apiKey?: string, modelName?: string): Promise<AICheckResult> {
+  async checkConsistency(projectId: string, currentText: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<AICheckResult> {
     const memory = await searchMemory(projectId, currentText);
     const systemInstruction = `你是一个极度挑剔的小说审校编辑。你的任务是比对作者新写的章节正文与小说的人物卡、世界观设定、前文回顾等记忆，查找其中可能存在的逻辑漏洞、设定冲突、人物性格崩坏或违反写作禁忌的地方。`;
     const prompt = `【小说设定与前文背景】:\n${memory.contextText}\n\n【作者新写的正文内容】:\n\"\"\"\n${currentText}\n\"\"\"\n\n请详细检查上述正文是否与设定冲突。
@@ -298,7 +298,7 @@ ${memory.contextText}
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
       return safeParseJSON<AICheckResult>(jsonStr);
     }
 
@@ -309,7 +309,7 @@ ${memory.contextText}
   /**
    * 自动章节摘要与状态提取
    */
-  async summarizeChapter(currentText: string, apiKey?: string, modelName?: string): Promise<AISummaryResult> {
+  async summarizeChapter(currentText: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<AISummaryResult> {
     const systemInstruction = `你是一个小说精简摘要与实体变化分析工具。你的任务是分析一章小说的正文，提取其核心事件、人物状态改变、新埋下的伏笔和已回收的伏笔。`;
     const prompt = `【本章正文】:\n\"\"\"\n${currentText}\n\"\"\"\n\n请提取本章摘要、人物状态变化、伏笔变化和时间线事件。
 必须以 JSON 格式输出，字段如下：
@@ -324,7 +324,7 @@ ${memory.contextText}
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
       return safeParseJSON<AISummaryResult>(jsonStr);
     }
 
@@ -336,7 +336,7 @@ ${memory.contextText}
    * 维护全书滚动概要：prev 为空时从全部章节摘要 bootstrap，否则在 prev 基础上折叠最新一章摘要。
    * 返回压缩后的新概要（调用方负责落库）。用于在长篇里以「有界的滚动概要」替代「逐章全量摘要」注入。
    */
-  async updateRollingSynopsis(projectId: string, apiKey?: string, modelName?: string): Promise<string> {
+  async updateRollingSynopsis(projectId: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<string> {
     const [project, chapters] = await Promise.all([
       db.getProject(projectId),
       db.getChapters(projectId),
@@ -361,7 +361,7 @@ ${memory.contextText}
 4. 只输出概要正文本身，不要标题、解释或分点编号。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
     }
 
     // 无可用模型时的兜底：拼接并保留尾部，保证字段有值且有界
@@ -374,7 +374,7 @@ ${memory.contextText}
    * 维护世界状态台账：读取现有台账 + 滚动概要 + 最近章节摘要，让 AI 输出更新后的非锁定条目。
    * 返回条目数组（调用方负责落库 via db.replaceAutoWorldStates）。
    */
-  async updateWorldState(projectId: string, apiKey?: string, modelName?: string): Promise<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>> {
+  async updateWorldState(projectId: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>> {
     const [project, chapters, existingStates] = await Promise.all([
       db.getProject(projectId),
       db.getChapters(projectId),
@@ -420,7 +420,7 @@ ${recentSummaries || '（暂无）'}
 4. 只输出 JSON 数组，不要任何解释。`;
 
     if (hasUsableKey(apiKey)) {
-      const raw = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false);
+      const raw = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
       const parsed = safeParseJSON<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>>(raw, []);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       // 解析失败时返回现有非锁定条目不变
