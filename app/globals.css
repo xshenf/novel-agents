@@ -1008,6 +1008,36 @@ select.input option {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative;
+  /* 容器内出现新内容时，避免浏览器把整段平滑动画都跑完，造成按钮抖动 */
+  scroll-behavior: auto;
+}
+
+/* 用户离开底部后显示的悬浮按钮：吸在 history 容器视口底部，避免遮挡消息 */
+.agent-scroll-to-bottom {
+  position: sticky;
+  bottom: 12px;
+  align-self: flex-end;
+  margin-top: auto; /* 把它推到 flex 末尾，与 sticky 配合实现"始终贴底" */
+  margin-right: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 14px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: all 0.15s ease;
+  z-index: 1;
+}
+.agent-scroll-to-bottom:hover {
+  background: rgba(99, 102, 241, 0.32);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* 空状态 */
@@ -1098,7 +1128,45 @@ select.input option {
   color: var(--text-dark);
   font-size: 12px;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* 折叠态与展开态共享 padding，避免展开后整体宽度抖动 */
+  padding: 8px 10px;
+}
+
+/* 思考头部一行：图标 + 标签 + 行尾预览 */
+.agent-thinking-header {
+  display: flex;
   align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+/* 折叠态行尾预览：截断 + 省略号，颜色比标签更暗，避免抢视线 */
+.agent-thinking-preview {
+  margin-left: auto;
+  max-width: 60%;
+  font-size: 10.5px;
+  color: var(--text-dark);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: normal;
+}
+
+/* 展开后的完整思考内容：独立卡片，pre-wrap 保留 LLM 输出的换行 */
+.agent-thinking-detail {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dark);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* 工具调用气泡 */

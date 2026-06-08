@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal } from 'lucide-react';
+import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal, ArrowDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
@@ -11,8 +11,8 @@ export function AgentPanel() {
   const { aiPanelWidth, setAiPanelWidth } = layout;
   const {
     chatInput, setChatInput, agentMessages, setAgentMessages,
-    isAgentLoading, agentBottomRef, handleSendAgentMessage,
-    pendingConfirm, resolveConfirm,
+    isAgentLoading, agentBottomRef, setChatHistoryRef, isAtBottom, forceScrollToBottom,
+    handleSendAgentMessage, pendingConfirm, resolveConfirm,
   } = agent;
 
   // 追踪展开的 thinking 消息 ID
@@ -102,7 +102,7 @@ export function AgentPanel() {
             )}
           </div>
 
-          <div className="agent-chat-history">
+          <div className="agent-chat-history" ref={setChatHistoryRef}>
             {agentMessages.length === 0 ? (
               <div className="agent-empty-state">
                 <HelpCircle size={24} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
@@ -156,21 +156,23 @@ export function AgentPanel() {
                   case 'thinking': {
                     const hasReasoning = (msg.content || '').length > 0;
                     const isExpanded = expandedThinking.has(msg.id);
+                    // 折叠态在头部行尾展示一段去除换行/多余空白的纯文本预览；
+                    // 展开后用独立卡片换行展示完整 reasoning
+                    const previewText = hasReasoning
+                      ? msg.content.replace(/\s+/g, ' ').trim().slice(0, 60)
+                      : '';
+                    const toggle = () => {
+                      if (!hasReasoning) return;
+                      setExpandedThinking(prev => toggleSet(prev, msg.id));
+                    };
                     return (
-                      <div key={msg.id} className="agent-bubble agent-bubble-thinking" style={{ cursor: hasReasoning ? 'pointer' : 'default' }}>
-                        <div
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                          onClick={() => {
-                            if (hasReasoning) {
-                              setExpandedThinking(prev => {
-                                const next = new Set(prev);
-                                if (next.has(msg.id)) next.delete(msg.id);
-                                else next.add(msg.id);
-                                return next;
-                              });
-                            }
-                          }}
-                        >
+                      <div
+                        key={msg.id}
+                        className={`agent-bubble agent-bubble-thinking ${isExpanded ? 'is-expanded' : ''}`}
+                        style={{ cursor: hasReasoning ? 'pointer' : 'default' }}
+                        onClick={toggle}
+                      >
+                        <div className="agent-thinking-header">
                           {hasReasoning ? (
                             isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
                           ) : (
@@ -180,20 +182,15 @@ export function AgentPanel() {
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                             {msg.label || msg.agent} {hasReasoning ? `思考过程（${msg.content.length}字）` : '思考中...'}
                           </span>
+                          {hasReasoning && !isExpanded && previewText && (
+                            <span className="agent-thinking-preview" title={previewText}>
+                              {previewText}
+                              {msg.content.length > 60 ? '…' : ''}
+                            </span>
+                          )}
                         </div>
                         {hasReasoning && isExpanded && (
-                          <div style={{
-                            marginTop: '8px',
-                            padding: '10px 12px',
-                            background: 'rgba(0,0,0,0.2)',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            color: 'var(--text-dark)',
-                            lineHeight: '1.6',
-                            whiteSpace: 'pre-wrap',
-                            maxHeight: '300px',
-                            overflowY: 'auto',
-                          }}>
+                          <div className="agent-thinking-detail">
                             {msg.content}
                           </div>
                         )}
@@ -300,6 +297,18 @@ export function AgentPanel() {
               })
             )}
             <div ref={agentBottomRef} />
+            {!isAtBottom && (
+              <button
+                type="button"
+                className="agent-scroll-to-bottom"
+                onClick={() => forceScrollToBottom('smooth')}
+                aria-label="回到底部"
+                title="回到底部"
+              >
+                <ArrowDown size={14} />
+                <span>回到底部</span>
+              </button>
+            )}
           </div>
 
           {!store.apiKey && (

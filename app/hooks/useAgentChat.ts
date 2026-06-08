@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import type { NovelStore } from '@/lib/store';
 import { useNovelStore } from '@/lib/store';
 
@@ -40,6 +40,10 @@ export function useAgentChat(store: NovelStore) {
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   const [isAgentLoading, setIsAgentLoading] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  // 用户是否停留在对话底部：true 时新消息自动跟随滚动，false 时尊重用户当前位置并显示"回到底部"按钮
+  const [isAtBottom, setIsAtBottomState] = useState(true);
+  const isAtBottomRef = useRef(true);
+  const chatHistoryElRef = useRef<HTMLDivElement | null>(null);
   const agentBottomRef = useRef<HTMLDivElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -49,8 +53,50 @@ export function useAgentChat(store: NovelStore) {
   };
 
   const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  // 根据容器的 scrollTop / scrollHeight / clientHeight 判定是否贴近底部（允许 32px 容差）
+  const updateIsAtBottom = useCallback(() => {
+    const el = chatHistoryElRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distance < 32;
+    isAtBottomRef.current = atBottom;
+    setIsAtBottomState(atBottom);
+  }, []);
+
+  // callback ref：把 AgentPanel 的 history 容器绑进来，自动注册/解绑 scroll 监听
+  const setChatHistoryRef = useCallback((el: HTMLDivElement | null) => {
+    const prev = chatHistoryElRef.current;
+    if (prev && prev !== el) {
+      prev.removeEventListener('scroll', updateIsAtBottom);
+    }
+    chatHistoryElRef.current = el;
+    if (el) {
+      el.addEventListener('scroll', updateIsAtBottom, { passive: true });
+      // 内容可能比容器短（例如加载历史时），初始需要算一次
+      updateIsAtBottom();
+    }
+  }, [updateIsAtBottom]);
+
+  useEffect(() => {
+    return () => {
+      chatHistoryElRef.current?.removeEventListener('scroll', updateIsAtBottom);
+    };
+  }, [updateIsAtBottom]);
+
+  // 用户主动点击的"回到底部"按钮：忽略 isAtBottom 状态强制滚到底
+  const forceScrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    agentBottomRef.current?.scrollIntoView({ behavior });
+    // 滚到位后再校准一次 isAtBottom，避免按钮残留显示
+    requestAnimationFrame(updateIsAtBottom);
+  }, [updateIsAtBottom]);
+
+  // 仅在用户停留在底部时自动跟随新消息；用户上滑后保持当前位置，由 forceScrollToBottom 接管
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth', delay = 50) => {
-    setTimeout(() => agentBottomRef.current?.scrollIntoView({ behavior }), delay);
+    setTimeout(() => {
+      if (!isAtBottomRef.current) return;
+      agentBottomRef.current?.scrollIntoView({ behavior });
+    }, delay);
   };
 
   const saveAndSetAgentMessages = (val: AgentMessage[] | ((prev: AgentMessage[]) => AgentMessage[])) => {
@@ -483,6 +529,9 @@ export function useAgentChat(store: NovelStore) {
     saveAndSetAgentMessages,
     isAgentLoading,
     agentBottomRef,
+    setChatHistoryRef,
+    isAtBottom,
+    forceScrollToBottom,
     handleSendAgentMessage,
     pendingConfirm,
     resolveConfirm,
