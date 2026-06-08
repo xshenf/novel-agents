@@ -413,5 +413,5 @@ function sanitizeErrorMessage(raw: string): string {
 }
 
 function isAgentNode(name: string): boolean {
-  return ['orchestrator', 'planner', 'lore_builder', 'writer', 'editor'].includes(name);
+  return ['orchestrator', 'planner', 'lore_builder', 'writer', 'editor', 'continuity_keeper'].includes(name);
 }

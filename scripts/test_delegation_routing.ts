@@ -58,7 +58,7 @@ function runTests() {
   assert(resolveDelegateTarget([]) === null, '空数组应返回 null');
 
   // 场景 9: SPECIALISTS 集合健全性
-  assert(SPECIALISTS.length === 4, 'SPECIALISTS 应包含 4 个专家');
+  assert(SPECIALISTS.length === 5, 'SPECIALISTS 应包含 5 个专家');
 
   console.log('\n所有委托路由解析测试用例均验证通过！\n');
 }

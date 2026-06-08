@@ -25,6 +25,10 @@ const DESCRIPTIONS: Record<string, string> = {
   create_character: '新建角色卡',
   create_world_rule: '新建具体世界观设定',
   generate_inspirations: '生成角色与设定灵感',
+  update_character: '修改已有角色卡信息',
+  delete_character: '删除指定角色卡',
+  update_world_rule: '修改已有世界观设定',
+  delete_world_rule: '删除指定世界观设定',
 
   // 写作专家
   create_chapter: '新建空章节',
@@ -34,6 +38,11 @@ const DESCRIPTIONS: Record<string, string> = {
   // 编辑专家
   polish_text: '对文本进行润色修改',
   check_consistency: '对正文做逻辑自检',
+
+  // 连续性官
+  update_rolling_synopsis: '更新全书滚动剧情概要',
+  update_world_state: '同步世界状态台账',
+  get_chapter_constraints: '生成写作前约束清单',
 };
 
 export function getToolDescription(toolName?: string): string {

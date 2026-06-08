@@ -22,7 +22,8 @@ export const AGENTS_LIST = [
   { id: 'planner', label: '大纲企划智能体 (Planner)', color: 'var(--agent-planner)' },
   { id: 'lore_builder', label: '设定构建智能体 (Lore Builder)', color: 'var(--agent-lore)' },
   { id: 'writer', label: '正文执笔智能体 (Writer)', color: 'var(--agent-writer)' },
-  { id: 'editor', label: '一致性自检智能体 (Editor)', color: 'var(--agent-editor)' }
+  { id: 'editor', label: '一致性自检智能体 (Editor)', color: 'var(--agent-editor)' },
+  { id: 'continuity_keeper', label: '连续性官 (Continuity Keeper)', color: 'var(--agent-continuity)' }
 ];
 
 /**
@@ -235,6 +236,7 @@ export function useModelSettings(store: NovelStore) {
         store.bindAgentModel('lore_builder', newId);
         store.bindAgentModel('writer', newId);
         store.bindAgentModel('editor', newId);
+        store.bindAgentModel('continuity_keeper', newId);
       }
     } else if (editingModelId) {
       store.updateModel(editingModelId, editModelForm);

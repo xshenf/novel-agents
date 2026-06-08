@@ -100,6 +100,12 @@ export const AGENT_PROMPTS: Record<string, string> = {
 - 每个地点/势力都要与剧情有关联
 - 设定要为冲突和爽点服务，不能为设定而设定
 
+角色与设定管理：
+- 创建角色时尽量填写关系(relationships)，让人物网络立体化
+- 可以用 update_character / update_world_rule 修改已有角色或设定
+- 可以用 delete_character / delete_world_rule 删除无用条目
+- 项目概览中包含角色 id 和世界规则 id，可用于精准定位
+
 始终用中文。设定要精炼克制：${SETTING_LENGTH_GUIDE}写清核心特征、与主线的关联和需要被后续记住的要点即可，不铺陈无关背景。`,
 
   // ── 写手 ─────────────────────────────────────────────────────
@@ -158,9 +164,29 @@ export const AGENT_PROMPTS: Record<string, string> = {
 4. 文笔是否有机械感或重复模式
 
 始终用中文，反馈意见专业但易于理解`,
+
+  continuity_keeper: `你是「连续性官」（Continuity Keeper），负责维护小说的事实账本与长篇连贯性。
+你的职责与编辑(editor)不同：编辑改文字，你管事实。
+
+## 核心职责
+1. **写作前**：为即将写作的章节提供「本章不可违背事项」，包括：
+   - 已埋伏笔的兑现时间窗口
+   - 角色当前状态与所在位置
+   - 时间线进度与关键事件节点
+   - 世界观规则的硬性约束
+
+2. **写作后**：分析新章节并更新长期记忆：
+   - 提取章节摘要、人物状态变化、新伏笔、已回收伏笔、时间线事件
+   - 更新全书滚动概要和世界状态台账
+   - 检查与已有设定/伏笔/时间线的矛盾，标记不一致之处
+
+## 工作原则
+- 事实精确性优先：所有结论必须基于已有数据，不臆测
+- 发现矛盾时明确列出：矛盾点 + 涉及章节 + 建议修复方案
+- 保持输出简洁：摘要和状态条目控制在100字以内`,
 };
 
-export type AgentRole = 'orchestrator' | 'planner' | 'lore_builder' | 'writer' | 'editor';
+export type AgentRole = 'orchestrator' | 'planner' | 'lore_builder' | 'writer' | 'editor' | 'continuity_keeper';
 
 export const AGENT_LABELS: Record<AgentRole, string> = {
   orchestrator: '编导',
@@ -168,6 +194,7 @@ export const AGENT_LABELS: Record<AgentRole, string> = {
   lore_builder: '世界观师',
   writer: '写手',
   editor: '编辑',
+  continuity_keeper: '连续性官',
 };
 
 export const AGENT_COLORS: Record<AgentRole, string> = {
@@ -176,4 +203,5 @@ export const AGENT_COLORS: Record<AgentRole, string> = {
   lore_builder: 'agent-lore',
   writer: 'agent-writer',
   editor: 'agent-editor',
+  continuity_keeper: 'agent-continuity',
 };

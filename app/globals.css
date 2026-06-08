@@ -999,6 +999,7 @@ select.input option {
   --agent-lore:         #10b981; /* 世界观师：翠绿 */
   --agent-writer:       #3b82f6; /* 写手：蓝色 */
   --agent-editor:       #f43f5e; /* 编辑：玫红 */
+  --agent-continuity:   #6366f1; /* 连续性官：靖青 */
 }
 
 .agent-chat-history {

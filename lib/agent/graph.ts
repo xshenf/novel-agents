@@ -16,6 +16,7 @@ import {
   LORE_BUILDER_TOOLS,
   WRITER_TOOLS,
   EDITOR_TOOLS,
+  CONTINUITY_KEEPER_TOOLS,
   queryMemoryTool,
   getProjectOverviewTool,
   requestUserStyleTool,
@@ -144,6 +145,15 @@ const delegateToEditorTool = tool(
   }
 );
 
+const delegateToContinuityKeeperTool = tool(
+  async ({ task }) => `[DELEGATE:continuity_keeper] ${task}`,
+  {
+    name: 'delegate_to_continuity_keeper',
+    description: '将时间线检查、伏笔管理、角色状态更新、世界一致性校验、写作前约束生成、写作后状态同步等任务委托给连续性官（Continuity Keeper）来完成。',
+    schema: z.object({ task: z.string().describe('交给连续性官的具体任务') }),
+  }
+);
+
 const ORCHESTRATOR_TOOLS = [
   queryMemoryTool,
   getProjectOverviewTool,
@@ -152,6 +162,7 @@ const ORCHESTRATOR_TOOLS = [
   delegateToLoreBuilderTool,
   delegateToWriterTool,
   delegateToEditorTool,
+  delegateToContinuityKeeperTool,
 ];
 
 // 汇总阶段 orchestrator 可用的工具（去掉所有 delegate_* 工具），从机制上保证不会再次委托而停不下来
@@ -233,7 +244,8 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
     'delegate_to_planner',
     'delegate_to_lore_builder',
     'delegate_to_writer',
-    'delegate_to_editor'
+    'delegate_to_editor',
+    'delegate_to_continuity_keeper'
   ];
 
   const filteredMessages: BaseMessage[] = [];
@@ -269,7 +281,7 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
 // 委托目标专家集合（与 delegate_to_* 工具一一对应）
-export const SPECIALISTS = ['planner', 'lore_builder', 'writer', 'editor'] as const;
+export const SPECIALISTS = ['planner', 'lore_builder', 'writer', 'editor', 'continuity_keeper'] as const;
 
 // 从消息尾部连续的工具结果中解析委托目标专家。
 // 编导调用 delegate_to_X 工具后，ToolNode 产出形如 "[DELEGATE:role] task" 的结果，
@@ -386,18 +398,21 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
   const loreBuilderLlm  = getLLMForAgent('lore_builder');
   const writerLlm       = getLLMForAgent('writer');
   const editorLlm       = getLLMForAgent('editor');
+  const continuityKeeperLlm = getLLMForAgent('continuity_keeper');
 
   const orchestratorNode = createOrchestratorNode(orchestratorLlm, projectId, globalSystemInstruction);
   const plannerNode      = createAgentNode('planner',      PLANNER_TOOLS,      plannerLlm, projectId, globalSystemInstruction);
-  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId, globalSystemInstruction);
+  const loreBuilderNode  = createAgentNode('lore_builder', LORE_BUILDER_TOOLS, loreBuilderLlm, projectId, globalSystemInstruction, true);
   const writerNode       = createAgentNode('writer',       WRITER_TOOLS,       writerLlm, projectId, globalSystemInstruction, true);
   const editorNode       = createAgentNode('editor',       EDITOR_TOOLS,       editorLlm, projectId, globalSystemInstruction, true);
+  const continuityKeeperNode = createAgentNode('continuity_keeper', CONTINUITY_KEEPER_TOOLS, continuityKeeperLlm, projectId, globalSystemInstruction);
 
   const orchestratorToolNode  = new ToolNode(ORCHESTRATOR_TOOLS);
   const plannerToolNode       = new ToolNode(PLANNER_TOOLS);
   const loreBuilderToolNode   = new ToolNode(LORE_BUILDER_TOOLS);
   const writerToolNode        = new ToolNode(WRITER_TOOLS);
   const editorToolNode        = new ToolNode(EDITOR_TOOLS);
+  const continuityKeeperToolNode = new ToolNode(CONTINUITY_KEEPER_TOOLS);
 
   // ── 路由函数 ─────────────────────────────────────────────────────────────
   // 专家完成（无 tool_calls）或工具调用超限后回到 orchestrator 汇总
@@ -440,6 +455,9 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
     .addNode('editor',             editorNode)
     .addNode('editor_tools',       editorToolNode)
     .addNode('editor_tool_count',  afterSpecialistToolNode)
+    .addNode('continuity_keeper',       continuityKeeperNode)
+    .addNode('continuity_keeper_tools', continuityKeeperToolNode)
+    .addNode('continuity_keeper_tool_count', afterSpecialistToolNode)
 
     .addEdge(START, 'orchestrator')
 
@@ -473,7 +491,11 @@ export function buildNovelAgentGraph(apiConfig: string, modelName: string, proje
 
     .addConditionalEdges('editor',       routeAfterAgent('editor_tools'))
     .addEdge('editor_tools', 'editor_tool_count')
-    .addEdge('editor_tool_count', 'editor');
+    .addEdge('editor_tool_count', 'editor')
+
+    .addConditionalEdges('continuity_keeper',       routeAfterAgent('continuity_keeper_tools'))
+    .addEdge('continuity_keeper_tools', 'continuity_keeper_tool_count')
+    .addEdge('continuity_keeper_tool_count', 'continuity_keeper');
 
   return graph.compile({ checkpointer });
 }

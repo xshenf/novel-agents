@@ -174,7 +174,7 @@ export const ai = {
   /**
    * AI 智能向导新书生成
    */
-  async autoPlanBook(genre: string, tone: string, tags: string[], apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<{ title: string; description: string; styleSetting: string; worldSetting: string }> {
+  async autoPlanBook(genre: string, tone: string, tags: string[], apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<{ title: string; description: string; styleSetting: string; worldSetting: string; powerSystem?: string; coreConflict?: string; sellingPoints?: string }> {
     const systemInstruction = `你是一个顶级小说企划大师和文学导师。
 你的任务是根据作者选定的小说分类、文风调性以及题材标签，自动规划推演并生成一个极其精彩、极具商业价值与艺术想象力的小说项目策划。
 必须以 JSON 格式输出，不要包含任何 markdown 标记或多余的解释。`;
@@ -189,13 +189,19 @@ export const ai = {
 2. 【故事简介】(description)：100-200字，点明核心冲突、主角目标和爽点。
 3. 【文风设定】(styleSetting)：说明具体的行文风格和节奏偏好。
 4. 【世界观设定】(worldSetting)：200字以内，设计出力量体系、地理特色和背景矛盾。
+5. 【力量体系】(powerSystem)：100字以内，设计境界划分、升级路线和核心能力。
+6. 【核心冲突】(coreConflict)：100字以内，主角面对的终极矛盾与危机。
+7. 【卖点】(sellingPoints)：100字以内，本书的核心爽点和市场吸引力。
 
 必须以下列 JSON 格式输出：
 {
   "title": "自动生成的精妙书名",
   "description": "自动生成的精彩故事简介",
   "styleSetting": "自动生成的文风设定描述",
-  "worldSetting": "自动生成的背景世界观设定描述"
+  "worldSetting": "自动生成的背景世界观设定描述",
+  "powerSystem": "自动生成的力量体系描述",
+  "coreConflict": "自动生成的核心冲突描述",
+  "sellingPoints": "自动生成的卖点描述"
 }`;
 
     if (hasUsableKey(apiKey)) {
