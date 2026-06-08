@@ -4,6 +4,7 @@ import { Command } from '@langchain/langgraph';
 import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
+import { normalizeToolPayload } from '@/app/lib/toolPayload';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 分钟超时
@@ -11,6 +12,38 @@ export const maxDuration = 300; // 5 分钟超时
 // 简易内存限流：每个项目最多 3 个并发 agent 请求
 const activeRequests = new Map<string, number>();
 const MAX_CONCURRENT_PER_PROJECT = 3;
+
+/**
+ * 从 langchain on_tool_end 事件 data.output 提取真实可读文本。
+ * data.output 可能是：
+ *   1) 纯字符串（工具直接返回的 content 字符串）
+ *   2) ToolMessage 对象（有 content 字段；lc/type/id/kwargs 都是内部结构）
+ *   3) 其它任意对象
+ * 前端展示和 DB 持久化都按"只取 content"原则——避免 langchain 内部 JSON dump 进入用户视野。
+ */
+function extractToolOutputContent(output: unknown): string {
+  if (output === undefined || output === null) return '';
+  if (typeof output === 'string') return output;
+  if (typeof output !== 'object') return String(output);
+  const obj = output as Record<string, unknown>;
+  // 1) ToolMessage.content（最常见）
+  if (typeof obj.content === 'string') return obj.content;
+  // 2) ToolMessage.kwargs.content（langchain 序列化链路）
+  if (obj.kwargs && typeof obj.kwargs === 'object') {
+    const kc = (obj.kwargs as Record<string, unknown>).content;
+    if (typeof kc === 'string') return kc;
+  }
+  // 3) ToolMessage 数组（部分链路是 [ToolMessage]）
+  if (Array.isArray(obj) && obj.length > 0) {
+    return extractToolOutputContent(obj[0]);
+  }
+  // 兜底：可读 JSON
+  try {
+    return JSON.stringify(output);
+  } catch {
+    return String(output);
+  }
+}
 
 export async function POST(request: NextRequest) {
   let body: any;
@@ -76,6 +109,59 @@ export async function POST(request: NextRequest) {
       };
 
       let heartbeat: ReturnType<typeof setInterval> | undefined;
+      // 工具调用生命周期跟踪：声明在 try 块外（提升为 hoisted-safe），保证 catch 分支
+      // 即便 graph 构建失败也能调用 closeAllPendingToolCalls 兜底（空 map noop）。
+      const TOOL_CALL_TIMEOUT_MS = 60_000;
+      const pendingToolCalls = new Map<string, { toolMsgId: string; toolName: string; input: unknown; timeoutId: ReturnType<typeof setTimeout> }>();
+      const closePendingToolCall = (runId: string, resultContent: string) => {
+        const pending = pendingToolCalls.get(runId);
+        if (!pending) return;
+        clearTimeout(pending.timeoutId);
+        pendingToolCalls.delete(runId);
+        const resultMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const shortResult = resultContent.slice(0, 800) + (resultContent.length > 800 ? '...' : '');
+        const closePayload = normalizeToolPayload(pending.toolName, pending.input, resultContent);
+        Promise.all([
+          db.appendAgentMessage(projectId, {
+            id: resultMsgId,
+            type: 'tool_result',
+            agent: pending.toolName,
+            toolName: pending.toolName,
+            content: shortResult,
+            purpose: closePayload.purpose,
+            verb: closePayload.verb,
+            writtenLength: closePayload.writtenLength,
+            filteredInput: closePayload.filteredInput,
+            resultText: closePayload.resultText || shortResult,
+          }),
+          Promise.resolve(send('tool_result', {
+            id: resultMsgId,
+            callId: pending.toolMsgId,
+            agent: pending.toolName,
+            toolName: pending.toolName,
+            result: shortResult,
+            purpose: closePayload.purpose,
+            verb: closePayload.verb,
+            writtenLength: closePayload.writtenLength,
+            filteredInput: closePayload.filteredInput,
+            resultText: closePayload.resultText || shortResult,
+            nameField: closePayload.nameField,
+            nameText: closePayload.nameText,
+            contentField: closePayload.contentField,
+            contentText: closePayload.contentText,
+            synthetic: true,
+          })),
+        ]).catch((e) => console.error('closePendingToolCall failed:', e));
+      };
+      const closeAllPendingToolCalls = (reasonText: string) => {
+        if (pendingToolCalls.size === 0) return;
+        for (const runId of Array.from(pendingToolCalls.keys())) {
+          const p = pendingToolCalls.get(runId);
+          if (!p) continue;
+          const text = `工具「${p.toolName}」执行未完成：${reasonText}`;
+          closePendingToolCall(runId, text);
+        }
+      };
       try {
         // 构建图
         const graph = buildNovelAgentGraph(packedApiKey, modelName || 'gemini-2.5-flash', projectId);
@@ -135,10 +221,14 @@ export async function POST(request: NextRequest) {
         // on_chat_model_end 时把累积值回写 db，避免历史里只看到 "正在思考..." 占位符
         let currentThinkingMsgId = '';
         let accumulatedReasoning = '';
+        // 工具调用生命周期跟踪：声明与实现已外提到 try 块前（catch 分支也安全可用）。
 
         for await (const event of eventStream) {
           // M1 修复：使用 clientAborted 标志检查客户端断开
-          if (clientAborted) break;
+          if (clientAborted) {
+            closeAllPendingToolCalls('连接已中断');
+            break;
+          }
 
           const { event: eventType, name, data } = event;
 
@@ -253,6 +343,9 @@ export async function POST(request: NextRequest) {
           // 工具调用（delegate_* 委托类工具不展示为普通工具调用，改由 delegate 事件呈现）
           if (eventType === 'on_tool_start' && !(typeof name === 'string' && name.startsWith('delegate_'))) {
             const toolMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            // 归一化：purpose / writtenLength / filteredInput / contentField —— 一次性算好发给前端与 DB，
+            // 避免渲染端再各自推断字段名（content / value / bio / numChapters / ... 各工具不一致）
+            const payload = normalizeToolPayload(name, data?.input, null);
             await db.appendAgentMessage(projectId, {
               id: toolMsgId,
               type: 'tool_call',
@@ -260,36 +353,79 @@ export async function POST(request: NextRequest) {
               toolName: name,
               toolInput: data?.input || {},
               content: `调用工具：${name}`,
+              purpose: payload.purpose,
+              verb: payload.verb,
+              writtenLength: payload.writtenLength,
+              filteredInput: payload.filteredInput,
             });
             send('tool_call', {
               id: toolMsgId,
               agent: lastAgent,
               toolName: name,
               toolInput: data?.input || {},
+              purpose: payload.purpose,
+              verb: payload.verb,
+              writtenLength: payload.writtenLength,
+              filteredInput: payload.filteredInput,
+              nameField: payload.nameField,
+              nameText: payload.nameText,
+              contentField: payload.contentField,
+              contentText: payload.contentText,
             });
+            // 注册到 pending 列表：60 秒未收到 on_tool_end 视为超时，自动补"超时"结果配对
+            // 用 langchain run_id 作 key（与 on_tool_end 事件 data.run_id 一一对应）
+            const runId = (data as any)?.run_id;
+            if (runId) {
+              const timeoutId = setTimeout(() => {
+                closePendingToolCall(runId, `工具「${name}」执行超时（${TOOL_CALL_TIMEOUT_MS / 1000} 秒未返回结果）`);
+              }, TOOL_CALL_TIMEOUT_MS);
+              pendingToolCalls.set(runId, { toolMsgId, toolName: name, input: data?.input, timeoutId });
+            }
           }
 
           // 工具返回结果
           if (eventType === 'on_tool_end') {
-            const output = typeof data?.output === 'string'
-              ? data.output
-              : JSON.stringify(data?.output || '');
+            // 从 langchain ToolMessage 提取真实 content 文本，避免 lc/type/id/kwargs 这种内部 JSON dump 入库
+            const output = extractToolOutputContent(data?.output);
+            // 用 run_id 精确配对 + 清掉超时定时器
+            const endRunId = (data as any)?.run_id;
+            if (endRunId && pendingToolCalls.has(endRunId)) {
+              const p = pendingToolCalls.get(endRunId)!;
+              clearTimeout(p.timeoutId);
+              pendingToolCalls.delete(endRunId);
+            }
             // 跳过 delegate 信号（内部路由，不展示给用户）
             if (!output.startsWith('[DELEGATE:')) {
               const resultMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
               const shortResult = output.slice(0, 800) + (output.length > 800 ? '...' : '');
+              // 重新计算 writtenLength（拿到 result 后能更准，比如 "已保存 N 字"）
+              const payload = normalizeToolPayload(name, data?.input, output);
               await db.appendAgentMessage(projectId, {
                 id: resultMsgId,
                 type: 'tool_result',
                 agent: lastAgent,
                 toolName: name,
                 content: shortResult,
+                purpose: payload.purpose,
+                verb: payload.verb,
+                writtenLength: payload.writtenLength,
+                filteredInput: payload.filteredInput,
+                resultText: payload.resultText || shortResult,
               });
               send('tool_result', {
                 id: resultMsgId,
                 agent: lastAgent,
                 toolName: name,
                 result: shortResult,
+                purpose: payload.purpose,
+                verb: payload.verb,
+                writtenLength: payload.writtenLength,
+                filteredInput: payload.filteredInput,
+                resultText: payload.resultText || shortResult,
+                nameField: payload.nameField,
+                nameText: payload.nameText,
+                contentField: payload.contentField,
+                contentText: payload.contentText,
               });
 
               // 数据修改类工具执行完毕后，发送 data_changed 通知前端实时刷新
@@ -334,6 +470,17 @@ export async function POST(request: NextRequest) {
                   toLabel: AGENT_LABELS[delegateTo as keyof typeof AGENT_LABELS] || delegateTo,
                 });
               }
+            }
+          }
+
+          // 工具执行异常（langchain on_tool_error）：把对应 pending 立刻 close 为"失败"，
+          // 避免前端一直转圈等不到结果。
+          if (eventType === 'on_tool_error') {
+            const errRunId = (data as any)?.run_id;
+            const errToolName = (data as any)?.name || name;
+            const errMessage = (data as any)?.error?.message || data?.error || '工具执行失败';
+            if (errRunId && pendingToolCalls.has(errRunId)) {
+              closePendingToolCall(errRunId, `工具「${errToolName}」执行失败：${errMessage}`);
             }
           }
 
@@ -389,10 +536,14 @@ export async function POST(request: NextRequest) {
           });
           send('confirm', { id: confirmMsgId, payload });
         }
+        // 流正常结束：清理尚未关闭的 pending 工具（异常分支也算 stop —— 即使有遗漏）
+        closeAllPendingToolCalls('Agent 流已结束，但工具未返回结果');
         // 无论是否有 interrupt，都发送 done 事件，确保前端刷新数据
         send('done', { message: '任务完成' });
       } catch (err: any) {
         console.error('Agent error:', err);
+        // 异常时兜底关闭所有 pending 工具调用，避免前端一直转圈
+        closeAllPendingToolCalls(err?.message || 'Agent 执行异常');
         const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
         // 如果是 recursion limit 达到上限，检查点状态已保存，发 confirm 让用户一键续跑

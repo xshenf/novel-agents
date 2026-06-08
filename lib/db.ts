@@ -124,6 +124,21 @@ export interface AgentMessage {
   fromLabel?: string;
   to?: string;
   toLabel?: string;
+  // 工具调用归一化字段（route.ts 在 on_tool_start / on_tool_end 时调 normalizeToolPayload 写入）
+  // 渲染端优先读这些字段，避免再各自推断字段名；旧数据缺失时 fallback 到前端 inferrer
+  purpose?: string;
+  verb?: 'write' | 'update' | 'delete' | null;
+  writtenLength?: number | null;
+  filteredInput?: Record<string, unknown> | null;
+  resultText?: string;
+  // tool_call 专用：true 表示尚未收到结果（执行中 / 超时 / 失败前）；落库时仅在
+  // 真实发生中态时由前端 useAgentChat 写回（正常路径下 on_tool_end 会把它再写回 false）
+  pending?: boolean;
+  // tool_result 专用：true 表示是后端兜底合成的"超时/失败/中断"文案（非真实工具返回）
+  synthetic?: boolean;
+  // tool_result 专用：透传对应 tool_call.id（route.ts SSE 同步透传），
+  // AgentPanel / messagePairing 配对时优先用此 id 替代"相邻 + toolName 相等"
+  callId?: string;
   createdAt: string;
 }
 

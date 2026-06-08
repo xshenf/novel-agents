@@ -27,6 +27,20 @@ export interface AgentMessage {
   to?: string;
   toLabel?: string;
   streaming?: boolean;
+  // 工具调用归一化字段（route.ts 在 SSE / DB 中都附上，前端优先读这些字段，
+  // 缺失时 fallback 到前端 inferrer；旧数据兼容）
+  purpose?: string;
+  verb?: 'write' | 'update' | 'delete' | null;
+  writtenLength?: number | null;
+  filteredInput?: Record<string, unknown> | null;
+  resultText?: string;
+  // tool_call 专用：true 表示已发出调用但尚未收到结果（执行中 / 超时 / 失败前的转圈态）
+  pending?: boolean;
+  // tool_result 专用：true 表示是后端兜底合成的"超时/失败/未完成"结果（非真实工具返回）
+  synthetic?: boolean;
+  // tool_result 专用：透传对应 tool_call 的 id（route.ts 在 SSE 透传），
+  // 配对时优先用此 id 替代"相邻 + 工具名相等"的 fallback 规则
+  callId?: string;
 }
 
 export interface PendingConfirm {
@@ -195,6 +209,42 @@ export function useAgentChat(store: NovelStore) {
       }
     };
 
+    // 兜底：扫描仍处于 pending 的 tool_call，要么"停转"（pending=false）、
+    // 要么追加"未收到结果"标记。后端 60s 超时会推 synthetic tool_result，所以这里
+    // 只需给前端停转；不重复插入 result，避免出现双配对。
+    // 后端 timeout / closeAllPendingToolCalls 没补上的极端情况（SSE 丢包/异常中断）才走
+    // appendFallback 路径补一个 synthetic tool_result。
+    const finalizePendingToolCalls = (reason: string) => {
+      saveAndSetAgentMessages(prev => {
+        const pendingCalls = prev.filter(m => m.type === 'tool_call' && m.pending);
+        if (pendingCalls.length === 0) return prev;
+        const next = prev.map(m => (m.type === 'tool_call' && m.pending) ? { ...m, pending: false } : m);
+        // 仅当 lastAgent 流真的中断（无 done / 无后续 tool_result）时补一个 fallback
+        // —— 用 message pairing 让 call/result 配对
+        const stillUnpaired = pendingCalls.filter(c =>
+          !next.some(m => m.type === 'tool_result' && m.toolName === c.toolName && (m as any).callId === c.id)
+        );
+        if (stillUnpaired.length === 0) return next;
+        return [
+          ...next,
+          ...stillUnpaired.map(c => ({
+            id: msgId(),
+            type: 'tool_result' as const,
+            agent: c.agent,
+            toolName: c.toolName,
+            content: `工具「${c.toolName}」执行未完成：${reason}`,
+            purpose: c.purpose,
+            verb: c.verb,
+            writtenLength: c.writtenLength,
+            filteredInput: c.filteredInput,
+            resultText: `工具「${c.toolName}」执行未完成：${reason}`,
+            synthetic: true,
+            callId: c.id,  // 透传 callId 让 messagePairing 也能配上
+          })),
+        ];
+      });
+    };
+
     while (true) {
       // 防止 LLM API 不通时无限挂起：若 180 秒内未收到任何数据（含心跳），主动中断
       let stallTimer: ReturnType<typeof setTimeout> | null = null;
@@ -283,20 +333,46 @@ export function useAgentChat(store: NovelStore) {
               toolName: data.toolName,
               toolInput: data.toolInput,
               content: `调用工具：${data.toolName}`,
+              // 归一化字段：route.ts 已算好，渲染端优先读这些
+              purpose: data.purpose,
+              verb: data.verb,
+              writtenLength: data.writtenLength,
+              filteredInput: data.filteredInput,
+              // 标记为 pending：执行中（转圈）。后端 60 秒未返回 on_tool_end 会自动补
+              // 合成 tool_result 配对；如果前端意外断连则在 done / abort 时本地合成。
+              pending: true,
             }]);
             scrollToBottom('smooth');
             break;
 
-          case 'tool_result':
-            saveAndSetAgentMessages(prev => [...prev, {
-              id: data.id || msgId(),
-              type: 'tool_result',
-              agent: data.agent,
-              toolName: data.toolName,
-              content: data.result,
-            }]);
+          case 'tool_result': {
+            // 用 callId 精确配对（route.ts 在 on_tool_start / closePendingToolCall 都把
+            // 同一 callId 透传），优先于"相邻 toolName 相等"的 fallback 配对
+            const callId = data.callId as string | undefined;
+            const resultId = data.id || msgId();
+            saveAndSetAgentMessages(prev => {
+              // 把匹配的 call 标 pending=false；插入 result
+              const next = prev.map(m => (callId && m.id === callId) ? { ...m, pending: false } : m);
+              return [...next, {
+                id: resultId,
+                type: 'tool_result',
+                agent: data.agent,
+                toolName: data.toolName,
+                content: data.result,
+                // 归一化字段：route.ts 已算好
+                purpose: data.purpose,
+                verb: data.verb,
+                writtenLength: data.writtenLength,
+                filteredInput: data.filteredInput,
+                resultText: data.resultText,
+                synthetic: !!data.synthetic,
+                // 透传 callId：AgentPanel / messagePairing 配对时优先用此 id
+                callId: callId,
+              }];
+            });
             scrollToBottom('smooth');
             break;
+          }
 
           case 'delegate':
             stopStreaming();
@@ -373,6 +449,10 @@ export function useAgentChat(store: NovelStore) {
           case 'done':
             stopStreaming();
             finalizeThinking();
+            // 兜底：扫描是否有"pending=true"还没收到结果的 tool_call（后端 60s 超时
+            // 兜底会推 synthetic tool_result；这里只在 SSE 真的丢了结果时补一条。
+            // 不重复造轮子，只标记 pending=false 让它停转）。
+            finalizePendingToolCalls('agent 流已结束');
             // 使用 getState() 获取最新的 currentProject，避免闭包捕获旧值
             const doneProject = useNovelStore.getState().currentProject;
             if (doneProject) {
@@ -389,6 +469,7 @@ export function useAgentChat(store: NovelStore) {
           case 'error':
             stopStreaming();
             finalizeThinking();
+            finalizePendingToolCalls(data.message || 'agent 异常');
             saveAndSetAgentMessages(prev => [...prev, {
               id: data.id || msgId(),
               type: 'error',

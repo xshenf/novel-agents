@@ -7,6 +7,7 @@ import { Markdown } from './Markdown';
 import { getToolPurpose } from '../lib/toolPurpose';
 import { coerceToolInput, extractToolMessageContent } from '../lib/toolInputShape';
 import { SpecialistCard } from './SpecialistCard';
+import { ToolPairBubble } from './ToolPairBubble';
 import type { AgentMessage } from '../hooks/useAgentChat';
 import { getAgentLabel } from '@/lib/agent/labels';
 
@@ -28,6 +29,8 @@ export function AgentPanel() {
   // 追踪展开的工具调用 / 工具结果 ID，默认全部收起，避免对话流被长参数/长结果撑爆
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set());
+  // 工具调用+结果 配对卡 展开状态：默认折叠，header 单行显示
+  const [expandedToolPairs, setExpandedToolPairs] = useState<Set<string>>(new Set());
 
   const toggleSet = (prev: Set<string>, id: string) => {
     const next = new Set(prev);
@@ -44,8 +47,8 @@ export function AgentPanel() {
 
   // 消息分组：非编导的连续消息归入子智能体卡片，编导/用户/委派单独展示
   type RenderItem =
-    | { kind: 'standalone'; msg: AgentMessage }
-    | { kind: 'specialist-group'; groupId: string; agent: string; label: string; messages: AgentMessage[]; isStreaming: boolean };
+    | { kind: 'standalone', msg: AgentMessage }
+    | { kind: 'specialist-group', groupId: string, agent: string, label: string, messages: AgentMessage[], isStreaming: boolean };
 
   const groupedItems = useMemo<RenderItem[]>(() => {
     const items: RenderItem[] = [];
@@ -196,7 +199,7 @@ export function AgentPanel() {
                 </div>
               </div>
             ) : (
-              groupedItems.map((item) => {
+              groupedItems.map((item, idx, arr) => {
                 // ── 子智能体分组卡片 ──
                 if (item.kind === 'specialist-group') {
                   return (
@@ -212,8 +215,46 @@ export function AgentPanel() {
                       setExpandedToolCalls={setExpandedToolCalls}
                       expandedToolResults={expandedToolResults}
                       setExpandedToolResults={setExpandedToolResults}
+                      expandedToolPairs={expandedToolPairs}
+                      setExpandedToolPairs={setExpandedToolPairs}
                     />
                   );
+                }
+
+                // ── 独立消息：相邻 tool_call + tool_result 优先用 ToolPairBubble 合并渲染 ──
+                if (item.kind === 'standalone' && item.msg.type === 'tool_call') {
+                  const next = arr[idx + 1];
+                  // callId 是后端在 SSE 透传的字段（tool_result.callId 对应 tool_call.id），
+                  // 精确配对优先；历史数据没 callId 时回退到"相邻 + toolName 相等"
+                  const nextCallId = next?.kind === 'standalone' ? next.msg.callId : undefined;
+                  if (
+                    next
+                    && next.kind === 'standalone'
+                    && next.msg.type === 'tool_result'
+                    && ((nextCallId && nextCallId === item.msg.id) || (!nextCallId && (next.msg.toolName ?? '') === (item.msg.toolName ?? '')))
+                  ) {
+                    // merge 归一化字段
+                    const merged = {
+                      purpose: next.msg.purpose || item.msg.purpose,
+                      writtenLength: next.msg.writtenLength != null ? next.msg.writtenLength : item.msg.writtenLength,
+                      verb: next.msg.verb ?? item.msg.verb,
+                      filteredInput: next.msg.filteredInput || item.msg.filteredInput,
+                      resultText: next.msg.resultText || next.msg.content,
+                    };
+                    return (
+                      <ToolPairBubble
+                        key={`pair_${item.msg.id}`}
+                        toolName={item.msg.toolName || ''}
+                        toolInput={item.msg.toolInput}
+                        toolResult={next.msg.content || ''}
+                        isExpanded={expandedToolPairs.has(item.msg.id)}
+                        onToggle={() => setExpandedToolPairs(prev => toggleSet(prev, item.msg.id))}
+                        normalized={merged}
+                        pending={!!item.msg.pending}  // 历史数据不显式 pending=false，传 false
+                        synthetic={!!next.msg.synthetic}
+                      />
+                    );
+                  }
                 }
 
                 // ── 独立消息 ──

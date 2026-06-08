@@ -21,6 +21,8 @@ interface SpecialistCardProps {
   setExpandedToolCalls: React.Dispatch<React.SetStateAction<Set<string>>>;
   expandedToolResults: Set<string>;
   setExpandedToolResults: React.Dispatch<React.SetStateAction<Set<string>>>;
+  expandedToolPairs: Set<string>;
+  setExpandedToolPairs: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
 const toggleSet = (prev: Set<string>, id: string) => {
@@ -40,11 +42,10 @@ export function SpecialistCard({
   expandedThinking, setExpandedThinking,
   expandedToolCalls, setExpandedToolCalls,
   expandedToolResults, setExpandedToolResults,
+  expandedToolPairs, setExpandedToolPairs,
 }: SpecialistCardProps) {
   // 卡片整体折叠：默认展开，用户可手动收起查看上下文
   const [collapsed, setCollapsed] = useState(false);
-  // 工具调用+结果配对卡片的展开状态：默认折叠，避免一张配对卡视觉过大
-  const [expandedToolPairs, setExpandedToolPairs] = useState<Set<string>>(new Set());
 
   const toolCount = countToolCalls(messages);
   const hasAnswer = messages.some(m => m.type === 'final_answer');
@@ -102,6 +103,7 @@ export function SpecialistCard({
                   toolResult={item.toolResult}
                   isExpanded={expandedToolPairs.has(item.callId)}
                   onToggle={() => setExpandedToolPairs(prev => toggleSet(prev, item.callId))}
+                  normalized={item.normalized}
                 />
               );
             }

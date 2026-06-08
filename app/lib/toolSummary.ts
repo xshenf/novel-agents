@@ -40,8 +40,30 @@ const WRITE_FIELDS = [
   'summary',
   'synopsis',
   'description',
+  'bio',
+  'backstory',
+  'background',
   'data',
 ] as const;
+
+/** 创建/保存对象的"名号"字段（不计入内容长度，只用来辅助推断是否真有内容） */
+const NAME_LIKE_FIELDS = new Set(['name', 'title', 'label', 'characterName', 'category']);
+
+/** 工具调用注入的内部字段（不参与"写入内容长度"统计） */
+const INTERNAL_FIELDS = new Set([
+  'projectId',
+  'characterId',
+  'chapterId',
+  'volumeId',
+  'id',
+  'type',
+  'name',
+  'title',
+  'label',
+  'category',
+  'numChapters',
+  'field',
+]);
 
 /** 工具返回文本里"已写入/保存/更新/创建/删除 N 字"的正则 */
 const RESULT_LENGTH_PATTERN = /已(?:保存|写入|更新|创建|生成|同步|删除|移除|去掉)[^\d]{0,8}(\d+)\s*字/;
@@ -56,28 +78,44 @@ export function getActionVerb(toolName: string | undefined | null): ActionVerb |
 
 /**
  * 从 toolInput 中提取"主要写入内容"的字符数。
- * - 优先取 string 类型字段（content / text / value ...）
- * - 其次对非字符串字段做 JSON.stringify 后取长度（处理对象/数组）
- * - 找不到任何候选字段时返回 null
+ * - 优先按候选字段顺序取 string（content / text / value / bio ...）
+ * - 找不到候选字段时，把"非内部、非名号"的 string 字段长度累加（兜底通用 schema）
+ * - 对非字符串字段做 JSON.stringify 后取长度
+ * - 拿不到任何长度时返回 null
  */
 function lengthFromInput(toolInput: unknown): number | null {
   if (!toolInput || typeof toolInput !== 'object') return null;
   const obj = toolInput as Record<string, unknown>;
+  // 1) 候选字段优先
   for (const f of WRITE_FIELDS) {
     const v = obj[f];
-    if (typeof v === 'string') return v.length;
+    if (typeof v === 'string' && v.length > 0) return v.length;
   }
-  for (const f of WRITE_FIELDS) {
-    const v = obj[f];
+  // 2) 兜底：把"非内部、非名号字段"的 string / 非 string 字段都串起来算总长
+  let total = 0;
+  let hasContent = false;
+  for (const [k, v] of Object.entries(obj)) {
+    if (INTERNAL_FIELDS.has(k)) continue;
+    if (NAME_LIKE_FIELDS.has(k)) continue;
     if (v === undefined || v === null) continue;
-    if (typeof v === 'string') continue;
-    try {
-      return JSON.stringify(v).length;
-    } catch {
-      // 忽略循环引用等异常
+    if (typeof v === 'string') {
+      if (v.length > 0) {
+        total += v.length;
+        hasContent = true;
+      }
+    } else {
+      try {
+        const s = JSON.stringify(v);
+        if (s && s !== 'null') {
+          total += s.length;
+          hasContent = true;
+        }
+      } catch {
+        // 忽略循环引用等异常
+      }
     }
   }
-  return null;
+  return hasContent ? total : null;
 }
 
 /**

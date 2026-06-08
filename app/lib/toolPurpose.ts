@@ -90,8 +90,26 @@ const PURPOSE_INFERRERS: Record<string, PurposeInfer> = {
   generate_outline: (input) => {
     const obj = (input && typeof input === 'object') ? input as Record<string, unknown> : {};
     const ch = formatChapterRef(obj.chapterId ?? obj.chapter ?? obj.input);
-    return ch ? `生成${ch}大纲` : '生成大纲';
+    if (ch) return `生成${ch}大纲`;
+    // 整本大纲生成：根据 numChapters 提示"多少章"
+    if (typeof obj.numChapters === 'number' && obj.numChapters > 0) {
+      return `生成整本大纲（共 ${obj.numChapters} 章）`;
+    }
+    if (typeof obj.numChapters === 'string' && obj.numChapters.trim() !== '') {
+      return `生成整本大纲（${obj.numChapters}）`;
+    }
+    return '生成整本大纲';
   },
+
+  // ── 委托路由：编导把任务交给某个子 agent（不展示完整 tool_call，让 delegate 事件卡承载）──
+  // delegate_to_planner / delegate_to_director / delegate_to_* —— 不需要展示 tool_pair 卡片，
+  // 但 getToolPurpose 仍会被调用到，输出"委派给策划 / 委派给编导"等精准文案，
+  // 若万一有独立渲染时仍可读。
+  delegate_to_planner: () => '委派给策划',
+  delegate_to_director: () => '委派给编导',
+  delegate_to_continuity: () => '委派给连续性官',
+  delegate_to_writer: () => '委派给执笔者',
+  delegate_to_reviewer: () => '委派给审稿官',
 
   // ── 角色 ──
   create_character: (input) => {
