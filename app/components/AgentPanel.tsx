@@ -1,9 +1,10 @@
 'use client';
 
-import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain } from 'lucide-react';
+import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
+import { getToolDescription } from './agentToolDescriptions';
 
 export function AgentPanel() {
   const { store, agent, layout } = useWorkspace();
@@ -16,6 +17,17 @@ export function AgentPanel() {
 
   // 追踪展开的 thinking 消息 ID
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+
+  // 追踪展开的工具调用 / 工具结果 ID，默认全部收起，避免对话流被长参数/长结果撑爆
+  const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
+  const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(new Set());
+
+  const toggleSet = (prev: Set<string>, id: string) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  };
 
   // 风格基调选择状态（request_style 弹窗用）
   const [styleSelection, setStyleSelection] = useState<{ genre: string; tone: string }>({ genre: '', tone: '' });
@@ -188,14 +200,24 @@ export function AgentPanel() {
                       </div>
                     );
                   }
-                  case 'tool_call':
+                  case 'tool_call': {
+                    const isExpanded = expandedToolCalls.has(msg.id);
+                    const hasParams = msg.toolInput && typeof msg.toolInput === 'object' && Object.keys(msg.toolInput).length > 0;
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-tool-call">
-                        <div className="agent-tool-header">
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>智能体调用了工具</span>
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                          onClick={() => setExpandedToolCalls(prev => toggleSet(prev, msg.id))}
+                        >
+                          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          <Wrench size={12} style={{ opacity: 0.6 }} />
+                          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>智能体准备调用工具</span>
                           <span className="agent-tool-name">{msg.toolName}</span>
                         </div>
-                        {msg.toolInput && typeof msg.toolInput === 'object' && Object.keys(msg.toolInput).length > 0 && (
+                        <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dark)', lineHeight: 1.5 }}>
+                          用途：{getToolDescription(msg.toolName)}
+                        </div>
+                        {hasParams && isExpanded && (
                           <div className="agent-tool-params">
                             {Object.entries(msg.toolInput).map(([k, v]) => (
                               <div key={k} className="agent-tool-param">
@@ -206,15 +228,35 @@ export function AgentPanel() {
                         )}
                       </div>
                     );
-                  case 'tool_result':
+                  }
+                  case 'tool_result': {
+                    const isExpanded = expandedToolResults.has(msg.id);
+                    const resultText = msg.content || '';
+                    const preview = resultText.length > 120 ? resultText.slice(0, 120) + '…' : resultText;
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-tool-result">
-                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginBottom: '4px' }}>工具执行结果:</div>
-                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', maxHeight: '120px', overflowY: 'auto', fontSize: '11px', fontFamily: 'monospace' }}>
-                          {msg.content}
-                        </pre>
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                          onClick={() => setExpandedToolResults(prev => toggleSet(prev, msg.id))}
+                        >
+                          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          <Terminal size={12} style={{ opacity: 0.6 }} />
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>工具执行结果</span>
+                          {msg.toolName && <span className="agent-tool-name">{msg.toolName}</span>}
+                        </div>
+                        {!isExpanded && preview && (
+                          <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dark)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {preview}
+                          </div>
+                        )}
+                        {isExpanded && (
+                          <pre style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto', fontSize: '11px', fontFamily: 'monospace' }}>
+                            {resultText}
+                          </pre>
+                        )}
                       </div>
                     );
+                  }
                   case 'delegate':
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-delegate">
