@@ -1005,13 +1005,18 @@ select.input option {
 .agent-chat-history {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 12px;
+  /* 上下 padding 设为 0，让 sticky header 触发时完全贴顶（top: 0 即容器物理
+     边缘）；消息之间的间距由 > * + * margin-top 维持，scroll-to-bottom
+     自身的 margin-top: auto 仍能推到末尾 */
+  padding: 0 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   position: relative;
   /* 容器内出现新内容时，避免浏览器把整段平滑动画都跑完，造成按钮抖动 */
   scroll-behavior: auto;
+}
+.agent-chat-history > * + * {
+  margin-top: 16px;
 }
 
 /* 用户离开底部后显示的悬浮按钮：吸在 history 容器视口底部，避免遮挡消息 */
@@ -1094,8 +1099,9 @@ select.input option {
   flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.02);
-  overflow: hidden;
+  /* 背景透明度 0.02 几近透明，去掉避免对 sticky header 造成 overflow 限制；
+     圆角视觉效果由边框 + 内部子消息自身圆角承担 */
+  background: transparent;
   animation: bubbleIn 0.2s ease;
 }
 .specialist-card-header {
@@ -1107,9 +1113,20 @@ select.input option {
   user-select: none;
   border-left: 3px solid var(--card-accent, rgba(255,255,255,0.1));
   transition: background 0.15s;
+  /* 卡片内容超过对话框高度时，header 一直吸在容器顶部，避免滚到正文
+     看不见角色与折叠/展开入口；sticky 范围限定在 specialist-card 自身
+     （即滚出卡片后让出顶部给下一张卡片的 header） */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* 完全不透明深色背景：避免滚到正文时 body 文字透过 header 重叠。
+     颜色与聊天框背景保持一致 */
+  background: #0f1220;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .specialist-card-header:hover {
-  background: rgba(255,255,255,0.03);
+  /* 不透明稍亮深色：避免半透明白叠加到 #0f1220 上变成"透明"效果 */
+  background: #1a1f33;
 }
 .specialist-card-header.is-streaming {
   background: rgba(56,189,248,0.04);
@@ -1288,6 +1305,46 @@ select.input option {
   border-radius: 0 8px 8px 0;
   font-size: 11.5px;
   color: var(--text-muted);
+}
+
+/* 工具调用 + 结果 合并卡：用同一张气泡承载 call 与 result */
+.agent-bubble-tool-pair {
+  background: rgba(99,102,241,0.05);
+  border: 1px solid rgba(99,102,241,0.18);
+  border-left: 3px solid rgba(99,102,241,0.55);
+  border-radius: 0 8px 8px 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.agent-bubble-tool-pair:hover {
+  background: rgba(99,102,241,0.08);
+}
+/* 合并卡 header：单行紧凑布局，左用途 + 右摘要 */
+.agent-tool-pair-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.agent-tool-pair-purpose {
+  font-size: 11.5px;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-tool-pair-written {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: #6ee7b7;
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.18);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 移交气泡 */

@@ -4,7 +4,8 @@ import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
-import { getToolDescription } from './agentToolDescriptions';
+import { getToolPurpose } from '../lib/toolPurpose';
+import { coerceToolInput, extractToolMessageContent } from '../lib/toolInputShape';
 import { SpecialistCard } from './SpecialistCard';
 import type { AgentMessage } from '../hooks/useAgentChat';
 import { getAgentLabel } from '@/lib/agent/labels';
@@ -201,13 +202,10 @@ export function AgentPanel() {
                   return (
                     <SpecialistCard
                       key={item.groupId}
-                      groupId={item.groupId}
                       agent={item.agent}
                       label={item.label}
                       messages={item.messages}
                       isStreaming={item.isStreaming}
-                      // 编导的整组过程消息默认折叠；其他专家的成稿/意见默认展开
-                      defaultCollapsed={item.agent === 'orchestrator'}
                       expandedThinking={expandedThinking}
                       setExpandedThinking={setExpandedThinking}
                       expandedToolCalls={expandedToolCalls}
@@ -271,7 +269,10 @@ export function AgentPanel() {
                   }
                   case 'tool_call': {
                     const isExpanded = expandedToolCalls.has(msg.id);
-                    const hasParams = msg.toolInput && typeof msg.toolInput === 'object' && Object.keys(msg.toolInput).length > 0;
+                    // 标准化 langchain 包装的 toolInput
+                    const normInput = coerceToolInput(msg.toolInput);
+                    const inputObj = (normInput && typeof normInput === 'object') ? normInput as Record<string, unknown> : null;
+                    const hasParams = !!(inputObj && Object.keys(inputObj).length > 0);
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-tool-call">
                         <div
@@ -284,15 +285,20 @@ export function AgentPanel() {
                           <span className="agent-tool-name">{msg.toolName}</span>
                         </div>
                         <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dark)', lineHeight: 1.5 }}>
-                          用途：{getToolDescription(msg.toolName)}
+                          用途：{getToolPurpose(msg.toolName, msg.toolInput)}
                         </div>
                         {hasParams && isExpanded && (
                           <div className="agent-tool-params">
-                            {Object.entries(msg.toolInput).map(([k, v]) => (
-                              <div key={k} className="agent-tool-param">
-                                <em>{k}:</em> {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                              </div>
-                            ))}
+                            {inputObj && Object.entries(inputObj).map(([k, v]) => {
+                              const vStr: string = typeof v === 'object' && v !== null
+                                ? JSON.stringify(v as Record<string, unknown>)
+                                : String(v as string | number | boolean | bigint | symbol | null | undefined);
+                              return (
+                                <div key={k} className="agent-tool-param">
+                                  <em>{k}:</em> {vStr}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -300,7 +306,8 @@ export function AgentPanel() {
                   }
                   case 'tool_result': {
                     const isExpanded = expandedToolResults.has(msg.id);
-                    const resultText = msg.content || '';
+                    // 提取 langchain ToolMessage 内部 content
+                    const resultText = extractToolMessageContent(msg.content || '');
                     const preview = resultText.length > 120 ? resultText.slice(0, 120) + '…' : resultText;
                     return (
                       <div key={msg.id} className="agent-bubble agent-bubble-tool-result">

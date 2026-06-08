@@ -4,16 +4,17 @@ import { Loader2, ChevronDown, ChevronRight, Brain, Wrench, Terminal } from 'luc
 import { useState } from 'react';
 import type { AgentMessage } from '../hooks/useAgentChat';
 import { Markdown } from './Markdown';
-import { getToolDescription } from './agentToolDescriptions';
 import { getAgentLabel } from '@/lib/agent/labels';
+import { getToolPurpose } from '../lib/toolPurpose';
+import { pairToolMessages } from '../lib/messagePairing';
+import { extractToolMessageContent } from '../lib/toolInputShape';
+import { ToolPairBubble } from './ToolPairBubble';
 
 interface SpecialistCardProps {
-  groupId: string;
   agent: string;
   label: string;
   messages: AgentMessage[];
   isStreaming?: boolean;
-  defaultCollapsed?: boolean;
   expandedThinking: Set<string>;
   setExpandedThinking: React.Dispatch<React.SetStateAction<Set<string>>>;
   expandedToolCalls: Set<string>;
@@ -35,13 +36,15 @@ function countToolCalls(msgs: AgentMessage[]): number {
 }
 
 export function SpecialistCard({
-  groupId, agent, label, messages, isStreaming, defaultCollapsed,
+  agent, label, messages, isStreaming,
   expandedThinking, setExpandedThinking,
   expandedToolCalls, setExpandedToolCalls,
   expandedToolResults, setExpandedToolResults,
 }: SpecialistCardProps) {
-  // 卡片整体折叠：子 agent 默认展开（成稿要看），编导默认折叠（过程消息）
-  const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
+  // 卡片整体折叠：默认展开，用户可手动收起查看上下文
+  const [collapsed, setCollapsed] = useState(false);
+  // 工具调用+结果配对卡片的展开状态：默认折叠，避免一张配对卡视觉过大
+  const [expandedToolPairs, setExpandedToolPairs] = useState<Set<string>>(new Set());
 
   const toolCount = countToolCalls(messages);
   const hasAnswer = messages.some(m => m.type === 'final_answer');
@@ -89,16 +92,34 @@ export function SpecialistCard({
       {/* 卡片内容体 */}
       {!collapsed && (
         <div className="specialist-card-body">
-          {messages.map(msg => (
-            <SpecialistMessage key={msg.id} msg={msg}
-              expandedThinking={expandedThinking}
-              setExpandedThinking={setExpandedThinking}
-              expandedToolCalls={expandedToolCalls}
-              setExpandedToolCalls={setExpandedToolCalls}
-              expandedToolResults={expandedToolResults}
-              setExpandedToolResults={setExpandedToolResults}
-            />
-          ))}
+          {pairToolMessages(messages).map(item => {
+            if (item.kind === 'tool_pair') {
+              return (
+                <ToolPairBubble
+                  key={item.key}
+                  toolName={item.toolName}
+                  toolInput={item.toolInput}
+                  toolResult={item.toolResult}
+                  isExpanded={expandedToolPairs.has(item.callId)}
+                  onToggle={() => setExpandedToolPairs(prev => toggleSet(prev, item.callId))}
+                />
+              );
+            }
+            // 未配对的 tool_call / tool_result / 其他消息：仍走 SpecialistMessage
+            const msg = item.kind === 'message' ? item.msg
+              : item.kind === 'tool_call' ? item.msg
+              : item.msg;
+            return (
+              <SpecialistMessage key={item.key} msg={msg}
+                expandedThinking={expandedThinking}
+                setExpandedThinking={setExpandedThinking}
+                expandedToolCalls={expandedToolCalls}
+                setExpandedToolCalls={setExpandedToolCalls}
+                expandedToolResults={expandedToolResults}
+                setExpandedToolResults={setExpandedToolResults}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -175,7 +196,7 @@ function SpecialistMessage({
             <span className="agent-tool-name">{msg.toolName}</span>
           </div>
           <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dark)', lineHeight: 1.5 }}>
-            用途：{getToolDescription(msg.toolName)}
+            用途：{getToolPurpose(msg.toolName, msg.toolInput)}
           </div>
           {hasParams && isExpanded && (
             <div className="agent-tool-params">
@@ -192,7 +213,8 @@ function SpecialistMessage({
 
     case 'tool_result': {
       const isExpanded = expandedToolResults.has(msg.id);
-      const resultText = msg.content || '';
+      // 提取 langchain ToolMessage 内部 content（避免把 lc/type/id/kwargs 整坨显示出来）
+      const resultText = extractToolMessageContent(msg.content || '');
       const preview = resultText.length > 120 ? resultText.slice(0, 120) + '…' : resultText;
       return (
         <div className="agent-bubble agent-bubble-tool-result">

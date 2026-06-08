@@ -6,6 +6,7 @@ import {
   Chapter as PrismaChapter,
   AgentMessage as PrismaMessage,
 } from '@prisma/client';
+import { AGENT_LABELS } from './agent/labels';
 
 const prismaClientSingleton = () => {
   return new PrismaClient();
@@ -207,6 +208,27 @@ function sanitizeThinkingPlaceholder<T extends AgentMessage>(msg: T): T {
     return { ...msg, content: '' };
   }
   return msg;
+}
+
+/**
+ * 后向继承 agent：历史上 tool_call / tool_result 消息可能没写入 agent 字段
+ * （老版本后端只把 agent 放在 thinking 上），导致前端分组时把工具消息当成
+ * standalone 独立卡片，与所属 agent 卡片割裂。这里按"遇到 thinking/final_answer
+ * 刷新 lastAgent；遇到 tool_call/tool_result 没 agent 时补上"的方式做继承，
+ * 不动 db 原始数据。
+ */
+function inheritAgent<T extends AgentMessage>(messages: T[]): T[] {
+  let lastAgent: string | undefined;
+  return messages.map((msg) => {
+    if (msg.agent) {
+      lastAgent = msg.agent;
+      return msg;
+    }
+    if ((msg.type === 'tool_call' || msg.type === 'tool_result') && lastAgent) {
+      return { ...msg, agent: lastAgent, label: msg.label || AGENT_LABELS[lastAgent as keyof typeof AGENT_LABELS] || lastAgent };
+    }
+    return msg;
+  });
 }
 
 // 数据库操作类 (全部转为 async/await 异步操作)
@@ -625,7 +647,8 @@ export const db = {
       where: { projectId },
       orderBy: { createdAt: 'asc' },
     });
-    return list.map(formatAgentMessage).map(sanitizeThinkingPlaceholder);
+    const cleaned = list.map(formatAgentMessage).map(sanitizeThinkingPlaceholder);
+    return inheritAgent(cleaned);
   },
 
   async appendAgentMessage(projectId: string, msg: Omit<AgentMessage, 'projectId' | 'userId' | 'createdAt'>): Promise<AgentMessage> {
