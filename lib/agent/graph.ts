@@ -5,6 +5,7 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { resolveAgentModelConfig, resolveApiConfig } from './config';
+import { DEFAULT_API_PROVIDER } from '../constants';
 import { checkpointer } from './checkpointer';
 
 // Re-export for backward compatibility (consumers that imported checkpointer from graph.ts)
@@ -62,10 +63,14 @@ function buildLLMFromConfig(config: {
   maxTokens?: number;
   reasoningEnabled?: boolean;
 }) {
-  const provider = config.provider || 'gemini';
-  const model = config.name || 'gemini-2.5-flash';
+  const provider = config.provider || DEFAULT_API_PROVIDER;
+  const model = config.name;
   const temperature = config.temperature ?? 0.7;
   const maxTokens = config.maxTokens ?? 4000;
+
+  if (!model?.trim()) {
+    throw new Error('请先在设置中配置模型名称（Model Name）后再使用 AI Agent 功能');
+  }
 
   let baseUrl = 'https://api.openai.com/v1';
   if (provider === 'gemini') {
@@ -101,8 +106,8 @@ function buildLLMFromConfig(config: {
 
 function buildLLM(apiConfig: string, modelName: string) {
   const config = resolveAgentModelConfig('', apiConfig);
-  // 兼容：如果传入了 modelName 且 config 没有解析出特定模型名，使用传入的
-  if (modelName && config.name === 'gemini-2.5-flash') {
+  // 兼容：如果传入了 modelName 且 config 没有解析出模型名，使用传入的
+  if (modelName && !config.name) {
     config.name = modelName;
   }
   return buildLLMFromConfig(config);

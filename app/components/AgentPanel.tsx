@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal, ArrowDown } from 'lucide-react';
+import { Loader2, HelpCircle, ChevronDown, ChevronRight, Brain, Wrench, Terminal, ArrowDown, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspace } from '../workspace-context';
 import { Markdown } from './Markdown';
@@ -17,7 +17,7 @@ export function AgentPanel() {
   const {
     chatInput, setChatInput, agentMessages, setAgentMessages,
     isAgentLoading, agentBottomRef, setChatHistoryRef, isAtBottom, forceScrollToBottom,
-    handleSendAgentMessage, pendingConfirm, resolveConfirm,
+    handleSendAgentMessage, pendingConfirm, resolveConfirm, cancelAgentRequest,
   } = agent;
 
   // 追踪展开的 thinking 消息 ID
@@ -577,9 +577,21 @@ export function AgentPanel() {
               onChange={(e) => setChatInput(e.target.value)}
               disabled={isAgentLoading || !!pendingConfirm}
             />
-            <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={isAgentLoading || !!pendingConfirm}>
-              {isAgentLoading ? <Loader2 className="animate-spin" size={14} /> : '发送'}
-            </button>
+            {isAgentLoading ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '10px', background: 'rgba(244,63,94,0.12)', color: '#fb7185', border: '1px solid rgba(244,63,94,0.3)' }}
+                onClick={cancelAgentRequest}
+                title="停止生成"
+              >
+                <Square size={12} fill="currentColor" />
+              </button>
+            ) : (
+              <button type="submit" className="btn btn-primary" style={{ padding: '10px' }} disabled={!!pendingConfirm}>
+                发送
+              </button>
+            )}
           </form>
         </div>
       </div>

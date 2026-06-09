@@ -34,7 +34,7 @@ export const createChapterTool = tool(
 export const autoWriteChapterTool = tool(
   async ({ projectId, chapterTitle, chapterId, instruction }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const defaultModel = config.configurable?.modelName || 'gemini-2.5-flash';
+    const defaultModel = config.configurable?.modelName;
     const configStr = getAgentConfig('writer', apiConfig);
     const modelName = getAgentModelName('writer', apiConfig, defaultModel);
     const text = await ai.autoWriteChapter(
@@ -104,7 +104,7 @@ export const summarizeChapterTool = tool(
   async ({ projectId, chapterId, text }, config) => {
     void projectId;
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     let content = text || '';
     let target: Chapter | undefined;
     if (chapterId) {

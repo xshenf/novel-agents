@@ -188,7 +188,7 @@ function ModelPoolSettings() {
           value={editModelForm.provider}
           onChange={(e) => {
             const prov = e.target.value;
-            let defaultName = 'gemini-2.5-flash';
+            let defaultName = '';
             let defaultBase = '';
             if (prov === 'gemini') {
               defaultName = 'gemini-2.5-flash';
@@ -211,9 +211,9 @@ function ModelPoolSettings() {
           }}
           style={{ background: 'var(--bg-input)' }}
         >
-          <option value="gemini">Google Gemini</option>
           <option value="openai">OpenAI</option>
           <option value="deepseek">DeepSeek (深度求索)</option>
+          <option value="gemini">Google Gemini</option>
           <option value="claude">Anthropic Claude</option>
           <option value="custom">Custom (OpenAI 兼容中转)</option>
         </select>
@@ -243,7 +243,7 @@ function ModelPoolSettings() {
 
       <div className="drawer-field">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label className="drawer-label">模型名称选择 (Model Name)</label>
+          <label className="drawer-label">模型名称 (Model Name) <span style={{ color: 'var(--accent-danger)', fontSize: '11px' }}>*必填</span></label>
           <button
             type="button"
             onClick={() => handleFetchModels(editModelForm)}

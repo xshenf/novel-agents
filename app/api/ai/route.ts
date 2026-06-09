@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { searchMemory } from '@/lib/memory';
 import { syncChapterMemoryAfterWrite } from '@/lib/chapterMemorySync';
 import { generateMinimalOutline, expandVolumeOutline, minimalWriteChapter } from '@/lib/minimalWriter';
+import { DEFAULT_API_PROVIDER } from '@/lib/constants';
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     if (apiKey && apiProvider && !(apiKey.trim().startsWith('{') && apiKey.trim().endsWith('}'))) {
       apiKey = JSON.stringify({
         apiKey: apiKey,
-        apiProvider: apiProvider || 'gemini',
+        apiProvider: apiProvider || DEFAULT_API_PROVIDER,
         apiBaseUrl: apiBaseUrl || '',
         temperature: temperature !== undefined ? Number(temperature) : 0.7,
         maxTokens: maxTokens !== undefined ? Number(maxTokens) : 3000,
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     switch (action) {
       case 'fetchModels': {
         let realApiKey = apiKey;
-        let realProvider = apiProvider || 'gemini';
+        let realProvider = apiProvider || DEFAULT_API_PROVIDER;
         let realBaseUrl = apiBaseUrl;
 
         if (apiKey && apiKey.trim().startsWith('{') && apiKey.trim().endsWith('}')) {

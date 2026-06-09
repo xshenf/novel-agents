@@ -13,7 +13,7 @@ export { addAntiAiRuleTool } from './planner';
 export const polishTextTool = tool(
   async ({ projectId, text, instruction }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('editor', apiConfig);
 
     // 读取项目的反 AI 写作规则，注入到润色指令中
@@ -43,7 +43,7 @@ export const polishTextTool = tool(
 export const checkConsistencyTool = tool(
   async ({ projectId, text }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('editor', apiConfig);
     const result = await ai.checkConsistency(projectId, text, configStr, getAgentModelName('editor', apiConfig, modelName));
     return JSON.stringify(result, null, 2);

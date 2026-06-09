@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { NovelProject, Chapter, Character, WorldRule, WorldState } from './db';
-import { DEFAULT_MODEL_NAME } from './constants';
+import { DEFAULT_MODEL_NAME, DEFAULT_API_PROVIDER } from './constants';
 
 export interface ModelConfig {
   id: string;
@@ -100,7 +100,7 @@ export const useNovelStore = create<NovelStore>((set, get) => {
   // 仅在客户端运行时读取 localStorage
   const initialApiKey = typeof window !== 'undefined' ? localStorage.getItem('novel_api_key') || '' : '';
   const initialModel = typeof window !== 'undefined' ? localStorage.getItem('novel_model_name') || DEFAULT_MODEL_NAME : DEFAULT_MODEL_NAME;
-  const initialProvider = typeof window !== 'undefined' ? localStorage.getItem('novel_api_provider') || 'gemini' : 'gemini';
+  const initialProvider = typeof window !== 'undefined' ? localStorage.getItem('novel_api_provider') || DEFAULT_API_PROVIDER : DEFAULT_API_PROVIDER;
   const initialBaseUrl = typeof window !== 'undefined' ? localStorage.getItem('novel_api_base_url') || '' : '';
   const initialTemp = typeof window !== 'undefined' ? Number(localStorage.getItem('novel_temperature') || '0.7') : 0.7;
   const initialTokens = typeof window !== 'undefined' ? Number(localStorage.getItem('novel_max_tokens') || '3000') : 3000;

@@ -4,6 +4,7 @@ import { interrupt } from '@langchain/langgraph';
 import { db } from '../../db';
 import { searchMemory } from '../../memory';
 import { GENRE_CATEGORIES, TONES } from '../../constants';
+import { parseStructureOutline } from '../../outlineParser';
 
 // Re-export outline parser types used by other tool files
 export type { OutlineVolume, OutlineChapter } from '../../outlineParser';
@@ -61,6 +62,29 @@ export const getProjectOverviewTool = tool(
     const chapterSummaries = await db.getChapterSummaries(projectId);
     const worldRules = await db.getWorldRules(projectId);
 
+    // 大纲摘要：解析 outlineFull 提取分卷/章节概况，让编导知道大纲是否已存在
+    let outlineSummary: any = null;
+    const outlineFull = project.outlineFull || '';
+    if (outlineFull.trim()) {
+      const volumes = parseStructureOutline(outlineFull);
+      if (volumes.length > 0) {
+        outlineSummary = {
+          volumeCount: volumes.length,
+          totalChapters: volumes.reduce((sum, v) => sum + v.chapters.length, 0),
+          volumes: volumes.map((v, i) => ({
+            index: i,
+            title: v.title,
+            isLocked: v.isLocked,
+            chapterCount: v.chapters.length,
+            chapters: v.chapters.slice(0, 10).map(ch => ({
+              title: ch.title,
+              isLocked: ch.isLocked,
+            })),
+          })),
+        };
+      }
+    }
+
     return JSON.stringify({
       title: project.title,
       description: project.description,
@@ -79,11 +103,12 @@ export const getProjectOverviewTool = tool(
       characters: characters.map(c => ({ id: c.id, name: c.name, role: c.role, identity: c.identity, currentState: c.currentState })),
       recentChapters: chapterSummaries.slice(-3).map(c => ({ title: c.title, summary: c.summary })),
       worldRules: worldRules.slice(0, 10).map(r => ({ id: r.id, name: r.name, type: r.type })),
+      outline: outlineSummary,
     }, null, 2);
   },
   {
     name: 'get_project_overview',
-    description: '获取当前小说项目的完整概览，包括设定、人物列表、章节数等基本信息。',
+    description: '获取当前小说项目的完整概览，包括设定、人物列表、章节数、大纲结构（分卷/章节标题）等基本信息。',
     schema: z.object({
       projectId: z.string().describe('小说项目ID'),
     }),

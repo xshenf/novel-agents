@@ -5,6 +5,7 @@ import { buildNovelAgentGraph } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
 import { normalizeToolPayload } from '@/app/lib/toolPayload';
+import { DEFAULT_API_PROVIDER } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 分钟超时
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
   if (apiKey && apiProvider && !(apiKey.trim().startsWith('{') && apiKey.trim().endsWith('}'))) {
     packedApiKey = JSON.stringify({
       apiKey,
-      apiProvider: apiProvider || 'gemini',
+      apiProvider: apiProvider || 'openai',
       apiBaseUrl: apiBaseUrl || '',
       temperature: temperature !== undefined ? Number(temperature) : 0.7,
       maxTokens: maxTokens !== undefined ? Number(maxTokens) : 4000,
@@ -162,9 +163,27 @@ export async function POST(request: NextRequest) {
           closePendingToolCall(runId, text);
         }
       };
+      // 仅发 SSE 关闭信号（停掉前端转圈），不写 DB——用于递归上限等需要保持检查点干净的场景
+      const closeAllPendingToolCallsSseOnly = (reasonText: string) => {
+        if (pendingToolCalls.size === 0) return;
+        for (const runId of Array.from(pendingToolCalls.keys())) {
+          const p = pendingToolCalls.get(runId);
+          if (!p) continue;
+          clearTimeout(p.timeoutId);
+          pendingToolCalls.delete(runId);
+          send('tool_result', {
+            id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            callId: p.toolMsgId,
+            agent: p.toolName,
+            toolName: p.toolName,
+            result: `工具「${p.toolName}」执行未完成：${reasonText}`,
+            synthetic: true,
+          });
+        }
+      };
       try {
         // 构建图
-        const graph = buildNovelAgentGraph(packedApiKey, modelName || 'gemini-2.5-flash', projectId);
+        const graph = buildNovelAgentGraph(packedApiKey, modelName || '', projectId);
 
         // 心跳机制：每 15 秒发送一歡 SSE 注释行，防止代理/网关因长时间无数据而断开连接
         heartbeat = setInterval(() => {
@@ -210,7 +229,7 @@ export async function POST(request: NextRequest) {
             configurable: {
               thread_id: projectId,
               apiConfig: packedApiKey,
-              modelName: modelName || 'gemini-2.5-flash',
+              modelName: modelName || '',
             }
           }
         );
@@ -542,13 +561,15 @@ export async function POST(request: NextRequest) {
         send('done', { message: '任务完成' });
       } catch (err: any) {
         console.error('Agent error:', err);
-        // 异常时兜底关闭所有 pending 工具调用，避免前端一直转圈
-        closeAllPendingToolCalls(err?.message || 'Agent 执行异常');
         const errorMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
         // 如果是 recursion limit 达到上限，检查点状态已保存，发 confirm 让用户一键续跑
         const isRecursionLimit = err?.message?.includes('Recursion limit') || err?.name === 'GraphRecursionError';
         if (isRecursionLimit) {
+          // 递归上限时不往 DB 写"工具未完成"的错误结果——
+          // 图会从检查点恢复，DB 中的合成错误会污染续跑后的上下文
+          // 只发前端 SSE 关闭信号，停掉 UI 上的工具转圈
+          closeAllPendingToolCallsSseOnly('执行轮次达上限，已中断');
           try {
             await db.appendAgentMessage(projectId, {
               id: errorMsgId,
@@ -564,6 +585,8 @@ export async function POST(request: NextRequest) {
             payload: { action: 'continue_limit', target: '轮次上限续跑' },
           });
         } else {
+          // 非递归上限的异常：正常关闭 pending 工具（含写 DB），避免前端转圈
+          closeAllPendingToolCalls(err?.message || 'Agent 执行异常');
           try {
             await db.appendAgentMessage(projectId, {
               id: errorMsgId,

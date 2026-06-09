@@ -16,7 +16,7 @@ import {
 export const generateOutlineTool = tool(
   async ({ projectId, numChapters }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const configStr = getAgentConfig('planner', apiConfig);
@@ -41,7 +41,7 @@ export const generateOutlineTool = tool(
 export const autoPlanBookTool = tool(
   async ({ projectId, genre, tone, tags }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('planner', apiConfig);
     const result = await ai.autoPlanBook(genre, tone, tags, configStr, getAgentModelName('planner', apiConfig, modelName));
     // 同时更新项目设定
@@ -77,7 +77,7 @@ export const autoPlanBookTool = tool(
 export const generateKernelTool = tool(
   async ({ projectId, genre, tone }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const project = await db.getProject(projectId);
     if (!project) return '未找到该项目。';
     const configStr = getAgentConfig('planner', apiConfig);

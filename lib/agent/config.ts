@@ -2,6 +2,8 @@
 // 消除 graph.ts / tools.ts / ai.ts 三处各自解析 JSON 配置的重复逻辑，
 // 所有"apiKey 是 JSON 还是裸字符串"的判断收口在此。
 
+import { DEFAULT_MODEL_NAME, DEFAULT_API_PROVIDER, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS } from '../constants';
+
 export interface ResolvedModelConfig {
   apiKey: string;
   provider: string;
@@ -29,11 +31,11 @@ export interface ResolvedApiConfig {
 
 const DEFAULTS: ResolvedModelConfig = {
   apiKey: '',
-  provider: 'gemini',
-  name: 'gemini-2.5-flash',
+  provider: DEFAULT_API_PROVIDER,
+  name: DEFAULT_MODEL_NAME,
   apiBaseUrl: '',
-  temperature: 0.7,
-  maxTokens: 4000,
+  temperature: DEFAULT_TEMPERATURE,
+  maxTokens: DEFAULT_MAX_TOKENS,
   reasoningEnabled: false,
 };
 

@@ -8,7 +8,7 @@ import { getAgentConfig, getAgentModelName } from '../config';
 export const summarizeChapterTool = tool(
   async ({ projectId, chapterId, text }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('continuity_keeper', apiConfig);
     const result = await ai.summarizeChapter(text, configStr, getAgentModelName('continuity_keeper', apiConfig, modelName));
 
@@ -40,7 +40,7 @@ export const summarizeChapterTool = tool(
 export const checkConsistencyTool = tool(
   async ({ projectId, text }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('continuity_keeper', apiConfig);
     const result = await ai.checkConsistency(projectId, text, configStr, getAgentModelName('continuity_keeper', apiConfig, modelName));
     return JSON.stringify(result, null, 2);
@@ -59,7 +59,7 @@ export const checkConsistencyTool = tool(
 export const updateRollingSynopsisTool = tool(
   async ({ projectId }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('continuity_keeper', apiConfig);
     const rollingSynopsis = await ai.updateRollingSynopsis(projectId, configStr, getAgentModelName('continuity_keeper', apiConfig, modelName));
     await db.updateProject(projectId, { rollingSynopsis });
@@ -78,7 +78,7 @@ export const updateRollingSynopsisTool = tool(
 export const updateWorldStateTool = tool(
   async ({ projectId }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('continuity_keeper', apiConfig);
     const items = await ai.updateWorldState(projectId, configStr, getAgentModelName('continuity_keeper', apiConfig, modelName));
     await db.replaceAutoWorldStates(projectId, items);

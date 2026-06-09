@@ -65,7 +65,7 @@ export const createWorldRuleTool = tool(
 export const generateInspirationsTool = tool(
   async ({ projectId }, config) => {
     const apiConfig = config.configurable?.apiConfig || '';
-    const modelName = config.configurable?.modelName || 'gemini-2.5-flash';
+    const modelName = config.configurable?.modelName;
     const configStr = getAgentConfig('lore_builder', apiConfig);
     const data = await ai.generateInspirations(projectId, configStr, getAgentModelName('lore_builder', apiConfig, modelName));
     return JSON.stringify(data, null, 2);

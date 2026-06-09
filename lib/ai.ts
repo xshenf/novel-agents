@@ -58,7 +58,7 @@ export const ai = {
     const prompt = `【当前背景上下文信息】:\n${memory.contextText}\n\n【作者提问】:\n${query}\n\n请结合上下文进行专业解答，说明事实并给出合理的创作建议。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     // 延迟模拟网络请求
@@ -108,7 +108,7 @@ export const ai = {
     const prompt = `【小说设定与长期记忆】:\n${memory.contextText}${exemplarBlock}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -163,7 +163,7 @@ export const ai = {
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
+      const jsonStr = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, true, signal);
       return safeParseJSON(jsonStr);
     }
 
@@ -205,7 +205,7 @@ export const ai = {
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
+      const jsonStr = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, true, signal);
       return safeParseJSON(jsonStr);
     }
 
@@ -228,7 +228,7 @@ export const ai = {
     const prompt = `【小说上下文设定】:\n${memory.contextText}\n\n【作者当前已写的正文末尾】:\n\"\"\"\n${currentText}\n\"\"\"\n\n${instruction ? `【作者的特殊写作指令】: ${instruction}\n` : ''}\n请接着上面正文自然续写约300-500字。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1200));
@@ -248,7 +248,7 @@ export const ai = {
     const prompt = `【待润色的文本】:\n\"\"\"\n${currentText}\n\"\"\"\n\n【润色要求/风格选项】: ${instruction || '提升文学美感，加强环境烘托与心理描写'}\n\n请输出润色后的结果：`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -276,7 +276,7 @@ ${memory.contextText}
 5. 预计字数与节奏。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -304,7 +304,7 @@ ${memory.contextText}
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
+      const jsonStr = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, true, signal);
       return safeParseJSON<AICheckResult>(jsonStr);
     }
 
@@ -330,7 +330,7 @@ ${memory.contextText}
 }`;
 
     if (hasUsableKey(apiKey)) {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true, signal);
+      const jsonStr = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, true, signal);
       return safeParseJSON<AISummaryResult>(jsonStr);
     }
 
@@ -367,7 +367,7 @@ ${memory.contextText}
 4. 只输出概要正文本身，不要标题、解释或分点编号。`;
 
     if (hasUsableKey(apiKey)) {
-      return await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
     }
 
     // 无可用模型时的兜底：拼接并保留尾部，保证字段有值且有界
@@ -426,7 +426,7 @@ ${recentSummaries || '（暂无）'}
 4. 只输出 JSON 数组，不要任何解释。`;
 
     if (hasUsableKey(apiKey)) {
-      const raw = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+      const raw = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
       const parsed = safeParseJSON<Array<{ category: string; name: string; content: string; updatedAtChapter?: string }>>(raw, []);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       // 解析失败时返回现有非锁定条目不变

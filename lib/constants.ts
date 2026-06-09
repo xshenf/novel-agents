@@ -184,8 +184,8 @@ export const SETTING_LENGTH_GUIDE =
   `金手指、货币体系、关键物品等单点设定约 ${SETTING_LENGTH_TIERS.atomic.min}-${SETTING_LENGTH_TIERS.atomic.max} 字。过长会稀释长期记忆、增加跑偏风险。`;
 
 // 默认模型配置
-export const DEFAULT_MODEL_NAME = 'gemini-2.5-flash';
-export const DEFAULT_API_PROVIDER = 'gemini';
+export const DEFAULT_MODEL_NAME = '';
+export const DEFAULT_API_PROVIDER = 'openai';
 export const DEFAULT_TEMPERATURE = 0.7;
 export const DEFAULT_MAX_TOKENS = 4000;
 

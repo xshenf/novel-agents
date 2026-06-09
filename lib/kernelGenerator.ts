@@ -78,7 +78,7 @@ export async function generateKernelSettings(
 请为「${dim.label}」维度推演一套高品质方案，直接作为最终设定。注意：方案必须与已有设定保持一致和统一。`;
 
     try {
-      const jsonStr = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, true);
+      const jsonStr = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, true);
       const parsed = safeParseJSON<{ options: Array<{ name: string; description: string }> }>(jsonStr, { options: [] });
       const options = parsed.options || [];
       finalResult[dim.key] = options;

@@ -57,7 +57,7 @@ export async function generateMinimalOutline(
     throw new Error('请先配置 API Key 后再使用极简写作');
   }
 
-  const outline = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+  const outline = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
 
   // 持久化到项目大纲字段
   await db.updateProject(projectId, { outlineFull: outline });
@@ -111,7 +111,7 @@ ${otherVolumesSummary}
     throw new Error('请先配置 API Key 后再使用极简写作');
   }
 
-  const chapterOutline = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+  const chapterOutline = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
 
   // 将展开的章节合并回大纲
   const parsedNewChapters = parseStructureOutline(chapterOutline);
@@ -238,7 +238,7 @@ ${instruction ? `【写作指令】：${instruction}\n\n` : ''}请撰写章节"$
     throw new Error('请先配置 API Key 后再使用极简写作');
   }
 
-  const text = await callModelApi(apiKey!, modelName || 'gemini-2.5-flash', systemInstruction, prompt, false, signal);
+  const text = await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
 
   // 保存到数据库
   await db.updateChapter(chapterId, { content: text });
