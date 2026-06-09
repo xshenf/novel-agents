@@ -17,6 +17,7 @@ import { useOutlineTreeState } from './hooks/useOutlineTreeState';
 import { useVolumeActions } from './hooks/useVolumeActions';
 import { useChapterMemory } from './hooks/useChapterMemory';
 import { useInlineAi } from './hooks/useInlineAi';
+import { useMinimalWriter } from './hooks/useMinimalWriter';
 import { WorkspaceProvider, type WorkspaceContextValue } from './workspace-context';
 import { TopNav } from './components/TopNav';
 import { Dashboard } from './components/Dashboard';
@@ -73,6 +74,7 @@ export default function Home() {
     setEditorContent: editor.setEditorContent,
     setSaveStatus: editor.setSaveStatus,
   });
+  const minimalWriter = useMinimalWriter({ store, callAIApi, setEditorContent: editor.setEditorContent, setSaveStatus: editor.setSaveStatus });
 
   const value: WorkspaceContextValue = useMemo(() => ({
     store,
@@ -81,6 +83,7 @@ export default function Home() {
     editor,
     models,
     autoWriter,
+    minimalWriter,
     agent,
     assist,
     wizard,
@@ -94,7 +97,7 @@ export default function Home() {
   }), [
     store, isAiLoading, setIsAiLoading, routing, editor, models, autoWriter,
     agent, assist, wizard, kernel, modals, layout, outlineTree, volumeActions,
-    chapterMemory, inlineAi,
+    chapterMemory, inlineAi, minimalWriter,
   ]);
 
   if (!mounted) {

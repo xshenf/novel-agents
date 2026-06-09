@@ -16,6 +16,7 @@ import { useOutlineTreeState } from './hooks/useOutlineTreeState';
 import { useVolumeActions } from './hooks/useVolumeActions';
 import { useChapterMemory } from './hooks/useChapterMemory';
 import { useInlineAi } from './hooks/useInlineAi';
+import { useMinimalWriter } from './hooks/useMinimalWriter';
 
 // 命名空间化的工作台 Context：各 hook 输出按功能分组，避免大平铺
 export type WorkspaceContextValue = {
@@ -28,6 +29,7 @@ export type WorkspaceContextValue = {
   editor: ReturnType<typeof useEditor>;
   models: ReturnType<typeof useModelSettings>;
   autoWriter: ReturnType<typeof useAutoWriter>;
+  minimalWriter: ReturnType<typeof useMinimalWriter>;
   agent: ReturnType<typeof useAgentChat>;
   assist: ReturnType<typeof useAiAssist>;
   wizard: ReturnType<typeof useWizard>;

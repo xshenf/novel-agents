@@ -3,6 +3,7 @@ import { ai } from '@/lib/ai';
 import { db } from '@/lib/db';
 import { searchMemory } from '@/lib/memory';
 import { syncChapterMemoryAfterWrite } from '@/lib/chapterMemorySync';
+import { generateMinimalOutline, expandVolumeOutline, minimalWriteChapter } from '@/lib/minimalWriter';
 
 export async function POST(request: Request) {
   try {
@@ -241,6 +242,33 @@ export async function POST(request: Request) {
             'Connection': 'keep-alive',
           },
         });
+      }
+
+      case 'minimalOutline': {
+        const { numVolumes } = body;
+        if (!projectId) {
+          return NextResponse.json({ error: '缺少 projectId' }, { status: 400 });
+        }
+        const outline = await generateMinimalOutline(projectId, numVolumes || 3, apiKey, modelName, request.signal);
+        return NextResponse.json({ outline });
+      }
+
+      case 'minimalExpandVolume': {
+        const { volumeIndex, numChapters: expandNum } = body;
+        if (!projectId || volumeIndex === undefined) {
+          return NextResponse.json({ error: '缺少 projectId 或 volumeIndex' }, { status: 400 });
+        }
+        const outline = await expandVolumeOutline(projectId, volumeIndex, expandNum || 10, apiKey, modelName, request.signal);
+        return NextResponse.json({ outline });
+      }
+
+      case 'minimalWriteChapter': {
+        const { chapterTitle, chapterId } = body;
+        if (!projectId || !chapterTitle || !chapterId) {
+          return NextResponse.json({ error: '缺少 projectId、chapterTitle 或 chapterId' }, { status: 400 });
+        }
+        const text = await minimalWriteChapter(projectId, chapterTitle, chapterId, apiKey, modelName, instruction, request.signal);
+        return NextResponse.json({ text });
       }
 
       default:

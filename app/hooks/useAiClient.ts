@@ -23,6 +23,9 @@ export function useAiClient(): CallAIApi {
       selfCheck: 'editor',
       summarize: 'editor',
       foldSynopsis: 'editor',
+      minimalOutline: 'planner',
+      minimalExpandVolume: 'planner',
+      minimalWriteChapter: 'writer',
     };
     const agentRole = AGENT_ROLE_MAP[action] || 'orchestrator';
 
