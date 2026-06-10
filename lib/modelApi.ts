@@ -1,5 +1,5 @@
 // 辅助方法：直接调用大语言模型 API（兼容 OpenAI 协议的各种服务商，同时保留 Gemini 原生协议支持）
-import { DEFAULT_API_PROVIDER, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS } from './constants';
+import { DEFAULT_API_PROVIDER, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, REASONING_MIN_MAX_TOKENS } from './constants';
 
 export async function callModelApi(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false, signal?: AbortSignal): Promise<string> {
   let config = {
@@ -18,7 +18,11 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
   }
 
   const temp = config.temperature ?? DEFAULT_TEMPERATURE;
-  const tokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
+  // 推理模型兜底：thinking 会先吃掉输出额度，过低会导致正文被截空（与 graph.ts buildLLMFromConfig 同策略）
+  let tokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
+  if (config.reasoningEnabled) {
+    tokens = Math.max(tokens, REASONING_MIN_MAX_TOKENS);
+  }
   const finalSystemInstruction = [config.systemInstruction, systemInstruction]
     .map(s => s?.trim() || '').filter(Boolean).join('\n');
 

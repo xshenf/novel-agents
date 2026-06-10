@@ -1,4 +1,4 @@
-import { ai, type AISummaryResult } from './ai';
+import { ai, type AISummaryResult, type AICheckResult } from './ai';
 import { db } from './db';
 
 export interface ChapterMemorySyncResult {
@@ -6,6 +6,7 @@ export interface ChapterMemorySyncResult {
   updatedCharacterCount: number;
   rollingSynopsisUpdated: boolean;
   worldStateUpdated: boolean;
+  consistencyCheck?: AICheckResult;
   warnings: string[];
 }
 
@@ -38,12 +39,14 @@ export async function syncChapterMemoryAfterWrite({
   const updatedCharacterCount = await applyCharacterChanges(projectId, summary.characterChanges || []);
   const rollingSynopsisUpdated = await updateRollingSynopsis(projectId, apiKey, modelName, warnings);
   const worldStateUpdated = await updateWorldState(projectId, apiKey, modelName, warnings);
+  const consistencyCheck = await runConsistencyCheck(projectId, text, apiKey, modelName, warnings);
 
   return {
     summary,
     updatedCharacterCount,
     rollingSynopsisUpdated,
     worldStateUpdated,
+    consistencyCheck,
     warnings,
   };
 }
@@ -94,6 +97,23 @@ async function updateWorldState(
   } catch (error) {
     warnings.push(`世界状态台账更新失败：${formatWarning(error)}`);
     return false;
+  }
+}
+
+// 写后跨章一致性校验：比对新章正文与人物卡/世界观/时间线/伏笔，发现矛盾随结果返回。
+// 在记忆同步之后执行，校验用的上下文已是最新状态；失败只记 warning，不阻塞写作主流程。
+async function runConsistencyCheck(
+  projectId: string,
+  text: string,
+  apiKey: string | undefined,
+  modelName: string | undefined,
+  warnings: string[],
+): Promise<AICheckResult | undefined> {
+  try {
+    return await ai.checkConsistency(projectId, text, apiKey, modelName);
+  } catch (error) {
+    warnings.push(`跨章一致性校验失败：${formatWarning(error)}`);
+    return undefined;
   }
 }
 

@@ -238,10 +238,10 @@ function formatContext(
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(s);
     });
-    let stateText = `【世界当前状态（随剧情演化，以下为最新快照，须以此为准）】：`;
+    let stateText = `【世界当前状态（随剧情演化，以下为最新快照，须以此为准；标注「已锁定」的条目绝对不可违背或擅自改动）】：`;
     for (const [cat, items] of Object.entries(grouped)) {
       items.forEach(s => {
-        stateText += `\n- [${cat}] ${s.name}：${s.content}`;
+        stateText += `\n- [${cat}]${s.pinned ? '【已锁定·不可违背】' : ''} ${s.name}：${s.content}`;
       });
     }
     parts.push(stateText);

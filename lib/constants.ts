@@ -188,6 +188,9 @@ export const DEFAULT_MODEL_NAME = '';
 export const DEFAULT_API_PROVIDER = 'openai';
 export const DEFAULT_TEMPERATURE = 0.7;
 export const DEFAULT_MAX_TOKENS = 4000;
+// 推理模型 maxTokens 兜底下限：推理（reasoning/thinking）会大量消耗输出额度，
+// 实测过低时 content 与 tool_calls 全空、finish_reason=length（看似模型不支持工具调用）
+export const REASONING_MIN_MAX_TOKENS = 8000;
 
 // 大纲默认标签
 export const OUTLINE_DEFAULT_VOLUME_NAME = '新分卷';

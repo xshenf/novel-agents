@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { HumanMessage } from '@langchain/core/messages';
 import { Command } from '@langchain/langgraph';
-import { buildNovelAgentGraph } from '@/lib/agent/graph';
+import { buildNovelAgentGraph, AGENT_RECURSION_LIMIT } from '@/lib/agent/graph';
 import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
 import { normalizeToolPayload } from '@/app/lib/toolPayload';
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
           graphInput,
           {
             version: 'v2',
-            recursionLimit: 200,
+            recursionLimit: AGENT_RECURSION_LIMIT,
             configurable: {
               thread_id: projectId,
               apiConfig: packedApiKey,

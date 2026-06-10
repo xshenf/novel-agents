@@ -68,6 +68,7 @@ export const autoWriteChapterTool = tool(
     // 写入记忆：自动提取摘要、人物状态、伏笔与时间线（仅在配置了真实 Key 时，
     // 避免用 mock 摘要污染长期记忆）。摘要失败不影响正文已保存的事实。
     let memoryNote = '';
+    let consistencyNote = '';
     if (agentHasKey('writer', apiConfig)) {
       try {
         const memory = await syncChapterMemoryAfterWrite({
@@ -79,13 +80,24 @@ export const autoWriteChapterTool = tool(
         });
         const partialWarning = memory.warnings.length > 0 ? `（${memory.warnings.join('；')}）` : '';
         memoryNote = `，并已同步更新章节摘要、角色状态与长期记忆${partialWarning}`;
+        const check = memory.consistencyCheck;
+        if (check) {
+          if (check.passed) {
+            consistencyNote = '\n\n一致性校验：通过，未发现与前文设定的矛盾。';
+          } else {
+            const issues = (check.issues || []).slice(0, 5).map(i => `- ${i}`).join('\n');
+            const suggestions = (check.suggestions || []).slice(0, 5).map(s => `- ${s}`).join('\n');
+            consistencyNote = `\n\n一致性校验：发现 ${(check.issues || []).length} 处与前文的潜在矛盾（汇报时务必向用户明确提示）：\n${issues}`;
+            if (suggestions) consistencyNote += `\n修改建议：\n${suggestions}`;
+          }
+        }
       } catch (error) {
         console.warn('[agent] sync chapter memory failed:', error);
         memoryNote = '（注意：摘要生成失败，仅保存了正文）';
       }
     }
 
-    return `章节「${chapterTitle}」正文已生成并保存（共 ${text.length} 字，章节ID: ${target.id}）${memoryNote}。\n\n正文预览：\n${text.slice(0, 400)}${text.length > 400 ? '\n\n...(完整正文已写入该章节，请在编辑器查看)' : ''}`;
+    return `章节「${chapterTitle}」正文已生成并保存（共 ${text.length} 字，章节ID: ${target.id}）${memoryNote}。${consistencyNote}\n\n正文预览：\n${text.slice(0, 400)}${text.length > 400 ? '\n\n...(完整正文已写入该章节，请在编辑器查看)' : ''}`;
   },
   {
     name: 'auto_write_chapter',

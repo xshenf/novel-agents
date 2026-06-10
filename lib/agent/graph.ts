@@ -5,7 +5,7 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { resolveAgentModelConfig, resolveApiConfig } from './config';
-import { DEFAULT_API_PROVIDER } from '../constants';
+import { DEFAULT_API_PROVIDER, REASONING_MIN_MAX_TOKENS } from '../constants';
 import { checkpointer } from './checkpointer';
 
 // Re-export for backward compatibility (consumers that imported checkpointer from graph.ts)
@@ -66,7 +66,11 @@ function buildLLMFromConfig(config: {
   const provider = config.provider || DEFAULT_API_PROVIDER;
   const model = config.name;
   const temperature = config.temperature ?? 0.7;
-  const maxTokens = config.maxTokens ?? 4000;
+  // 推理模型兜底：thinking 会先吃掉输出额度，maxTokens 过低会导致正文与 tool_calls 被截空
+  let maxTokens = config.maxTokens ?? 4000;
+  if (config.reasoningEnabled) {
+    maxTokens = Math.max(maxTokens, REASONING_MIN_MAX_TOKENS);
+  }
 
   if (!model?.trim()) {
     throw new Error('请先在设置中配置模型名称（Model Name）后再使用 AI Agent 功能');
@@ -174,9 +178,15 @@ const ORCHESTRATOR_TOOLS = [
 // 保留 requestUserStyleTool：用户可能取消后重新选择
 const ORCHESTRATOR_SUMMARY_TOOLS = [queryMemoryTool, getProjectOverviewTool, requestUserStyleTool];
 // 委托次数上限：达到后强制进入汇总，配合 recursionLimit 作为双重保险
-const MAX_DELEGATIONS = 5;
+const MAX_DELEGATIONS = 6;
 // 单个专家的工具调用次数上限：超过后强制结束该专家，回到 orchestrator 汇总
 const MAX_SPECIALIST_TOOL_CALLS = 10;
+// 图执行步数上限（供 /api/agent 的 recursionLimit 使用），与上面两个上限联动推导：
+// 单专家满负载 ≈ reset(1) + [agent+tools+count]×MAX_SPECIALIST_TOOL_CALLS(30) + agent(1) + after_specialist(1) = 33 步，
+// 加编导每轮调度 orchestrator(1)+orchestrator_tools(1) = 2 步，
+// MAX_DELEGATIONS 次委托 ≈ 6×35 = 210 步，再留 40 步缓冲给汇总阶段的 query_memory 等普通工具调用。
+// 改动 MAX_DELEGATIONS / MAX_SPECIALIST_TOOL_CALLS 时务必同步复核此值，否则长任务会频繁撞"轮次上限"中断。
+export const AGENT_RECURSION_LIMIT = 250;
 
 // ─── 创建 Agent 节点 ──────────────────────────────────────────────────────────
 // ─── 消息过滤辅助函数（用于优化历史对话处理与消息隔离） ─────────────────────────
@@ -334,8 +344,10 @@ function createAgentNode(role: AgentRole, tools: any[], llm: any, projectId: str
 // 一旦有专家完成（delegationCount > 0），就引导其综合成果做最终汇报；
 // 达到上限后绑定无 delegate 工具的工具集，从机制上强制收尾。
 function createOrchestratorNode(llm: any, projectId: string, globalSystemInstruction: string) {
-  const boundFull = llm.bindTools(ORCHESTRATOR_TOOLS);
-  const boundSummary = llm.bindTools(ORCHESTRATOR_SUMMARY_TOOLS);
+  // parallel_tool_calls=false：从协议层保证编导一次只调一个工具。
+  // 否则一条消息里多个 delegate_* 只有最后一个会被路由（resolveDelegateTarget），其余委托静默丢失。
+  const boundFull = llm.bindTools(ORCHESTRATOR_TOOLS, { parallel_tool_calls: false });
+  const boundSummary = llm.bindTools(ORCHESTRATOR_SUMMARY_TOOLS, { parallel_tool_calls: false });
   const base = AGENT_PROMPTS['orchestrator'];
 
   return async (state: typeof AgentState.State) => {
