@@ -1,5 +1,6 @@
 import { db, Chapter, Character, WorldRule, WorldState, NovelProject } from './db';
 import { parseStructureOutline } from './outlineParser';
+import { selectRecentContentWindow } from './contextWindow';
 
 export interface MemorySearchResult {
   contextText: string;
@@ -8,6 +9,19 @@ export interface MemorySearchResult {
   worldRules: WorldRule[];
   worldStates: WorldState[];
 }
+
+export interface MemorySearchOptions {
+  // 正文滑动窗口预算（token）：>0 时在上下文末尾注入最近章节的正文原文。
+  // 摘要层保证"远程事实"，正文窗口保证"近程文风与情节末梢"，两层互补。
+  recentContentBudgetTokens?: number;
+  // 排除的章节 id：写后校验场景排除刚落库的本章，避免"自己和自己比对"。
+  excludeChapterIds?: string[];
+}
+
+// 正文窗口默认预算：约 1.8 万字（≈最近 6-8 章），供写作与校验链路使用
+export const RECENT_CONTENT_BUDGET_TOKENS = 12_000;
+// 正文窗口候选章节数上限：限制 DB 拉取正文的数量
+const RECENT_CONTENT_MAX_CHAPTERS = 8;
 
 // 转义正则中的特殊字符，避免用 token 构造 RegExp 时报错
 function escapeRegExp(s: string): string {
@@ -63,7 +77,7 @@ function tokenize(text: string): string[] {
 }
 
 // 计算「未回收伏笔台账」：所有 newForeshadowing 减去任意章节已 resolved 的
-function collectOpenForeshadowing(chapters: Chapter[]): string[] {
+export function collectOpenForeshadowing(chapters: Chapter[]): string[] {
   const resolved = new Set<string>();
   chapters.forEach(c => (c.resolvedForeshadowing || []).forEach(f => resolved.add(f.trim())));
   const open: string[] = [];
@@ -104,14 +118,19 @@ function scoreRelevantChapters(chapters: Chapter[], queryTokens: string[]): Chap
 
 // 检索小说记忆：始终注入「故事圣经 + 全书逐章摘要」，并补充最近/相关章节的关键状态变化。
 // 这从根本上避免了「只给最近/命中的 top-3 章」导致的长篇跑偏。
-export async function searchMemory(projectId: string, query: string, chapterTitle?: string): Promise<MemorySearchResult> {
-  const [chapters, characters, worldRules, worldStates, project] = await Promise.all([
+export async function searchMemory(projectId: string, query: string, chapterTitle?: string, options?: MemorySearchOptions): Promise<MemorySearchResult> {
+  const [chaptersAll, characters, worldRules, worldStates, project] = await Promise.all([
     db.getChapterMetadata(projectId),
     db.getCharacters(projectId),
     db.getWorldRules(projectId),
     db.getWorldStates(projectId),
     db.getProject(projectId),
   ]);
+
+  // 排除章（写后校验场景排除刚落库的本章）：摘要/伏笔/细节各层一并排除，
+  // 否则本章内容会被当作"前文事实"参与比对，导致校验漏报
+  const excludeSet = new Set(options?.excludeChapterIds || []);
+  const chapters = excludeSet.size ? chaptersAll.filter(c => !excludeSet.has(c.id)) : chaptersAll;
 
   // 查找匹配的章节大纲
   let currentChapterOutline = '';
@@ -156,8 +175,22 @@ export async function searchMemory(projectId: string, query: string, chapterTitl
 
   const contextText = formatContext(project, chapters, characters, worldRules, worldStates, detailChapters, currentChapterOutline);
 
+  // 正文滑动窗口层（按需开启）：摘要有信息与文风损耗，最近章节注入原文保证近程连贯
+  let finalContextText = contextText;
+  const budget = options?.recentContentBudgetTokens || 0;
+  if (budget > 0) {
+    const recentFull = await db.getRecentChapters(projectId, RECENT_CONTENT_MAX_CHAPTERS);
+    const candidates = recentFull
+      .filter(c => !excludeSet.has(c.id) && (c.content || '').trim())
+      .map(c => ({ id: c.id, title: c.title, content: c.content }));
+    const win = selectRecentContentWindow(candidates, budget);
+    if (win.text) {
+      finalContextText += `\n\n【最近章节正文（原文，务必衔接其文风、情节末梢与细节）】：\n${win.text}`;
+    }
+  }
+
   return {
-    contextText,
+    contextText: finalContextText,
     chapters: detailChapters,
     characters,
     worldRules,

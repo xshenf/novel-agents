@@ -39,7 +39,7 @@ export async function syncChapterMemoryAfterWrite({
   const updatedCharacterCount = await applyCharacterChanges(projectId, summary.characterChanges || []);
   const rollingSynopsisUpdated = await updateRollingSynopsis(projectId, apiKey, modelName, warnings);
   const worldStateUpdated = await updateWorldState(projectId, apiKey, modelName, warnings);
-  const consistencyCheck = await runConsistencyCheck(projectId, text, apiKey, modelName, warnings);
+  const consistencyCheck = await runConsistencyCheck(projectId, chapterId, text, apiKey, modelName, warnings);
 
   return {
     summary,
@@ -100,21 +100,41 @@ async function updateWorldState(
   }
 }
 
-// 写后跨章一致性校验：比对新章正文与人物卡/世界观/时间线/伏笔，发现矛盾随结果返回。
-// 在记忆同步之后执行，校验用的上下文已是最新状态；失败只记 warning，不阻塞写作主流程。
 async function runConsistencyCheck(
   projectId: string,
+  chapterId: string,
   text: string,
   apiKey: string | undefined,
   modelName: string | undefined,
   warnings: string[],
 ): Promise<AICheckResult | undefined> {
   try {
-    return await ai.checkConsistency(projectId, text, apiKey, modelName);
+    return await ai.checkConsistency(projectId, text, apiKey, modelName, undefined, chapterId);
   } catch (error) {
     warnings.push(`跨章一致性校验失败：${formatWarning(error)}`);
     return undefined;
   }
+}
+
+// 轻量记忆同步：仅提取章节摘要并写回 + 应用人物状态变化（1 次 LLM 调用）。
+// 供极简写作链路使用——不跑滚动概要/世界状态/一致性校验，保持低成本。
+export async function syncChapterSummaryLight(
+  projectId: string,
+  chapterId: string,
+  text: string,
+  apiKey?: string,
+  modelName?: string,
+): Promise<AISummaryResult> {
+  const summary = await ai.summarizeChapter(text, apiKey, modelName);
+  await db.updateChapter(chapterId, {
+    summary: summary.summary,
+    characterChanges: summary.characterChanges || [],
+    newForeshadowing: summary.newForeshadowing || [],
+    resolvedForeshadowing: summary.resolvedForeshadowing || [],
+    timelineEvents: summary.timelineEvents || [],
+  });
+  await applyCharacterChanges(projectId, summary.characterChanges || []);
+  return summary;
 }
 
 function formatWarning(error: unknown): string {

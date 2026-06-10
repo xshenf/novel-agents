@@ -6,20 +6,17 @@ import { db } from './db';
 import { parseStructureOutline, generateMarkdownFromSections, type OutlineVolume } from './outlineParser';
 import { hasUsableKey } from './agent/config';
 import { formatAntiAiInstructions } from './rules';
+import { estimateTokens } from './contextWindow';
+import { syncChapterSummaryLight } from './chapterMemorySync';
+import { collectOpenForeshadowing } from './memory';
 
 // ── 上下文窗口常量 ──────────────────────────────────────────────────────────
-// 估算 token 数：中文约 1.5 字/token，英文约 4 字符/token
-const CHARS_PER_TOKEN = 1.5;
 // 上下文窗口上限（token 数），留出 system prompt + 生成空间
 const CONTEXT_WINDOW_TOKENS = 60_000;
 // 保留给 system prompt + 生成输出的 token 余量
 const RESERVED_TOKENS = 8_000;
 // 可用于上下文注入的最大 token 数
 const AVAILABLE_TOKENS = CONTEXT_WINDOW_TOKENS - RESERVED_TOKENS;
-
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
-}
 
 // ── 1. 生成分卷大纲 ─────────────────────────────────────────────────────────
 export async function generateMinimalOutline(
@@ -135,7 +132,11 @@ export async function buildMinimalContext(
   const project = await db.getProject(projectId);
   if (!project) return '';
 
-  const chapters = await db.getChapters(projectId);
+  const [chapters, characters, worldStates] = await Promise.all([
+    db.getChapters(projectId),
+    db.getCharacters(projectId),
+    db.getWorldStates(projectId),
+  ]);
   const volumes = parseStructureOutline(project.outlineFull || '');
 
   // 找到当前章节所在分卷的大纲
@@ -157,6 +158,28 @@ export async function buildMinimalContext(
   // 1. 项目核心设定（极简）
   const kernel = buildKernelSummary(project);
   if (kernel) parts.push(kernel);
+
+  // 1.5 状态台账（数据来自轻量摘要同步，为空时跳过）：
+  // 角色状态与伏笔不随滑动窗口丢失，是极简模式长篇不跑偏的关键补层
+  const activeChars = characters.filter(c => (c.currentState || c.identity || '').trim());
+  if (activeChars.length > 0) {
+    const charLines = activeChars.map(c => {
+      let line = `- ${c.name}（${c.role}）：${c.currentState || c.identity}`;
+      if (c.forbidden?.length) line += `｜写作禁忌：${c.forbidden.join('、')}`;
+      return line;
+    });
+    parts.push(`【人物当前状态（务必与此保持一致）】：\n${charLines.join('\n')}`);
+  }
+  if (worldStates.length > 0) {
+    const stateLines = worldStates.map(s =>
+      `- [${s.category || '其他'}]${s.pinned ? '【已锁定·不可违背】' : ''} ${s.name}：${s.content}`
+    );
+    parts.push(`【世界当前状态（最新快照，须以此为准）】：\n${stateLines.join('\n')}`);
+  }
+  const openForeshadow = collectOpenForeshadowing(chapters);
+  if (openForeshadow.length > 0) {
+    parts.push(`【尚未回收的伏笔（需推进或避免遗忘）】：\n${openForeshadow.map(f => `- ${f}`).join('\n')}`);
+  }
 
   // 2. 全部分卷大纲概要
   const outlineSummary = volumes.map(v =>
@@ -242,6 +265,14 @@ ${instruction ? `【写作指令】：${instruction}\n\n` : ''}请撰写章节"$
 
   // 保存到数据库
   await db.updateChapter(chapterId, { content: text });
+
+  // 轻量记忆同步（1 次调用）：提取摘要/人物状态/伏笔。让远章滑出窗口后仍有摘要可降级、
+  // 状态台账可累积——这是极简模式长篇不跑偏的数据来源。失败不阻塞，正文已保存。
+  try {
+    await syncChapterSummaryLight(projectId, chapterId, text, apiKey, modelName);
+  } catch (error) {
+    console.warn('[minimal] 轻量摘要同步失败（正文已保存）:', error);
+  }
 
   return text;
 }

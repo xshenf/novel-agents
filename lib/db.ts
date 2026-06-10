@@ -363,6 +363,17 @@ export const db = {
     return list.map(formatChapter);
   },
 
+  // 最近 N 章（含正文）：供正文滑动窗口注入使用，避免长篇全量拉取正文。
+  // 倒序取最近 limit 章后转回升序返回。
+  async getRecentChapters(projectId: string, limit: number): Promise<Chapter[]> {
+    const list = await prisma.chapter.findMany({
+      where: { projectId },
+      orderBy: [{ order: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+    return list.map(formatChapter).reverse();
+  },
+
   // 轻量章节查询：仅返回 id/title/summary，不含 content 等大字段，
   // 供 getProjectOverviewTool 等只需概览信息的场景使用，避免长篇小说拉取数百 KB 正文。
   async getChapterSummaries(projectId: string): Promise<Pick<Chapter, 'id' | 'title' | 'summary' | 'createdAt'>[]> {

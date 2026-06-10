@@ -1,4 +1,4 @@
-import { searchMemory } from './memory';
+import { searchMemory, RECENT_CONTENT_BUDGET_TOKENS } from './memory';
 import { db } from './db';
 import { formatAntiAiInstructions } from './rules';
 import { hasUsableKey } from './agent/config';
@@ -70,8 +70,11 @@ export const ai = {
    * AI 自动写小说章节正文
    */
   async autoWriteChapter(projectId: string, chapterTitle: string, apiKey?: string, modelName?: string, instruction?: string, signal?: AbortSignal): Promise<string> {
-    const memory = await searchMemory(projectId, chapterTitle, chapterTitle);
-    
+    // 开启正文滑动窗口：最近章节注入原文（文风、情节末梢、细节连贯性远胜摘要）
+    const memory = await searchMemory(projectId, chapterTitle, chapterTitle, {
+      recentContentBudgetTokens: RECENT_CONTENT_BUDGET_TOKENS,
+    });
+
     // 获取当前项目的文风设定与反 AI 规则配置
     const project = await db.getProject(projectId);
     const styleText = (project?.styleSetting || '').trim();
@@ -85,27 +88,16 @@ export const ai = {
       ? `\n请务必严格遵循以下“禁止出现的设定”负向约束（极其重要，严禁违背）：\n` + forbiddenText
       : '';
 
-    // few-shot：取本书最近一章有实质内容的正文片段作为文风范例（模仿笔触，不照抄情节）
-    const allChapters = await db.getChapters(projectId);
-    let styleExemplar = '';
-    for (let i = allChapters.length - 1; i >= 0; i--) {
-      const c = (allChapters[i].content || '').trim();
-      if (c.length >= 200) { styleExemplar = c.slice(0, 400); break; }
-    }
-    const exemplarBlock = styleExemplar
-      ? `\n\n【本书已有正文片段（请揣摩并模仿其笔触、语感与节奏，但不要照抄其情节）】：\n${styleExemplar}`
-      : '';
-
     const systemInstruction = `你是一个网络小说全职写手，擅长撰写情节跌宕起伏、伏笔连贯、人物塑造深刻的网络小说。
 你的任务是根据提供的小说设定、相关人物卡、前文回顾等上下文，接着作者给出的正文继续往下续写。
 要求：
 1. 章节标题是：“${chapterTitle}”。
 2. 字数在 1000 字左右，结构必须包含：起（环境烘托与引子）、承（角色互动与对话）、转（核心冲突与博弈）、合（悬念留白与下章伏笔）。
 3. 必须绝对遵循人物卡的性格描述、关系背景以及“写作禁忌”。
-4. 行文文风必须与本书既定文风严格一致。${styleBlock}${antiAiInstructions}${forbiddenInstructions}
+4. 行文文风必须与本书既定文风严格一致，并与上下文中最近章节正文的笔触、语感自然衔接。${styleBlock}${antiAiInstructions}${forbiddenInstructions}
 5. 仅输出章节的正文内容，不要包含任何多余的引言、前言或总结。`;
 
-    const prompt = `【小说设定与长期记忆】:\n${memory.contextText}${exemplarBlock}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
+    const prompt = `【小说设定与长期记忆】:\n${memory.contextText}\n\n【本章写作指令/特殊要求】: ${instruction || '根据前文剧情自然过渡，重点刻画人物内心的试探与拉扯'}\n\n请自动生成章节“${chapterTitle}”的完整正文：`;
 
     if (hasUsableKey(apiKey)) {
       return await callModelApi(apiKey!, modelName || '', systemInstruction, prompt, false, signal);
@@ -286,8 +278,13 @@ ${memory.contextText}
   /**
    * AI 逻辑一致性自检
    */
-  async checkConsistency(projectId: string, currentText: string, apiKey?: string, modelName?: string, signal?: AbortSignal): Promise<AICheckResult> {
-    const memory = await searchMemory(projectId, currentText);
+  async checkConsistency(projectId: string, currentText: string, apiKey?: string, modelName?: string, signal?: AbortSignal, excludeChapterId?: string): Promise<AICheckResult> {
+    // 开启正文滑动窗口：与前文正文逐句比对才能查出细节矛盾；
+    // excludeChapterId 排除刚落库的本章，避免"自己和自己比对"使校验失真
+    const memory = await searchMemory(projectId, currentText, undefined, {
+      recentContentBudgetTokens: RECENT_CONTENT_BUDGET_TOKENS,
+      excludeChapterIds: excludeChapterId ? [excludeChapterId] : undefined,
+    });
     const systemInstruction = `你是一个极度挑剔的小说审校编辑。你的任务是比对作者新写的章节正文与小说的人物卡、世界观设定、前文回顾等记忆，查找其中可能存在的逻辑漏洞、设定冲突、人物性格崩坏或违反写作禁忌的地方。`;
     const prompt = `【小说设定与前文背景】:\n${memory.contextText}\n\n【作者新写的正文内容】:\n\"\"\"\n${currentText}\n\"\"\"\n\n请详细检查上述正文是否与设定冲突。
 请以 JSON 格式输出，格式如下：
