@@ -69,6 +69,10 @@ export function useAgentChat(store: NovelStore) {
 
   const msgId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+  // 流式 token 每条都触发 setAgentMessages，localStorage 全量序列化写入需 debounce，
+  // 否则长对话流式输出时每 token 一次 JSON.stringify(全部消息) 会明显卡顿
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 根据容器的 scrollTop / scrollHeight / clientHeight 判定是否贴近底部（允许 32px 容差）
   const updateIsAtBottom = useCallback(() => {
     const el = chatHistoryElRef.current;
@@ -118,10 +122,26 @@ export function useAgentChat(store: NovelStore) {
     setAgentMessages(prev => {
       const next = typeof val === 'function' ? val(prev) : val;
       if (typeof window !== 'undefined' && store.currentProject) {
-        localStorage.setItem(`agent_messages_${store.currentProject.id}`, JSON.stringify(next));
+        const pid = store.currentProject.id;
+        if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = setTimeout(() => {
+          try {
+            localStorage.setItem(`agent_messages_${pid}`, JSON.stringify(next));
+          } catch { /* 存储满/隐私模式下忽略 */ }
+        }, 300);
       }
       return next;
     });
+  };
+
+  // 清理瞬态标记：streaming（打字机光标）与 pending（工具转圈）。
+  // 用于用户主动中断（abort）或本地异常（stall 超时/网络断）后，避免 UI 永久转圈
+  const clearTransientFlags = () => {
+    saveAndSetAgentMessages(prev => prev.map(m =>
+      (m.streaming || (m.type === 'tool_call' && m.pending))
+        ? { ...m, streaming: false, pending: false }
+        : m
+    ));
   };
 
   // 切换项目或初始化时从后台数据库读取对话历史，若失败或无数据则降级使用 localStorage
@@ -220,9 +240,12 @@ export function useAgentChat(store: NovelStore) {
         if (pendingCalls.length === 0) return prev;
         const next = prev.map(m => (m.type === 'tool_call' && m.pending) ? { ...m, pending: false } : m);
         // 仅当 lastAgent 流真的中断（无 done / 无后续 tool_result）时补一个 fallback
-        // —— 用 message pairing 让 call/result 配对
+        // —— callId 精确匹配优先，旧数据/丢 callId 时退化为"存在同名真实结果"即视为已配对
         const stillUnpaired = pendingCalls.filter(c =>
-          !next.some(m => m.type === 'tool_result' && m.toolName === c.toolName && (m as any).callId === c.id)
+          !next.some(m => m.type === 'tool_result' && (
+            (m as any).callId === c.id ||
+            (!m.synthetic && m.toolName === c.toolName)
+          ))
         );
         if (stillUnpaired.length === 0) return next;
         return [
@@ -346,13 +369,18 @@ export function useAgentChat(store: NovelStore) {
             break;
 
           case 'tool_result': {
-            // 用 callId 精确配对（route.ts 在 on_tool_start / closePendingToolCall 都把
-            // 同一 callId 透传），优先于"相邻 toolName 相等"的 fallback 配对
-            const callId = data.callId as string | undefined;
+            // 用 callId 精确配对（route.ts 在 on_tool_end / closePendingToolCall 都把
+            // 对应 tool_call 的 id 透传）；callId 缺失（旧版本/丢包）时回退为
+            // "最早一条同名且 pending 的 tool_call"，确保转圈态总能被清除
             const resultId = data.id || msgId();
             saveAndSetAgentMessages(prev => {
-              // 把匹配的 call 标 pending=false；插入 result
-              const next = prev.map(m => (callId && m.id === callId) ? { ...m, pending: false } : m);
+              let matchedId: string | undefined =
+                data.callId && prev.some(m => m.id === data.callId) ? data.callId : undefined;
+              if (!matchedId) {
+                const fallback = prev.find(m => m.type === 'tool_call' && m.pending && m.toolName === data.toolName);
+                if (fallback) matchedId = fallback.id;
+              }
+              const next = prev.map(m => (matchedId && m.id === matchedId) ? { ...m, pending: false } : m);
               return [...next, {
                 id: resultId,
                 type: 'tool_result',
@@ -366,8 +394,8 @@ export function useAgentChat(store: NovelStore) {
                 filteredInput: data.filteredInput,
                 resultText: data.resultText,
                 synthetic: !!data.synthetic,
-                // 透传 callId：AgentPanel / messagePairing 配对时优先用此 id
-                callId: callId,
+                // 透传配对到的 callId：AgentPanel / messagePairing 配对时优先用此 id
+                callId: matchedId,
               }];
             });
             scrollToBottom('smooth');
@@ -453,17 +481,8 @@ export function useAgentChat(store: NovelStore) {
             // 兜底会推 synthetic tool_result；这里只在 SSE 真的丢了结果时补一条。
             // 不重复造轮子，只标记 pending=false 让它停转）。
             finalizePendingToolCalls('agent 流已结束');
-            // 使用 getState() 获取最新的 currentProject，避免闭包捕获旧值
-            const doneProject = useNovelStore.getState().currentProject;
-            if (doneProject) {
-              await Promise.all([
-                store.refreshProject(doneProject.id),
-                store.fetchCharacters(doneProject.id),
-                store.fetchWorldRules(doneProject.id),
-                store.fetchWorldStates(doneProject.id),
-                store.fetchChapters(doneProject.id),
-              ]);
-            }
+            // 数据刷新统一在 handleSendAgentMessage / resolveConfirm 的 finally 做，
+            // 此处不再重复全量刷新（data_changed 事件已覆盖流中的实时刷新）
             break;
 
           case 'error':
@@ -530,11 +549,10 @@ export function useAgentChat(store: NovelStore) {
       }
       await processAgentStream(response);
     } catch (err: any) {
+      // 中断（用户主动停止）或本地异常（stall 超时/网络断）：清理 streaming 光标与
+      // pending 转圈，避免残留状态被 localStorage 持久化后永久转圈
+      clearTransientFlags();
       if (err.name === 'AbortError') return;
-      // M6 修复：流中断时清理未完成的 streaming 消息，避免转圈
-      saveAndSetAgentMessages(prev => prev.map(m =>
-        m.streaming ? { ...m, streaming: false } : m
-      ));
       saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,
         type: 'error',
@@ -592,6 +610,7 @@ export function useAgentChat(store: NovelStore) {
       }
       await processAgentStream(response);
     } catch (err: any) {
+      clearTransientFlags();
       if (err.name === 'AbortError') return;
       saveAndSetAgentMessages(prev => [...prev, {
         id: `err_${Date.now()}`,

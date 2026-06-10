@@ -19,12 +19,15 @@ export interface AgentMessage {
   to?: string;
   toLabel?: string;
   streaming?: boolean;
+  pending?: boolean;
 }
 
 /**
  * 清洗单条 AgentMessage：
  * 1. label 始终以 AGENT_LABELS 为准（未知 agent 保留原值兜底）
  * 2. fromLabel / toLabel 同样规范化
+ * 3. 清除瞬态标记 streaming / pending —— 恢复的历史必然已结束，
+ *    残留 true 会导致打字机光标 / 工具转圈永久显示（localStorage 降级路径会存到这些字段）
  */
 export function normalizeAgentMessage<T extends AgentMessage>(msg: T): T {
   const next: AgentMessage = { ...msg };
@@ -41,6 +44,9 @@ export function normalizeAgentMessage<T extends AgentMessage>(msg: T): T {
   if (next.to || next.toLabel) {
     next.toLabel = getAgentLabel(next.to, next.toLabel);
   }
+
+  if (next.streaming) next.streaming = false;
+  if (next.pending) next.pending = false;
 
   return next as T;
 }

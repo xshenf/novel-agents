@@ -250,6 +250,8 @@ export async function POST(request: NextRequest) {
           }
 
           const { event: eventType, name, data } = event;
+          // run_id 在 StreamEvent 顶层（不在 data 里），用于工具调用 start/end/error 的精确配对
+          const eventRunId: string = (event as any).run_id || '';
 
           // Agent 开始执行
           if (eventType === 'on_chain_start' && isAgentNode(name)) {
@@ -392,13 +394,12 @@ export async function POST(request: NextRequest) {
               contentText: payload.contentText,
             });
             // 注册到 pending 列表：60 秒未收到 on_tool_end 视为超时，自动补"超时"结果配对
-            // 用 langchain run_id 作 key（与 on_tool_end 事件 data.run_id 一一对应）
-            const runId = (data as any)?.run_id;
-            if (runId) {
+            // 用 StreamEvent 顶层 run_id 作 key（与 on_tool_end 事件的顶层 run_id 一一对应）
+            if (eventRunId) {
               const timeoutId = setTimeout(() => {
-                closePendingToolCall(runId, `工具「${name}」执行超时（${TOOL_CALL_TIMEOUT_MS / 1000} 秒未返回结果）`);
+                closePendingToolCall(eventRunId, `工具「${name}」执行超时（${TOOL_CALL_TIMEOUT_MS / 1000} 秒未返回结果）`);
               }, TOOL_CALL_TIMEOUT_MS);
-              pendingToolCalls.set(runId, { toolMsgId, toolName: name, input: data?.input, timeoutId });
+              pendingToolCalls.set(eventRunId, { toolMsgId, toolName: name, input: data?.input, timeoutId });
             }
           }
 
@@ -406,12 +407,13 @@ export async function POST(request: NextRequest) {
           if (eventType === 'on_tool_end') {
             // 从 langchain ToolMessage 提取真实 content 文本，避免 lc/type/id/kwargs 这种内部 JSON dump 入库
             const output = extractToolOutputContent(data?.output);
-            // 用 run_id 精确配对 + 清掉超时定时器
-            const endRunId = (data as any)?.run_id;
-            if (endRunId && pendingToolCalls.has(endRunId)) {
-              const p = pendingToolCalls.get(endRunId)!;
+            // 用顶层 run_id 精确配对 + 清掉超时定时器；保留 toolMsgId 供 tool_result 透传 callId
+            let pairedCallId = '';
+            if (eventRunId && pendingToolCalls.has(eventRunId)) {
+              const p = pendingToolCalls.get(eventRunId)!;
               clearTimeout(p.timeoutId);
-              pendingToolCalls.delete(endRunId);
+              pendingToolCalls.delete(eventRunId);
+              pairedCallId = p.toolMsgId;
             }
             // 跳过 delegate 信号（内部路由，不展示给用户）
             if (!output.startsWith('[DELEGATE:')) {
@@ -425,6 +427,7 @@ export async function POST(request: NextRequest) {
                 agent: lastAgent,
                 toolName: name,
                 content: shortResult,
+                callId: pairedCallId || undefined,
                 purpose: payload.purpose,
                 verb: payload.verb,
                 writtenLength: payload.writtenLength,
@@ -433,6 +436,7 @@ export async function POST(request: NextRequest) {
               });
               send('tool_result', {
                 id: resultMsgId,
+                callId: pairedCallId || undefined,
                 agent: lastAgent,
                 toolName: name,
                 result: shortResult,
@@ -495,11 +499,10 @@ export async function POST(request: NextRequest) {
           // 工具执行异常（langchain on_tool_error）：把对应 pending 立刻 close 为"失败"，
           // 避免前端一直转圈等不到结果。
           if (eventType === 'on_tool_error') {
-            const errRunId = (data as any)?.run_id;
             const errToolName = (data as any)?.name || name;
             const errMessage = (data as any)?.error?.message || data?.error || '工具执行失败';
-            if (errRunId && pendingToolCalls.has(errRunId)) {
-              closePendingToolCall(errRunId, `工具「${errToolName}」执行失败：${errMessage}`);
+            if (eventRunId && pendingToolCalls.has(eventRunId)) {
+              closePendingToolCall(eventRunId, `工具「${errToolName}」执行失败：${errMessage}`);
             }
           }
 
