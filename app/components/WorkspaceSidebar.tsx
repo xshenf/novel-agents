@@ -3,7 +3,7 @@
 import { ChevronRight, Plus, FileText, ChevronLeft, ChevronDown, Lock, FolderOpen, Folder, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useWorkspace } from '../workspace-context';
-import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, type ChapterStatus } from '@/lib/chapterLinking';
+import { findWritten, statusOf, chapterWordCount, STATUS_LABEL, collectOrphans, type ChapterStatus } from '@/lib/chapterLinking';
 import { BTN_TOOLBAR } from '@/lib/styles';
 
 // 章节写作状态徽标颜色
@@ -67,6 +67,18 @@ export function WorkspaceSidebar() {
 
   const toggleCollapsed = (vIdx: number) => {
     setCollapsedVolumes({ ...collapsedVolumes, [vIdx]: !collapsedVolumes[vIdx] });
+  };
+
+  // 未被任何大纲条目匹配的"游离"正文章节：若不展示，用户会以为章节丢失
+  const orphanChapters = collectOrphans(localSections, store.chapters);
+
+  const handleOpenOrphan = (chapterId: string) => {
+    const chap = store.chapters.find((c: { id: string }) => c.id === chapterId);
+    if (!chap || !store.currentProject) return;
+    store.setCurrentChapter(chap);
+    setSelectedChapterIdx(null);
+    setActiveWorkspaceTab('write');
+    router.push(buildWorkspaceUrl(store.currentProject.id, 'write', chap.id));
   };
 
   return (
@@ -162,6 +174,36 @@ export function WorkspaceSidebar() {
                     </div>
                   );
                 })}
+
+                {/* 未关联章节：有正文但未匹配到任何大纲条目（兜底展示，避免"章节消失"） */}
+                {orphanChapters.length > 0 && (
+                  <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '6px' }}>
+                    <div style={{ padding: '2px 10px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      未关联章节（{orphanChapters.length}）
+                    </div>
+                    {orphanChapters.map(c => {
+                      const status = statusOf(c);
+                      const words = chapterWordCount(c);
+                      return (
+                        <div
+                          key={`orphan-${c.id}`}
+                          className="sidebar-item"
+                          onClick={() => handleOpenOrphan(c.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '24px', cursor: 'pointer' }}
+                          title="该章节未匹配到大纲条目，点击可直接编辑"
+                        >
+                          <span
+                            style={{ width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0, background: STATUS_COLOR[status] }}
+                            title={STATUS_LABEL[status]}
+                          />
+                          <FileText size={12} style={{ flexShrink: 0, opacity: 0.7 }} />
+                          <span style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '12px' }}>{c.title}</span>
+                          {words > 0 && <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>{words}字</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {localSections.length === 0 && store.chapters.length === 0 && (
                   <div style={{ padding: '16px 12px 8px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>

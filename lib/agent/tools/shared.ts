@@ -5,6 +5,7 @@ import { db } from '../../db';
 import { searchMemory } from '../../memory';
 import { GENRE_CATEGORIES, TONES } from '../../constants';
 import { parseStructureOutline } from '../../outlineParser';
+import { titlesMatch } from '../../chapterLinking';
 
 // Re-export outline parser types used by other tool files
 export type { OutlineVolume, OutlineChapter } from '../../outlineParser';
@@ -62,25 +63,32 @@ export const getProjectOverviewTool = tool(
     const chapterSummaries = await db.getChapterSummaries(projectId);
     const worldRules = await db.getWorldRules(projectId);
 
-    // 大纲摘要：解析 outlineFull 提取分卷/章节概况，让编导知道大纲是否已存在
+    // 大纲摘要：解析 outlineFull 提取分卷/章节概况，并标注每章是否已写正文——
+    // 这是编导判断写作进度的权威依据，防止误判"还没写"而重复安排写作
     let outlineSummary: any = null;
     const outlineFull = project.outlineFull || '';
     if (outlineFull.trim()) {
       const volumes = parseStructureOutline(outlineFull);
       if (volumes.length > 0) {
+        const isWritten = (outlineTitle: string) =>
+          chapterSummaries.some(c => titlesMatch(outlineTitle, c.title));
+        let writtenCount = 0;
+        const volumeViews = volumes.map((v, i) => ({
+          index: i,
+          title: v.title,
+          isLocked: v.isLocked,
+          chapterCount: v.chapters.length,
+          chapters: v.chapters.slice(0, 10).map(ch => {
+            const written = isWritten(ch.title);
+            if (written) writtenCount++;
+            return { title: ch.title, isLocked: ch.isLocked, written };
+          }),
+        }));
         outlineSummary = {
           volumeCount: volumes.length,
           totalChapters: volumes.reduce((sum, v) => sum + v.chapters.length, 0),
-          volumes: volumes.map((v, i) => ({
-            index: i,
-            title: v.title,
-            isLocked: v.isLocked,
-            chapterCount: v.chapters.length,
-            chapters: v.chapters.slice(0, 10).map(ch => ({
-              title: ch.title,
-              isLocked: ch.isLocked,
-            })),
-          })),
+          writtenChapters: writtenCount,
+          volumes: volumeViews,
         };
       }
     }

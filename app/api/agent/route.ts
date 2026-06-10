@@ -6,6 +6,7 @@ import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
 import { normalizeToolPayload } from '@/app/lib/toolPayload';
 import { DEFAULT_API_PROVIDER } from '@/lib/constants';
+import { createAgentDebugLogger } from '@/lib/agentDebugLogger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 分钟超时
@@ -94,6 +95,13 @@ export async function POST(request: NextRequest) {
       reasoningEnabled: reasoningEnabled === true,
     });
   }
+
+  // 调试日志器：记录完整 LLM 提示词与响应
+  const dbg = createAgentDebugLogger(projectId, 'agent');
+  dbg.log('request_start', {
+    projectId, message: message?.slice(0, 500), modelName,
+    isResume, isContinueLimit, resume,
+  });
 
   // 构建 SSE 流
   const encoder = new TextEncoder();
@@ -278,6 +286,8 @@ export async function POST(request: NextRequest) {
 
           // LLM 开始生成（thinking 阶段）
           if (eventType === 'on_chat_model_start' && data?.input?.messages) {
+            // 调试日志：记录完整输入消息
+            dbg.logLLMStart(lastAgent, data.input.messages);
             const thinkingMsgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             await db.appendAgentMessage(projectId, {
               id: thinkingMsgId,
@@ -351,6 +361,8 @@ export async function POST(request: NextRequest) {
           // LLM 生成结束：补发流中可能遗漏的推理内容，并通知前端思考阶段结束
           if (eventType === 'on_chat_model_end' && data?.output) {
             const output = data.output;
+            // 调试日志：记录完整 LLM 输出
+            dbg.logLLMEnd(lastAgent, output);
             // 从完整输出中尝试提取流式阶段可能遗漏的推理内容
             const akReasoning = output.additional_kwargs?.reasoning_content;
             const rmThinking = output.response_metadata?.thinking_content
@@ -369,6 +381,11 @@ export async function POST(request: NextRequest) {
               currentThinkingMsgId = '';
               accumulatedReasoning = '';
             }
+          }
+
+          // 调试日志：记录所有工具调用开始（含 delegate）
+          if (eventType === 'on_tool_start') {
+            dbg.logToolStart(name, data?.input);
           }
 
           // 工具调用（delegate_* 委托类工具不展示为普通工具调用，改由 delegate 事件呈现）
@@ -418,6 +435,8 @@ export async function POST(request: NextRequest) {
           if (eventType === 'on_tool_end') {
             // 从 langchain ToolMessage 提取真实 content 文本，避免 lc/type/id/kwargs 这种内部 JSON dump 入库
             const output = extractToolOutputContent(data?.output);
+            // 调试日志：记录工具返回
+            dbg.logToolEnd(name, output);
             // 用顶层 run_id 精确配对 + 清掉超时定时器；保留 toolMsgId 供 tool_result 透传 callId
             let pairedCallId = '';
             if (eventRunId && pendingToolCalls.has(eventRunId)) {
@@ -463,13 +482,15 @@ export async function POST(request: NextRequest) {
               });
 
               // 数据修改类工具执行完毕后，发送 data_changed 通知前端实时刷新
+              // auto_write_chapter 同时写章节正文与大纲登记（outlineFull 在 project 上），两类都要刷
               const PROJECT_TOOLS = new Set([
                 'update_project_field', 'auto_plan_book', 'generate_kernel',
                 'generate_outline', 'add_anti_ai_rule', 'request_user_style',
                 'add_volume', 'delete_volume', 'update_volume',
                 'add_chapter', 'delete_chapter', 'update_chapter', 'move_outline_item',
+                'auto_write_chapter',
               ]);
-              const CHAPTER_TOOLS = new Set(['create_chapter', 'update_chapter', 'delete_chapter']);
+              const CHAPTER_TOOLS = new Set(['create_chapter', 'update_chapter', 'delete_chapter', 'auto_write_chapter', 'summarize_chapter']);
               const CHARACTER_TOOLS = new Set(['create_character', 'update_character', 'delete_character']);
               const RULE_TOOLS = new Set(['create_world_rule', 'update_world_rule', 'delete_world_rule']);
               const STATE_TOOLS = new Set(['create_world_state', 'update_world_state', 'delete_world_state']);

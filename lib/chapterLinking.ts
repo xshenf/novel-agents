@@ -5,6 +5,8 @@
 // 注意：当前仍是「标题模糊匹配」，非稳定 ID 关联（稳定 ID 留待后续阶段）。
 import type { Chapter } from './db';
 import type { OutlineVolume } from './outlineParser';
+import { parseStructureOutline, generateMarkdownFromSections } from './outlineParser';
+import { OUTLINE_DEFAULT_FIRST_VOLUME } from './constants';
 import { countChineseChars } from './textStats';
 
 export type ChapterStatus = 'unwritten' | 'draft' | 'done';
@@ -141,6 +143,26 @@ export function collectOrphans(sections: OutlineVolume[], chapters: Chapter[]): 
     if (m) matched.add(m.id);
   }));
   return chapters.filter(c => !matched.has(c.id));
+}
+
+// 确保某章节标题在大纲中有对应条目：没有则追加（大纲为空时先建默认第一卷）。
+// 前端侧栏与编导的项目概览都按大纲结构渲染/判断进度——agent 直接写出的章节若不进大纲，
+// 用户看不到、编导也会误判"还没写"。返回更新后的大纲 Markdown；已有匹配条目返回 null（无需变更）。
+export function ensureChapterInOutline(outlineFull: string, chapterTitle: string): string | null {
+  if (!chapterTitle.trim()) return null;
+  const volumes = parseStructureOutline(outlineFull || '');
+  for (const vol of volumes) {
+    for (const ch of vol.chapters) {
+      if (titlesMatch(ch.title, chapterTitle)) return null;
+    }
+  }
+  const newChapter = { title: chapterTitle, content: '', details: [] as { key: string; value: string }[], isLocked: false };
+  if (volumes.length === 0) {
+    volumes.push({ title: OUTLINE_DEFAULT_FIRST_VOLUME, content: '', chapters: [newChapter], isLocked: false });
+  } else {
+    volumes[volumes.length - 1].chapters.push(newChapter);
+  }
+  return generateMarkdownFromSections(volumes);
 }
 
 export interface NextTarget {

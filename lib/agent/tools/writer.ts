@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db, type Chapter } from '../../db';
 import { ai } from '../../ai';
 import { syncChapterMemoryAfterWrite } from '../../chapterMemorySync';
+import { ensureChapterInOutline } from '../../chapterLinking';
 import { getAgentConfig, getAgentModelName, agentHasKey } from '../config';
 
 // ─── 9. 新建章节 ──────────────────────────────────────────────────────────────
@@ -33,6 +34,21 @@ export const createChapterTool = tool(
 // ─── 10. 自动写作章节内容 ────────────────────────────────────────────────────
 export const autoWriteChapterTool = tool(
   async ({ projectId, chapterTitle, chapterId, instruction }, config) => {
+    // 先定位目标章节（在昂贵的正文生成之前），用于防重复写防御
+    let target: Chapter | undefined;
+    if (chapterId) {
+      target = await db.getChapter(chapterId);
+    }
+    if (!target) {
+      const chapters = await db.getChapters(projectId);
+      target = chapters.find(c => c.title === chapterTitle);
+      // 防重复写：标题匹配到的章节已有正文、且调用方未显式传 chapterId 时，
+      // 大概率是编导误判进度后的重复委托——拒绝覆盖，返回事实供编导汇报
+      if (target && (target.content || '').trim()) {
+        return `章节「${target.title}」已有正文（约 ${target.content.length} 字，章节ID: ${target.id}），本次未重复生成。该章已完成；如确需重写，请传入 chapterId 并说明重写要求；如要继续写后续章节，请使用新的章节标题。`;
+      }
+    }
+
     const apiConfig = config.configurable?.apiConfig || '';
     const defaultModel = config.configurable?.modelName;
     const configStr = getAgentConfig('writer', apiConfig);
@@ -41,15 +57,7 @@ export const autoWriteChapterTool = tool(
       projectId, chapterTitle, configStr, modelName, instruction || ''
     );
 
-    // 定位目标章节：优先 chapterId，其次按标题匹配，最后新建；确保正文真正落库
-    let target: Chapter | undefined;
-    if (chapterId) {
-      target = await db.getChapter(chapterId);
-    }
-    if (!target) {
-      const chapters = await db.getChapters(projectId);
-      target = chapters.find(c => c.title === chapterTitle);
-    }
+    // 落库：已定位到章节则更新，否则新建
     if (target) {
       await db.updateChapter(target.id, { content: text });
     } else {
@@ -63,6 +71,16 @@ export const autoWriteChapterTool = tool(
         resolvedForeshadowing: [],
         timelineEvents: [],
       });
+    }
+
+    // 大纲登记：前端侧栏与编导概览都按大纲结构判断章节，
+    // 游离于大纲外的章节用户看不到、编导会误判"还没写"
+    let outlineNote = '';
+    const project = await db.getProject(projectId);
+    const updatedOutline = ensureChapterInOutline(project?.outlineFull || '', chapterTitle);
+    if (updatedOutline !== null) {
+      await db.updateProject(projectId, { outlineFull: updatedOutline });
+      outlineNote = '，并已登记进大纲';
     }
 
     // 写入记忆：自动提取摘要、人物状态、伏笔与时间线（仅在配置了真实 Key 时，
@@ -97,7 +115,7 @@ export const autoWriteChapterTool = tool(
       }
     }
 
-    return `章节「${chapterTitle}」正文已生成并保存（共 ${text.length} 字，章节ID: ${target.id}）${memoryNote}。${consistencyNote}\n\n正文预览：\n${text.slice(0, 400)}${text.length > 400 ? '\n\n...(完整正文已写入该章节，请在编辑器查看)' : ''}`;
+    return `章节「${chapterTitle}」正文已生成并保存（共 ${text.length} 字，章节ID: ${target.id}）${outlineNote}${memoryNote}。${consistencyNote}\n\n正文预览：\n${text.slice(0, 400)}${text.length > 400 ? '\n\n...(完整正文已写入该章节，请在编辑器查看)' : ''}`;
   },
   {
     name: 'auto_write_chapter',
