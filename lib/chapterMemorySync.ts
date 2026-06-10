@@ -109,6 +109,11 @@ async function runConsistencyCheck(
   warnings: string[],
 ): Promise<AICheckResult | undefined> {
   try {
+    // 第一章守卫：除本章外没有任何含正文的章节时，无前文可比对，跳过校验。
+    // 否则空设定 + 无前文下模型会幻觉出不存在的"矛盾"（用户实测第一章误报 4 个问题）。
+    const chapters = await db.getChapters(projectId);
+    const priorWritten = chapters.filter(c => c.id !== chapterId && (c.content || '').trim());
+    if (priorWritten.length === 0) return undefined;
     return await ai.checkConsistency(projectId, text, apiKey, modelName, undefined, chapterId);
   } catch (error) {
     warnings.push(`跨章一致性校验失败：${formatWarning(error)}`);

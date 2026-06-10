@@ -118,6 +118,13 @@ export const getProjectOverviewTool = tool(
 // ─── 3. 请求用户选择风格基调 ───────────────────────────────────────────────────
 export const requestUserStyleTool = tool(
   async ({ projectId }) => {
+    // 幂等防御：编导有时不先调 get_project_overview 就幻觉"设定为空"而误调此工具。
+    // 这里直接查库——题材(description)与文风(styleSetting)均已存在时拒绝弹窗，
+    // 避免重复打断用户、要求重选已选过的风格。
+    const existing = await db.getProject(projectId);
+    if (existing && (existing.description || '').trim() && (existing.styleSetting || '').trim()) {
+      return `项目已有题材「${existing.description}」、文风「${existing.styleSetting}」，无需重新选择，请直接基于现有设定继续后续操作。`;
+    }
     const result = requestStyleInput(projectId);
     if (!result.genre || !result.tone) {
       return '用户取消了风格选择，请询问用户想要的题材和文风后再继续。';

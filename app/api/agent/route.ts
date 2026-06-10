@@ -112,7 +112,17 @@ export async function POST(request: NextRequest) {
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       // 工具调用生命周期跟踪：声明在 try 块外（提升为 hoisted-safe），保证 catch 分支
       // 即便 graph 构建失败也能调用 closeAllPendingToolCalls 兜底（空 map noop）。
-      const TOOL_CALL_TIMEOUT_MS = 60_000;
+      // 超时分级：LLM 密集型重工具（内部串行多次模型调用，如 auto_write_chapter 写正文+摘要+
+      // 滚动概要+世界状态+一致性校验）远超普通工具耗时，用接近 maxDuration 的阈值，避免误报"未完成"。
+      const HEAVY_TOOLS = new Set([
+        'auto_write_chapter', 'summarize_chapter', 'check_consistency',
+        'generate_outline', 'auto_plan_book', 'generate_kernel',
+        'generate_inspirations', 'update_rolling_synopsis', 'update_world_state',
+      ]);
+      const HEAVY_TOOL_TIMEOUT_MS = 285_000; // maxDuration=300，留 15s 余量
+      const LIGHT_TOOL_TIMEOUT_MS = 90_000;
+      const toolTimeoutFor = (name: string) =>
+        HEAVY_TOOLS.has(name) ? HEAVY_TOOL_TIMEOUT_MS : LIGHT_TOOL_TIMEOUT_MS;
       const pendingToolCalls = new Map<string, { toolMsgId: string; toolName: string; input: unknown; timeoutId: ReturnType<typeof setTimeout> }>();
       const closePendingToolCall = (runId: string, resultContent: string) => {
         const pending = pendingToolCalls.get(runId);
@@ -393,12 +403,13 @@ export async function POST(request: NextRequest) {
               contentField: payload.contentField,
               contentText: payload.contentText,
             });
-            // 注册到 pending 列表：60 秒未收到 on_tool_end 视为超时，自动补"超时"结果配对
+            // 注册到 pending 列表：超时未收到 on_tool_end 视为可能仍在后台执行，补一条提示性结果配对
             // 用 StreamEvent 顶层 run_id 作 key（与 on_tool_end 事件的顶层 run_id 一一对应）
             if (eventRunId) {
+              const timeoutMs = toolTimeoutFor(name);
               const timeoutId = setTimeout(() => {
-                closePendingToolCall(eventRunId, `工具「${name}」执行超时（${TOOL_CALL_TIMEOUT_MS / 1000} 秒未返回结果）`);
-              }, TOOL_CALL_TIMEOUT_MS);
+                closePendingToolCall(eventRunId, `工具「${name}」执行时间较长（已超过 ${timeoutMs / 1000} 秒），可能仍在后台进行，请稍候或刷新查看结果`);
+              }, timeoutMs);
               pendingToolCalls.set(eventRunId, { toolMsgId, toolName: name, input: data?.input, timeoutId });
             }
           }

@@ -89,12 +89,36 @@ function runTests() {
 
   const filtered3 = filterOrchestratorMessages(messages3);
   assert(filtered3.length === 4, '编导过滤后，消息数应为 4（用户提问 + 编导决策 + 编导委托结果 + 写手最终成果）');
-  
+
   // 校验具体保留的消息
   assert(filtered3[0].content === '写第一章', '应保留用户原提问');
   assert((filtered3[1] as any).tool_calls?.[0]?.name === 'delegate_to_writer', '应保留编导的 delegate 动作');
   assert((filtered3[2] as any).name === 'delegate_to_writer', '应保留 delegate 的 ToolMessage 结果');
   assert(filtered3[3].content === '这是写好的第一章正文内容。', '应保留写手最终交付的 AIMessage');
+
+  // 场景 2.2: 专家的成果型工具结果应转为独立成果消息保留给编导（防"失忆"）
+  const messages4 = [
+    new HumanMessage('写第一章'),
+    new AIMessage({
+      content: '',
+      tool_calls: [{ id: 'tc_delegate_3', name: 'delegate_to_writer', args: { task: '写第一章' } }]
+    }),
+    new ToolMessage({ content: '[DELEGATE:writer] 写第一章', name: 'delegate_to_writer', tool_call_id: 'tc_delegate_3' }),
+    // 写手调用成果型写入工具 auto_write_chapter（中间 AIMessage 含 specialist tool，应被过滤）
+    new AIMessage({
+      content: '',
+      tool_calls: [{ id: 'tc_aw', name: 'auto_write_chapter', args: { projectId: 'p', chapterTitle: '第一章' } }]
+    }),
+    new ToolMessage({ content: '章节「第一章」正文已生成并保存（共 2669 字，章节ID: c1）。', name: 'auto_write_chapter', tool_call_id: 'tc_aw' }),
+    // 写手最终回复（推理模型常为空内容）
+    new AIMessage(''),
+  ];
+  const filtered4 = filterOrchestratorMessages(messages4);
+  const resultMsg = filtered4.find(m => typeof m.content === 'string' && m.content.includes('auto_write_chapter'));
+  assert(!!resultMsg, '成果型工具 auto_write_chapter 的结果应被转成独立成果消息保留');
+  assert((resultMsg!.content as string).includes('2669 字'), '成果消息应携带工具结果实质内容（字数等）');
+  // 不应残留 name=auto_write_chapter 的孤儿 ToolMessage
+  assert(!filtered4.some(m => (m as any).name === 'auto_write_chapter'), '不应残留 auto_write_chapter 的孤儿 ToolMessage');
 
   console.log('\n所有消息过滤逻辑测试用例均验证通过！\n');
 }

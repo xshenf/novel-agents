@@ -263,6 +263,21 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
     'delegate_to_continuity_keeper'
   ];
 
+  // 专家的「成果型/写入型」工具：其执行结果是实质交付（写了正文、落库设定/角色/大纲等）。
+  // 这些工具结果原本会被过滤（不在 orchestratorToolNames 中），导致编导看不到专家做了什么实事，
+  // 只能依赖专家最后一条纯文本总结——而推理模型常把内容留在 reasoning、正文 content 为空，
+  // 编导因此"失忆"。这里把成果型工具结果转成一条独立的成果消息保留给编导。
+  // 注意：不能直接保留原 ToolMessage——其发起的 AIMessage(含 specialist tool_call)已被过滤，
+  // 保留 ToolMessage 会产生"孤儿 tool message"使下游 LLM 报错；故转为无 tool_call 的 AIMessage。
+  const RESULT_TOOLS = new Set([
+    'auto_write_chapter', 'create_chapter', 'summarize_chapter',
+    'update_project_field', 'auto_plan_book', 'generate_kernel', 'generate_outline',
+    'add_volume', 'update_volume', 'add_chapter', 'update_chapter', 'move_outline_item',
+    'create_character', 'update_character', 'create_world_rule', 'update_world_rule',
+    'generate_inspirations', 'update_rolling_synopsis', 'update_world_state',
+    'polish_text', 'check_consistency', 'add_anti_ai_rule',
+  ]);
+
   const filteredMessages: BaseMessage[] = [];
   for (const msg of messages) {
     if (msg._getType() === 'tool') {
@@ -270,6 +285,11 @@ export function filterOrchestratorMessages(messages: BaseMessage[]): BaseMessage
       const toolName = toolMsg.name || '';
       if (orchestratorToolNames.includes(toolName)) {
         filteredMessages.push(msg);
+      } else if (RESULT_TOOLS.has(toolName)) {
+        // 成果型专家工具：转成独立成果消息（截断防止过长），让编导识别已完成的事实
+        const raw = typeof toolMsg.content === 'string' ? toolMsg.content : '';
+        const brief = raw.length > 500 ? raw.slice(0, 500) + '…' : raw;
+        filteredMessages.push(new AIMessage(`【专家已执行「${toolName}」，结果】：${brief}`));
       }
     } else if (msg._getType() === 'ai') {
       const aiMsg = msg as any;
@@ -360,7 +380,7 @@ function createOrchestratorNode(llm: any, projectId: string, globalSystemInstruc
     if (state.delegationCount > 0) {
       sys += force
         ? '\n\n【收尾阶段】已多次委托专家，请立即综合现有所有成果，用简洁专业的语言给用户最终汇报，不要再委托任何任务。'
-        : '\n\n【汇总阶段】专家已返回阶段性成果。请仔细阅读专家的汇报内容，综合各专家成果向用户做最终汇报并给出下一步建议。重要：不要重复委托已经完成工作的专家，直接基于已有成果进行总结汇报即可。';
+        : '\n\n【汇总阶段】专家已返回阶段性成果。专家的工具执行结果与最终回复即已完成的事实（例如"第一章已生成、共 N 字"代表正文已写好并落库）。请基于这些成果向用户做最终汇报并给出下一步建议。重要：不要声称"不知道发生了什么"，不要重复委托已完成工作的专家，也不要重新发起已完成的步骤（如再次让用户选择文风）。';
     }
 
     const filteredMessages = filterOrchestratorMessages(state.messages);
