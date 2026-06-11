@@ -1,5 +1,6 @@
 // 辅助方法：直接调用大语言模型 API（兼容 OpenAI 协议的各种服务商，同时保留 Gemini 原生协议支持）
 import { DEFAULT_API_PROVIDER, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, REASONING_MIN_MAX_TOKENS } from './constants';
+import { createAgentDebugLogger } from './agentDebugLogger';
 
 export async function callModelApi(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false, signal?: AbortSignal): Promise<string> {
   let config = {
@@ -29,6 +30,8 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
   const internalTimeout = AbortSignal.timeout(120_000);
   const combinedSignal = signal ? AbortSignal.any([internalTimeout, signal]) : internalTimeout;
 
+  const dbg = createAgentDebugLogger('direct', config.apiProvider);
+
   // ── Gemini 原生协议（仅当用户显式选择 gemini 时走此分支） ──────────────
   if (config.apiProvider === 'gemini') {
     const rawBase = (config.apiBaseUrl?.trim() || 'https://generativelanguage.googleapis.com')
@@ -43,6 +46,8 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     if (finalSystemInstruction) body.systemInstruction = { parts: [{ text: finalSystemInstruction }] };
     if (isJson) body.generationConfig.responseMimeType = 'application/json';
 
+    dbg.log('gemini_request', { model: modelName, body });
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
@@ -54,6 +59,8 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     const parts = result?.candidates?.[0]?.content?.parts || [];
     const text = (parts.find((p: any) => p.thought !== true && typeof p.text === 'string') || parts[0])?.text;
     if (!text) throw new Error('Empty response from Gemini API');
+
+    dbg.logDirectCall('gemini', modelName, finalSystemInstruction, prompt, text);
     return text;
   }
 
@@ -79,6 +86,8 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
     }
   }
 
+  dbg.log('openai_request', { url, body });
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
@@ -89,6 +98,8 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
   const result = await response.json();
   const text = result?.choices?.[0]?.message?.content;
   if (!text) throw new Error(`Empty response from ${config.apiProvider} API`);
+
+  dbg.logDirectCall(config.apiProvider, modelName, finalSystemInstruction, prompt, text);
   return text;
 }
 

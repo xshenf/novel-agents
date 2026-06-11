@@ -104,6 +104,8 @@ export function SpecialistCard({
                   isExpanded={expandedToolPairs.has(item.callId)}
                   onToggle={() => setExpandedToolPairs(prev => toggleSet(prev, item.callId))}
                   normalized={item.normalized}
+                  pending={item.pending}
+                  synthetic={item.synthetic}
                 />
               );
             }
@@ -185,16 +187,22 @@ function SpecialistMessage({
 
     case 'tool_call': {
       const isExpanded = expandedToolCalls.has(msg.id);
+      const isPending = !!msg.pending;
       const hasParams = msg.toolInput && typeof msg.toolInput === 'object' && Object.keys(msg.toolInput).length > 0;
       return (
-        <div className="agent-bubble agent-bubble-tool-call">
+        <div className={`agent-bubble agent-bubble-tool-call ${isPending ? 'agent-tool-pending' : ''}`}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
             onClick={() => setExpandedToolCalls(prev => toggleSet(prev, msg.id))}
           >
             {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <Wrench size={12} style={{ opacity: 0.6 }} />
-            <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>调用工具</span>
+            {isPending
+              ? <Loader2 size={12} className="animate-spin" style={{ color: '#a5b4fc' }} />
+              : <Wrench size={12} style={{ opacity: 0.6 }} />
+            }
+            <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+              {isPending ? '正在执行…' : '调用了工具'}
+            </span>
             <span className="agent-tool-name">{msg.toolName}</span>
           </div>
           <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dark)', lineHeight: 1.5 }}>

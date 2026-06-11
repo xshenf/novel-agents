@@ -1213,14 +1213,13 @@ select.input option {
 /* 思考中气泡 */
 .agent-bubble-thinking {
   background: rgba(255,255,255,0.03);
-  border: 1px dashed rgba(255,255,255,0.08);
+  border: none;
   color: var(--text-dark);
-  font-size: 12px;
+  font-size: 11.5px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* 折叠态与展开态共享 padding，避免展开后整体宽度抖动 */
-  padding: 8px 10px;
+  padding: 4px 8px;
 }
 
 /* 思考头部一行：图标 + 标签 + 行尾预览 */
@@ -1264,6 +1263,15 @@ select.input option {
   border: 1px solid rgba(16,185,129,0.15);
   border-left: 3px solid rgba(16,185,129,0.5);
   border-radius: 0 8px 8px 0;
+}
+
+/* 工具执行中：左侧边框呼吸闪烁 */
+@keyframes tool-pending-pulse {
+  0%, 100% { border-left-color: rgba(16,185,129,0.5); }
+  50% { border-left-color: rgba(165,180,252,0.8); }
+}
+.agent-tool-pending {
+  animation: tool-pending-pulse 1.5s ease-in-out infinite;
 }
 .agent-tool-header {
   display: flex;
