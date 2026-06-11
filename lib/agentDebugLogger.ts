@@ -2,9 +2,9 @@
  * Agent 调试日志模块
  *
  * 将 LLM 完整提示词、响应、工具调用等写入 .debug/logs/ 下的 JSONL 文件，
- * 每次请求一个独立文件，方便事后分析。
+ * 同一对话（同一 projectId）的所有日志（含子 agent / 直接 API 调用）追加到同一个文件。
  *
- * 日志文件格式：{timestamp}_{projectId}.jsonl
+ * 日志文件格式：{projectId}.jsonl
  * 每行一个 JSON 对象，包含 ts(时间戳)、event(事件类型)、agent(当前agent)、data(详细数据)。
  *
  * 通过环境变量 AGENT_DEBUG=true 启用（默认启用）。
@@ -43,59 +43,68 @@ export interface AgentDebugLogger {
   filePath: string;
 }
 
+// ── 全局 logger 注册表：同一 projectId 共享同一个 logger 实例，日志追加到同一文件 ──
+const loggerRegistry = new Map<string, AgentDebugLogger>();
+
 /**
- * 创建一次 agent 请求的调试日志器。
- * @param projectId 项目 ID
- * @param tag 可选标签（如 "agent" 或 "direct"），用于区分文件
+ * 设置全局 logger（由 route.ts 在请求开始时调用，确保后续 modelApi 等子调用复用同一文件）。
  */
-export function createAgentDebugLogger(projectId: string, tag?: string): AgentDebugLogger {
-  const noop: AgentDebugLogger = {
-    logLLMStart() {}, logLLMEnd() {}, logToolStart() {}, logToolEnd() {},
-    logDirectCall() {}, log() {}, filePath: '',
-  };
+export function setGlobalDebugLogger(projectId: string, logger: AgentDebugLogger): void {
+  loggerRegistry.set(projectId, logger);
+}
 
-  if (!isEnabled()) return noop;
+/**
+ * 获取全局 logger（modelApi 等非 agent 路径使用，复用同一对话的日志文件）。
+ * 返回 null 表示当前无活跃的 agent 会话。
+ */
+export function getGlobalDebugLogger(projectId?: string): AgentDebugLogger | null {
+  if (projectId) return loggerRegistry.get(projectId) || null;
+  // 无指定 projectId 时返回任意一个活跃 logger（兜底）
+  for (const v of loggerRegistry.values()) return v;
+  return null;
+}
 
-  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const shortId = projectId.slice(0, 12) || 'unknown';
-  const suffix = tag ? `_${tag}` : '';
-  const fileName = `${ts}_${shortId}${suffix}.jsonl`;
-  const filePath = join(LOG_DIR, fileName);
+/**
+ * 清理全局 logger（agent 请求结束时调用）。
+ */
+export function clearGlobalDebugLogger(projectId: string): void {
+  loggerRegistry.delete(projectId);
+}
 
-  ensureDir();
+function writeToFile(filePath: string, entry: Record<string, any>) {
+  try {
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...entry });
+    appendFileSync(filePath, line + '\n', 'utf-8');
+  } catch { /* 写日志失败不应影响主流程 */ }
+}
 
-  function write(entry: Record<string, any>) {
-    try {
-      const line = JSON.stringify({ ts: new Date().toISOString(), ...entry });
-      appendFileSync(filePath, line + '\n', 'utf-8');
-    } catch { /* 写日志失败不应影响主流程 */ }
-  }
+function serializeMessages(messages: any[]) {
+  return messages.map((m: any) => {
+    if (typeof m === 'string') return { role: 'raw', content: m };
+    const role = m._getType?.() || m.role || m.type || 'unknown';
+    let content = '';
+    if (typeof m.content === 'string') {
+      content = m.content;
+    } else if (Array.isArray(m.content)) {
+      content = m.content.map((c: any) =>
+        typeof c === 'string' ? c : (c.text || JSON.stringify(c))
+      ).join('\n');
+    } else {
+      content = JSON.stringify(m.content);
+    }
+    const toolCalls = m.tool_calls || m.additional_kwargs?.tool_calls;
+    return { role, content, ...(toolCalls ? { tool_calls: toolCalls } : {}) };
+  });
+}
+
+function createLoggerImpl(filePath: string): AgentDebugLogger {
+  const write = (entry: Record<string, any>) => writeToFile(filePath, entry);
 
   return {
     filePath,
 
     logLLMStart(agent: string, messages: any[]) {
-      // messages 是 langchain BaseMessage[] 或 OpenAI 格式的消息数组
-      // 序列化为可读格式
-      const serialized = messages.map((m: any) => {
-        if (typeof m === 'string') return { role: 'raw', content: m };
-        // langchain 消息
-        const role = m._getType?.() || m.role || m.type || 'unknown';
-        let content = '';
-        if (typeof m.content === 'string') {
-          content = m.content;
-        } else if (Array.isArray(m.content)) {
-          content = m.content.map((c: any) =>
-            typeof c === 'string' ? c : (c.text || JSON.stringify(c))
-          ).join('\n');
-        } else {
-          content = JSON.stringify(m.content);
-        }
-        // 提取 tool_calls
-        const toolCalls = m.tool_calls || m.additional_kwargs?.tool_calls;
-        return { role, content, ...(toolCalls ? { tool_calls: toolCalls } : {}) };
-      });
-      write({ event: 'llm_start', agent, data: { messages: serialized } });
+      write({ event: 'llm_start', agent, data: { messages: serializeMessages(messages) } });
     },
 
     logLLMEnd(agent: string, output: any) {
@@ -104,7 +113,6 @@ export function createAgentDebugLogger(projectId: string, tag?: string): AgentDe
       if (typeof output === 'string') {
         content = output;
       } else if (output) {
-        // langchain AIMessage
         content = typeof output.content === 'string' ? output.content : JSON.stringify(output.content);
         toolCalls = output.tool_calls || output.additional_kwargs?.tool_calls || [];
       }
@@ -131,4 +139,32 @@ export function createAgentDebugLogger(projectId: string, tag?: string): AgentDe
       write({ event, agent: '', data });
     },
   };
+}
+
+const noop: AgentDebugLogger = {
+  logLLMStart() {}, logLLMEnd() {}, logToolStart() {}, logToolEnd() {},
+  logDirectCall() {}, log() {}, filePath: '',
+};
+
+/**
+ * 创建或复用 agent 调试日志器。
+ * - 同一 projectId 始终返回同一个 logger 实例，所有日志追加到 {projectId}.jsonl
+ * - 通过 setGlobalDebugLogger / getGlobalDebugLogger 让 modelApi 等子调用也能写入同一文件
+ */
+export function createAgentDebugLogger(projectId: string, _tag?: string): AgentDebugLogger {
+  if (!isEnabled()) return noop;
+
+  // 复用已有 logger
+  const existing = loggerRegistry.get(projectId);
+  if (existing) return existing;
+
+  const shortId = projectId.slice(0, 12) || 'unknown';
+  const fileName = `${shortId}.jsonl`;
+  const filePath = join(LOG_DIR, fileName);
+
+  ensureDir();
+
+  const logger = createLoggerImpl(filePath);
+  loggerRegistry.set(projectId, logger);
+  return logger;
 }

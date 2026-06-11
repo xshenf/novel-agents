@@ -1,6 +1,6 @@
 // 辅助方法：直接调用大语言模型 API（兼容 OpenAI 协议的各种服务商，同时保留 Gemini 原生协议支持）
 import { DEFAULT_API_PROVIDER, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, REASONING_MIN_MAX_TOKENS } from './constants';
-import { createAgentDebugLogger } from './agentDebugLogger';
+import { createAgentDebugLogger, getGlobalDebugLogger } from './agentDebugLogger';
 
 export async function callModelApi(apiKey: string, modelName: string, systemInstruction: string, prompt: string, isJson: boolean = false, signal?: AbortSignal): Promise<string> {
   let config = {
@@ -30,7 +30,7 @@ export async function callModelApi(apiKey: string, modelName: string, systemInst
   const internalTimeout = AbortSignal.timeout(120_000);
   const combinedSignal = signal ? AbortSignal.any([internalTimeout, signal]) : internalTimeout;
 
-  const dbg = createAgentDebugLogger('direct', config.apiProvider);
+  const dbg = getGlobalDebugLogger() || createAgentDebugLogger('direct', config.apiProvider);
 
   // ── Gemini 原生协议（仅当用户显式选择 gemini 时走此分支） ──────────────
   if (config.apiProvider === 'gemini') {

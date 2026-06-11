@@ -6,7 +6,7 @@ import { AGENT_LABELS } from '@/lib/agent/prompts';
 import { db } from '@/lib/db';
 import { normalizeToolPayload } from '@/app/lib/toolPayload';
 import { DEFAULT_API_PROVIDER } from '@/lib/constants';
-import { createAgentDebugLogger } from '@/lib/agentDebugLogger';
+import { createAgentDebugLogger, setGlobalDebugLogger, clearGlobalDebugLogger } from '@/lib/agentDebugLogger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 分钟超时
@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
 
   // 调试日志器：记录完整 LLM 提示词与响应
   const dbg = createAgentDebugLogger(projectId, 'agent');
+  setGlobalDebugLogger(projectId, dbg);
   dbg.log('request_start', {
     projectId, message: message?.slice(0, 500), modelName,
     isResume, isContinueLimit, resume,
@@ -642,6 +643,7 @@ export async function POST(request: NextRequest) {
         send('done', { message: '任务结束' });
       } finally {
         if (heartbeat) clearInterval(heartbeat);
+        clearGlobalDebugLogger(projectId);
         controller.close();
         // 释放该项目的并发计数
         const count = activeRequests.get(projectId) || 0;
