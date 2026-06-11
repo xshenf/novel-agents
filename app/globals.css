@@ -1,6 +1,7 @@
-/* 写小说智能体全局设计系统 (Vanilla CSS) */
-
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+/* 写小说智能体全局设计系统 (Vanilla CSS) */
 
 :root {
   /* 主题颜色 */
